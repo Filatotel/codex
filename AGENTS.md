@@ -17,6 +17,7 @@ The priority is not verbosity. The priority is safe execution, branch integrity,
 6. Keep durable handoff state in files, not only in chat history.
 7. Separate tactical handoff from long-term project history.
 8. When uncertain, preserve information rather than compressing it away.
+9. For UI work, use an explicit design contract instead of inventing one-off styling.
 
 ## Branch integrity minimum
 
@@ -45,6 +46,7 @@ Useful artifacts include:
 - branch state
 - merge preview notes
 - project chronicle
+- design contract
 
 Templates live in `templates/`.
 Skills live in `.agents/skills/`.
@@ -56,6 +58,7 @@ Skills live in `.agents/skills/`.
 - `session-handoff`
 - `project-chronicle`
 - `merge-preview-check`
+- `design-system-authoring`
 
 ## Authoring guidance
 
