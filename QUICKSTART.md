@@ -18,13 +18,22 @@ Copy only the layers you actually need.
 - proof-loop-verification
 - session-handoff
 
+For UI-heavy projects, also adopt:
+
+- design-system-authoring
+
 ## 4. Best first templates to adopt
 
 - BRANCH_STATE.md
 - HANDOFF.md
 - TASK_EVIDENCE.md
 
+For UI-heavy projects, also adopt:
+
+- DESIGN.md
+
 ## 5. Important rule
 
 This repository is not the source of truth for a product codebase.
 Each product repository should keep its own AGENTS.md and its own current state files.
+Each UI-heavy product repository should keep its own project-specific DESIGN.md.
