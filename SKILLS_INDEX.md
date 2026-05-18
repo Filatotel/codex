@@ -25,6 +25,14 @@ The goal is progressive disclosure: choose the smallest useful skill instead of 
 | `webapp-dogfood-qa` | Checking a web app, landing page, admin, menu, or calculator | QA report with evidence and severity | `design-system-authoring` |
 | `implementation-planning` | Multi-step feature or refactor | Exact scoped implementation plan | `pre-merge-review` |
 
+## Browser, audit, and docs workflows
+
+| Skill | Use when | Main output | Pair with |
+|---|---|---|---|
+| `playwright-dogfood-harness` | Repository needs reproducible browser QA | Screenshots, traces, reports, browser evidence | `webapp-dogfood-qa` |
+| `operational-auditing` | Auditing repo, deploy, workflows, or AI-generated systems | Operational risk audit | `pre-merge-review` |
+| `docs-assembly` | Generating or updating operational docs | Structured documentation set | `implementation-planning` |
+
 ## Selection rules
 
 1. For a bug, load `systematic-debugging` first, not implementation planning.
@@ -32,13 +40,16 @@ The goal is progressive disclosure: choose the smallest useful skill instead of 
 3. For uncertain architecture or UX ideas, run a spike before production implementation.
 4. Before merge, use `pre-merge-review`, then `merge-preview-check`, then `proof-loop-verification`.
 5. When adding a new workflow, use `skill-authoring` and keep it short.
+6. When browser access is limited, use `playwright-dogfood-harness` instead of relying on native screenshots.
+7. For inherited or AI-heavy repositories, run `operational-auditing` before major refactors.
 
 ## Do not load everything
 
 Load only the skills needed for the current task.
-If a task touches code, UI, and deployment, load at most one skill per phase:
+If a task touches code, UI, deployment, and QA, load at most one skill per phase:
 
 - planning phase
 - implementation phase
 - review phase
+- QA phase
 - handoff phase
