@@ -18,6 +18,19 @@ The priority is not verbosity. The priority is safe execution, branch integrity,
 7. Separate tactical handoff from long-term project history.
 8. When uncertain, preserve information rather than compressing it away.
 9. For UI work, use an explicit design contract instead of inventing one-off styling.
+10. Load only the skills needed for the current phase of work.
+
+## Progressive skill loading
+
+Do not read the whole playbook by default.
+
+Use:
+
+- `SKILLS_INDEX.md` first
+- then load only the smallest useful skill
+- then load templates only if required
+
+The playbook should behave like a toolbox, not one giant permanent prompt.
 
 ## Branch integrity minimum
 
@@ -47,11 +60,15 @@ Useful artifacts include:
 - merge preview notes
 - project chronicle
 - design contract
+- QA report
+- spike report
 
 Templates live in `templates/`.
 Skills live in `.agents/skills/`.
 
 ## Skills in this repository
+
+### Core
 
 - `proof-loop-verification`
 - `git-branch-integrity`
@@ -59,6 +76,15 @@ Skills live in `.agents/skills/`.
 - `project-chronicle`
 - `merge-preview-check`
 - `design-system-authoring`
+
+### Hermes-inspired additions
+
+- `skill-authoring`
+- `systematic-debugging`
+- `pre-merge-review`
+- `spike-prototyping`
+- `webapp-dogfood-qa`
+- `implementation-planning`
 
 ## Authoring guidance
 
