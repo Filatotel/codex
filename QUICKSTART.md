@@ -5,6 +5,12 @@
 Do not paste everything into one permanent prompt.
 Copy only the layers you actually need.
 
+Start with:
+
+1. `AGENTS.md`
+2. `SKILLS_INDEX.md`
+3. only the smallest useful skill for the current phase
+
 ## 2. Minimum recommended setup in a working project
 
 - copy `AGENTS.md` and adapt it to the repository
@@ -18,9 +24,20 @@ Copy only the layers you actually need.
 - proof-loop-verification
 - session-handoff
 
+For debugging-heavy projects, also adopt:
+
+- systematic-debugging
+- pre-merge-review
+
 For UI-heavy projects, also adopt:
 
 - design-system-authoring
+- webapp-dogfood-qa
+
+For experimental or architecture-heavy projects, also adopt:
+
+- spike-prototyping
+- implementation-planning
 
 ## 4. Best first templates to adopt
 
@@ -28,11 +45,37 @@ For UI-heavy projects, also adopt:
 - HANDOFF.md
 - TASK_EVIDENCE.md
 
-For UI-heavy projects, also adopt:
+For UI-heavy projects:
 
 - DESIGN.md
+- QA_REPORT.md
 
-## 5. Important rule
+For architecture experiments:
+
+- SPIKE_REPORT.md
+
+## 5. Recommended workflow
+
+### Before implementation
+
+- git-branch-integrity
+- implementation-planning if scope is non-trivial
+
+### During debugging
+
+- systematic-debugging
+
+### Before merge
+
+- pre-merge-review
+- merge-preview-check
+- proof-loop-verification
+
+### Before calling UI done
+
+- webapp-dogfood-qa
+
+## 6. Important rule
 
 This repository is not the source of truth for a product codebase.
 Each product repository should keep its own AGENTS.md and its own current state files.
