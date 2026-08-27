@@ -11,7 +11,7 @@ The playbook has two intentionally different knowledge layers:
 
 - `AGENTS.md` — root operating rules for Codex;
 - `SKILLS_INDEX.md` — progressive skill discovery layer;
-- `.agents/skills/` — on-demand skills for recurring workflows;
+- `.agents/skills/` — on-demand skills for recurring workflows and optional patterns;
 - `templates/` — reusable state, evidence, QA, spike, and design templates;
 - `.codex/` — local Codex config placeholders.
 
@@ -28,8 +28,7 @@ The playbook has two intentionally different knowledge layers:
 - require evidence before declaring work complete;
 - keep durable session handoffs and project history;
 - debug from root cause instead of repeated patching;
-- separate spikes from production implementation;
-- make QA and merge review operational instead of performative;
+- make reusable technical recipes easy to find without turning them into mandatory architecture;
 - preserve the freedom to choose different technical solutions when project assumptions differ.
 
 ## Core engineering principles
@@ -42,6 +41,33 @@ The playbook has two intentionally different knowledge layers:
 - `evidence-and-authority`
 
 These skills describe **how to reason and execute**, not which database, cloud, frontend framework, telemetry architecture, state model, or provider to select.
+
+## Optional Solution Patterns
+
+The repository also carries concrete recipes extracted from production engineering problems. Each pattern is intentionally assumption-bound and includes `Do not use when`, trade-offs, alternatives, failure modes, and verification.
+
+### State / provenance / concurrency
+
+- `versioned-signed-state-envelope`
+- `immutable-deployment-data-pinning`
+- `single-writer-session-reconciliation`
+- `stable-semantic-identifiers`
+- `legacy-schema-adoption`
+
+### Events / recovery
+
+- `server-authoritative-event-journal`
+- `post-commit-recovery-cursor`
+
+### Delivery / observation / provider / presentation
+
+- `publication-frontier`
+- `read-only-observer-facade`
+- `provider-late-binding`
+- `presentation-completion-barrier`
+- `accessibility-commit-announcement`
+
+These are **not defaults**. For example, `server-authoritative-event-journal` is useful for a certain class of ordered accepted-event traces, while browser analytics, OpenTelemetry, event streams, transactional outboxes, or simple audit tables may be more appropriate elsewhere.
 
 ## Core execution/support skills
 
@@ -73,7 +99,7 @@ A core principle may say:
 
 A solution pattern may say:
 
-> Under assumptions A/B/C, an idempotency key + durable outbox is one proven way to make retries safe.
+> Under assumptions A/B/C, retain a small post-commit continuation cursor so recovery resumes remaining work without replaying the committed action.
 
 The first is broadly applicable reasoning discipline. The second is a selectable technical design with assumptions and trade-offs.
 
@@ -86,10 +112,10 @@ Do not load the whole playbook into every task.
 Use:
 
 1. `SKILLS_INDEX.md`;
-2. the smallest useful skill that owns the current decision;
-3. paired skills only when a real boundary is crossed;
+2. the smallest useful Core or workflow skill that owns the current decision;
+3. only then load a Solution Pattern if its assumptions match the actual technical problem;
 4. supporting templates only when required.
 
-This keeps context small and workflows explicit.
+Never choose a Solution Pattern just because its title sounds similar to the task. Read its alternatives and rejection conditions first.
 
 Adapt the playbook per repository instead of dumping everything into one giant permanent prompt.

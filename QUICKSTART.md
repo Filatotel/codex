@@ -16,6 +16,7 @@ Start with:
 - copy/adapt `AGENTS.md`;
 - copy the core skills your project actually needs;
 - copy specialist skills/templates only when they will be maintained;
+- copy a Solution Pattern only when its assumptions match a real problem in the project;
 - adapt `.codex/hooks.example.json` into local Codex hooks when useful.
 
 ## 3. Best first skills to adopt
@@ -81,13 +82,38 @@ Record non-blocking adjacent findings instead of fixing them automatically.
 - `merge-preview-check`;
 - `proof-loop-verification`.
 
-### Before calling UI done
+## 5. Selecting Solution Patterns
 
-- `webapp-dogfood-qa`;
-- mechanical tests plus human/semantic checks appropriate to the product;
-- use `evidence-and-authority` if those checks are being used for a consequential acceptance decision.
+Solution Patterns are concrete optional recipes. Do not copy them as policy.
 
-## 5. Core principles are not architecture recipes
+Before using one, answer:
+
+```text
+Does my problem match the pattern's Problem class?
+Do its Assumptions hold?
+Am I inside Use when rather than Do not use when?
+Are its Trade-offs acceptable?
+Why is this better here than the listed Alternatives?
+```
+
+Examples of when to look:
+
+- compact trusted client-carried state → `versioned-signed-state-envelope`;
+- code and external data must stay version-compatible → `immutable-deployment-data-pinning`;
+- stale tabs/clients can overwrite shared state → `single-writer-session-reconciliation`;
+- references must survive translation/rendering/reordering → `stable-semantic-identifiers`;
+- production DB predates native migration history → `legacy-schema-adoption`;
+- you need an ordered server-accepted event trace under retry/outage → `server-authoritative-event-journal`;
+- authoritative action commits before later continuation can fail → `post-commit-recovery-cursor`;
+- prefetched/delivered data must not appear yet → `publication-frontier`;
+- diagnostics need read-only state without control capability → `read-only-observer-facade`;
+- external provider can be isolated behind a deterministic seam → `provider-late-binding`;
+- domain readiness can precede presentation completion → `presentation-completion-barrier`;
+- visually streaming status text should announce only committed units → `accessibility-commit-announcement`.
+
+A matching title is not enough. If assumptions differ, choose another design.
+
+## 6. Core principles are not architecture recipes
 
 Do not translate a core rule into an arbitrary technology mandate.
 
@@ -111,9 +137,9 @@ Not implied:
 "every workflow must use an outbox."
 ```
 
-Specific implementations belong to optional **Solution Patterns**, where assumptions, trade-offs, alternatives, and failure modes must be explicit.
+Specific implementations belong to optional Solution Patterns, where assumptions, trade-offs, alternatives, and failure modes are explicit.
 
-## 6. Best first templates to adopt
+## 7. Best first templates to adopt
 
 - `BRANCH_STATE.md`;
 - `HANDOFF.md`;
@@ -128,8 +154,8 @@ For architecture experiments:
 
 - `SPIKE_REPORT.md`.
 
-## 7. Important rule
+## 8. Important rule
 
 This repository is not the source of truth for a product codebase.
 Each product repository keeps its own current contracts, authoritative state, plans, and evidence.
-The playbook supplies reusable reasoning and workflows; the product repo decides its architecture.
+The playbook supplies reusable reasoning and optional recipes; the product repo decides its architecture.
