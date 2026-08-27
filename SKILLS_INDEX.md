@@ -29,6 +29,37 @@ These skills govern **how software work is reasoned about and executed**. They a
 | `session-handoff` | Ending a work session | Tactical continuation notes | `project-chronicle` |
 | `project-chronicle` | Recording durable long-term decisions | Project history entry | `session-handoff` |
 
+## Solution Patterns — optional technical recipes
+
+These are **not global architecture rules**. Load a pattern only after its `Assumptions`, `Use when`, and `Do not use when` match the problem. Every pattern lists alternatives and trade-offs.
+
+### State, provenance, and concurrency
+
+| Pattern | Problem class | Typical result | Related Core |
+|---|---|---|---|
+| `versioned-signed-state-envelope` | Compact trusted state must travel through an untrusted client | Versioned signed envelope with normalization, field ownership, and size budget | `authority-mapping`, `exact-state-verification` |
+| `immutable-deployment-data-pinning` | Executable and external data/config can evolve incompatibly | Deployment pinned to immutable data/release and optional interpretation fingerprint | `exact-state-verification`, `dependency-ownership` |
+| `single-writer-session-reconciliation` | Stale clients/tabs can overwrite newer shared state | Expected-revision mutation and authoritative reconciliation | `authority-mapping`, `irreversible-boundary-reasoning` |
+| `stable-semantic-identifiers` | Logical references must survive rendering/reordering/translation/storage changes | Durable semantic IDs independent of physical position | `authority-mapping`, `dependency-ownership` |
+| `legacy-schema-adoption` | Existing production DB predates trustworthy migration history | Proven legacy baseline adopted into native migrations as a finite bridge | `exact-state-verification`, `evidence-and-authority` |
+
+### Events and recovery
+
+| Pattern | Problem class | Typical result | Related Core |
+|---|---|---|---|
+| `server-authoritative-event-journal` | Ordered accepted-event trace must survive retry/outage without breaking the product | Monotonic server events, bounded pending journal, idempotent immutable batches, explicit gaps | `authority-mapping`, `irreversible-boundary-reasoning` |
+| `post-commit-recovery-cursor` | Authoritative work commits before later continuation/presentation fails | Minimal continuation cursor that resumes post-commit work without replaying the commit | `irreversible-boundary-reasoning`, `exact-state-verification` |
+
+### Delivery, observation, providers, and presentation
+
+| Pattern | Problem class | Typical result | Related Core |
+|---|---|---|---|
+| `publication-frontier` | Data may be delivered before it is allowed to become observable/published | Explicit publication lease/frontier and future-surface audit | `authority-mapping`, `irreversible-boundary-reasoning` |
+| `read-only-observer-facade` | Diagnostics need state visibility without mutation/control authority | Detached allowlisted observer snapshots | `authority-mapping`, `evidence-and-authority` |
+| `provider-late-binding` | External provider complexity can be isolated behind an application contract | Provider-neutral seam + deterministic fake + later live-provider certification | `dependency-ownership`, `evidence-and-authority` |
+| `presentation-completion-barrier` | Domain readiness can precede user-visible/application presentation completion | Explicit presentation lease/barrier before dependent commands drain | `authority-mapping`, `irreversible-boundary-reasoning` |
+| `accessibility-commit-announcement` | Visually streaming text should not be announced mutation-by-mutation | Separate semantic commit signal and single live-region announcement | `authority-mapping`, `evidence-and-authority` |
+
 ## Design, QA, audit, and documentation
 
 | Skill | Use when | Main output | Pair with |
@@ -55,12 +86,14 @@ These skills govern **how software work is reasoned about and executed**. They a
 4. When several issues/workstreams depend on one another, use `dependency-ownership` and type the edges instead of creating mutual blockers.
 5. When a retry may cross a payment/send/delete/commit/cutover or other non-repeatable effect, use `irreversible-boundary-reasoning` before choosing retry mechanics.
 6. Before quoting tests/review as proof, use `exact-state-verification` and `evidence-and-authority` at the level warranted by the risk.
-7. For UI tasks, load `design-system-authoring` first, then `webapp-dogfood-qa` before sign-off.
-8. For uncertain architecture or UX ideas, run a spike before production implementation.
-9. Before merge, use `pre-merge-review`, `merge-preview-check`, then `proof-loop-verification`.
-10. When browser access is limited, use `playwright-dogfood-harness` instead of relying on environment-specific screenshot capability.
-11. For inherited or AI-heavy repositories, run `operational-auditing` before major refactors.
-12. When adding a new reusable workflow, use `skill-authoring` and check this index for overlap first.
+7. **Do not select a Solution Pattern by name alone.** Open it, check `Assumptions`, `Use when`, `Do not use when`, `Trade-offs`, and `Alternatives`; reject it when the problem differs.
+8. A Core Principle may guide selection of a pattern, but no Solution Pattern becomes mandatory merely because it worked in a prior project.
+9. For UI tasks, load `design-system-authoring` first, then `webapp-dogfood-qa` before sign-off.
+10. For uncertain architecture or UX ideas, run a spike before production implementation.
+11. Before merge, use `pre-merge-review`, `merge-preview-check`, then `proof-loop-verification`.
+12. When browser access is limited, use `playwright-dogfood-harness` instead of relying on environment-specific screenshot capability.
+13. For inherited or AI-heavy repositories, run `operational-auditing` before major refactors.
+14. When adding a new reusable workflow, use `skill-authoring` and check this index for overlap first.
 
 ## Core principle vs solution pattern
 
@@ -76,6 +109,7 @@ A complex task may use several skills over time, but avoid loading one skill per
 - planning / ownership;
 - execution or causal audit;
 - implementation/debugging;
+- optional solution pattern only if assumptions match;
 - review/QA;
 - proof/merge;
 - handoff.
