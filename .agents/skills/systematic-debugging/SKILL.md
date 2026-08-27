@@ -2,45 +2,71 @@
 
 ## Purpose
 
-Use this skill for technical issues where guessing would create churn: build failures, runtime bugs, API problems, deployment failures, UI regressions, analytics gaps, and integration issues.
+Use this skill for technical issues where guessing would create churn: build failures, runtime bugs, API problems, deployment failures, UI regressions, data/state corruption, integration issues, or failing verification.
 
 ## Goal
 
 Find the root cause before changing code. The output should identify the failing layer, the evidence, the smallest safe fix, and the verification result.
 
+This skill owns **technical causal diagnosis**. It does not own workstream mode switching; `anti-loop-execution` decides when execution must stop and enter Causal Audit Mode.
+
 ## When to use
 
 Use this skill when:
 
-- tests fail
-- builds fail
-- forms or APIs behave unexpectedly
-- Cloudflare deploys or bindings fail
-- UI works on one screen but breaks on another
-- PostHog, CRM email, routing, or environment behavior is wrong
-- two or more quick fixes have already failed
+- tests fail;
+- builds fail;
+- forms or APIs behave unexpectedly;
+- deployment/config/bindings fail;
+- UI works in one state but breaks in another;
+- data, cache, queue, analytics, or external integration behavior is wrong;
+- a stop condition has moved the workstream into Causal Audit Mode.
 
 Do not use this skill for planned feature work without a bug or unknown failure.
 
+## Inputs
+
+- expected behavior;
+- actual behavior;
+- exact error/evidence;
+- current exact working state;
+- environment;
+- recent relevant changes;
+- prior failed hypotheses/fixes if any.
+
+## Required outputs
+
+- Failure restated
+- Exact state/environment
+- Evidence collected
+- Failing layer
+- Root cause or best bounded hypothesis
+- Minimal correction or next diagnostic experiment
+- Verification performed
+- Residual risk
+- Verdict: pass, partial, blocked, or fail
+
 ## Iron rule
 
-No fixes before root cause evidence.
+No fixes before root-cause evidence.
 
 A hypothesis is allowed.
 A blind patch is not.
 
 ## Debugging layers
 
+Choose layers appropriate to the project. Typical examples:
+
 | Layer | Evidence to collect |
 |---|---|
-| Browser/UI | console errors, network requests, viewport, broken layout, user steps |
-| Astro/Vite | exact build error, file path, line number, recent imports |
-| Worker/API | request payload, response status, logs, env access, CORS behavior |
-| Cloudflare config | `wrangler` config, bindings, routes, custom domain, secrets |
-| CRM/email | generated payload, required fields, delivery response, parser assumptions |
-| Analytics | event name, distinct id, payload, host/page metadata, network result |
-| DNS/domain | record type, target, proxy status, certificate/custom domain state |
-| Data/state | KV keys, migrations, local storage, cache, stale preview deploys |
+| User/UI | user steps, rendered state, focus/layout, console, network |
+| Application | exact stack/error, control flow, state transition, recent change |
+| API/service | request, response, logs, contract/version, authorization |
+| Data/state | schema, migration state, persisted revision, cache, queue, stale state |
+| Build/toolchain | command, compiler output, dependency/lock state, generated files |
+| Deployment/config | environment, bindings, routes, secrets/config names, artifact revision |
+| External integration | accepted request identity, provider response, retry semantics |
+| Observability | emitted event/log/trace, timestamp/source, gaps, sampling assumptions |
 
 ## Procedure
 
@@ -48,112 +74,144 @@ A blind patch is not.
 
 Capture:
 
-- expected behavior
-- actual behavior
-- exact command, route, URL, or user action
-- first known bad state
-- environment: local, preview, production, Worker, Pages, or CI
+- expected behavior;
+- actual behavior;
+- exact command, route, input, or user action;
+- first known bad state;
+- environment;
+- exact artifact/revision when relevant.
 
-### 2. Read the exact error
+### 2. Read the exact error/evidence
 
 Do not summarize from memory.
-Use the real error text, status code, stack trace, or console message.
+Use the real error text, status code, stack trace, failed assertion, log entry, or observed behavior.
 
-If no error exists, record that explicitly and gather logs or instrumentation.
+If no explicit error exists, record that and gather evidence rather than inventing one.
 
 ### 3. Reproduce or bound the failure
 
-Try to answer:
+Ask:
 
-- Does it happen every time?
-- Does it happen locally?
-- Does it happen on Cloudflare preview?
-- Does it happen in production?
-- Does it depend on device, route, env, or input?
+- deterministic or intermittent?
+- local, CI, preview, production, or all?
+- input/device/environment dependent?
+- revision dependent?
+- concurrency/timing dependent?
 
-If reproduction is impossible, downgrade confidence and collect the best available evidence.
+If reproduction is impossible, downgrade confidence.
 
-### 4. Check recent changes and scope
+### 4. Verify exact state before diagnosis
+
+Confirm the state you are debugging is the state you think it is:
+
+- current working revision;
+- tested/reviewed revision where relevant;
+- generated/config/schema versions;
+- target environment.
+
+Use `exact-state-verification` when identity is non-trivial.
+
+### 5. Check recent changes and authority assumptions
 
 Inspect:
 
-- current branch
-- recent commits
-- diff against target branch
-- changed config files
-- changed dependency files
-- changed env or binding names
+- relevant diff/history;
+- changed contracts/config/data;
+- whether two components disagree about which state is authoritative;
+- whether a projection/cache/log is being mistaken for source state;
+- whether a retry may be crossing an irreversible boundary.
 
-### 5. Isolate the failing layer
+Use `authority-mapping` or `irreversible-boundary-reasoning` when those are the real questions.
 
-Trace the flow from user action to final effect.
-For forms and lead systems, trace:
+### 6. Isolate the failing layer
 
-```text
-UI input -> client validation -> API request -> Worker handler -> email/CRM payload -> response -> analytics event
-```
+Trace the shortest causal path from trigger to expected effect.
 
-For UI regressions, trace:
+Do not jump directly from visible symptom to the most familiar component.
 
-```text
-component -> layout wrapper -> token/class source -> responsive breakpoint -> rendered viewport
-```
-
-### 6. Form one hypothesis
+### 7. Form one falsifiable hypothesis
 
 Write:
 
 ```text
 Hypothesis: X is failing because Y.
 Evidence: A, B, C.
-Minimal test: Z.
+Minimal discriminating test: Z.
 ```
 
-Only test one variable at a time.
+Test one causal variable at a time when possible.
 
-### 7. Apply the smallest fix
+### 8. Apply the smallest source fix
 
-Fix the source, not the symptom.
-Do not combine with unrelated cleanup.
-Do not rewrite architecture unless three focused fixes have failed and the architecture is likely wrong.
+After the hypothesis is supported:
 
-### 8. Verify
+- fix the source, not only the symptom;
+- avoid unrelated cleanup;
+- preserve frozen scope;
+- add regression evidence when the failure class warrants it.
 
-Use the strongest available check:
+### 9. Verify the correction on the current state
 
-- failing test now passes
-- `npm run build`
-- `npm run lint --if-present`
-- `npm run typecheck --if-present`
-- `wrangler deploy --dry-run` or relevant Cloudflare check
-- browser/manual repro steps
-- endpoint status and response body
-- analytics or CRM payload evidence
+Use the strongest relevant check:
 
-## Rule of three
+- originally failing test/path;
+- broader regression suite if affected;
+- build/typecheck/lint;
+- migration/replay check;
+- browser/manual reproduction;
+- API/integration evidence;
+- production/preview verification where appropriate.
 
-After three failed fix attempts, stop patching.
-Escalate to architecture or assumption review.
+Bind the result to the exact state verified.
+
+## Anti-loop handoff
+
+Repeated same-class failed fixes are not permission for more guessing.
+
+Default rule unless the frozen workstream defines another threshold in advance:
+
+```text
+2 sequential same-class correction failures
+→ stop point-fixing
+→ CAUSAL AUDIT MODE
+→ re-check assumptions, authority, exact state, and failure model
+```
+
+Likewise, repeated same-class tool/process failure without new evidence should stop retries and be classified as a process/environment problem.
+
+A materially different failure after a real state change is not automatically the same class. Classify it.
+
+`anti-loop-execution` owns the mode transition and resumption decision.
 
 ## Anti-patterns
 
 Avoid:
 
-- changing code before reading the exact error
-- fixing only the visible symptom
-- stacking multiple fixes before testing
-- ignoring Cloudflare env/binding differences
-- assuming local success means production success
-- hiding partial verification behind confident language
-- deleting workflow files to make a task pass
+- changing code before reading the exact failure;
+- fixing only the visible symptom;
+- stacking multiple fixes before testing;
+- retrying the same tool operation with no changed evidence;
+- assuming local success means production success;
+- assuming timeout means the operation did not happen;
+- hiding partial verification behind confident language;
+- weakening/deleting checks just to make the task green;
+- starting a new branch to escape an unresolved causal model.
 
-## Required output
+## Verification checklist
 
-- Failure restated
-- Evidence collected
-- Failing layer
-- Root cause or best hypothesis
-- Fix applied or recommended
-- Verification performed
-- Residual risk
-- Verdict: pass, partial, or fail
+- [ ] Failure is stated against an exact relevant state.
+- [ ] Evidence precedes code changes.
+- [ ] Failing layer is bounded.
+- [ ] Hypothesis is falsifiable.
+- [ ] Correction is minimal and inside frozen scope.
+- [ ] Original failure path is rechecked.
+- [ ] Repeated same-class failures trigger Causal Audit instead of another guess.
+- [ ] Residual uncertainty is explicit.
+
+## Pair with
+
+- `anti-loop-execution` for stop/resume discipline;
+- `exact-state-verification` for provenance;
+- `authority-mapping` for source-of-truth conflicts;
+- `irreversible-boundary-reasoning` for post-commit/retry failures;
+- `proof-loop-verification` after the correction is complete.

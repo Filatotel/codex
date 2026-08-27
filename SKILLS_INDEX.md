@@ -3,53 +3,79 @@
 Use this index before loading full skill files.
 The goal is progressive disclosure: choose the smallest useful skill instead of reading the whole playbook.
 
-## Core skills
+## Core engineering principles
+
+These skills govern **how software work is reasoned about and executed**. They are architecture-neutral and apply across frontend, backend, data, infrastructure, CLI, mobile, ML, and other software projects.
 
 | Skill | Use when | Main output | Pair with |
 |---|---|---|---|
-| `git-branch-integrity` | Starting or finishing branch work | Branch provenance and merge risk notes | `merge-preview-check` |
-| `proof-loop-verification` | Claiming work is done | Task evidence and pass/partial/fail verdict | Any implementation skill |
+| `anti-loop-execution` | Non-trivial execution, repeated failures, scope drift risk | Frozen-mode record, stop/resume decision, deferred findings | `implementation-planning`, `systematic-debugging` |
+| `authority-mapping` | Multiple components observe/write the same conceptual state | Decision/source-of-truth ownership map | `dependency-ownership` |
+| `dependency-ownership` | Multiple workstreams/providers/consumers must coordinate | Typed dependency DAG and closure rules | `implementation-planning` |
+| `exact-state-verification` | Evidence depends on a specific artifact/revision | Claim-to-exact-state evidence binding | `git-branch-integrity`, `proof-loop-verification` |
+| `irreversible-boundary-reasoning` | Retry/recovery crosses non-repeatable effects | Commit-boundary and pre/post recovery model | `authority-mapping`, `systematic-debugging` |
+| `evidence-and-authority` | Tests/review/approval are being used to justify a claim | Claim/evidence/authority matrix | `proof-loop-verification` |
+
+## Core execution and continuity skills
+
+| Skill | Use when | Main output | Pair with |
+|---|---|---|---|
+| `implementation-planning` | Multi-step feature, refactor, migration, or delegated work | Frozen implementation workstream | `anti-loop-execution`, `dependency-ownership` |
+| `systematic-debugging` | Build, runtime, API, UI, deploy, data, or integration bugs | Root cause and minimal correction path | `anti-loop-execution` |
+| `git-branch-integrity` | Starting/finishing branch work or tracking HEAD provenance | Branch/HEAD provenance and divergence notes | `exact-state-verification` |
+| `proof-loop-verification` | Claiming a task/workstream is complete | Acceptance evidence and PASS/PARTIAL/BLOCKED/FAIL verdict | `evidence-and-authority` |
+| `merge-preview-check` | Before merge or ready-for-review claim | Integration drift risk verdict | `git-branch-integrity` |
+| `pre-merge-review` | Before PR, merge, or deployment | Risk-focused review verdict | `proof-loop-verification` |
 | `session-handoff` | Ending a work session | Tactical continuation notes | `project-chronicle` |
-| `project-chronicle` | Recording long-term decisions | Durable project history entry | `session-handoff` |
-| `merge-preview-check` | Before merge or ready-for-review claim | Integration risk verdict | `git-branch-integrity` |
+| `project-chronicle` | Recording durable long-term decisions | Project history entry | `session-handoff` |
+
+## Design, QA, audit, and documentation
+
+| Skill | Use when | Main output | Pair with |
+|---|---|---|---|
 | `design-system-authoring` | UI work or DESIGN.md creation | Design contract and visual QA note | `webapp-dogfood-qa` |
-
-## Hermes-inspired additions
-
-| Skill | Use when | Main output | Pair with |
-|---|---|---|---|
-| `skill-authoring` | Creating or editing playbook skills | Well-structured SKILL.md | `proof-loop-verification` |
-| `systematic-debugging` | Build, runtime, API, UI, deploy, or integration bugs | Root cause and minimal fix path | `proof-loop-verification` |
-| `pre-merge-review` | Before PR, merge, or deployment | Risk-focused review verdict | `merge-preview-check` |
-| `spike-prototyping` | Testing an uncertain idea before production work | Spike report with validated/partial/invalidated verdict | `implementation-planning` when promoted |
 | `webapp-dogfood-qa` | Checking a web app, landing page, admin, menu, or calculator | QA report with evidence and severity | `design-system-authoring` |
-| `implementation-planning` | Multi-step feature or refactor | Exact scoped implementation plan | `pre-merge-review` |
-
-## Browser, audit, and docs workflows
-
-| Skill | Use when | Main output | Pair with |
-|---|---|---|---|
 | `playwright-dogfood-harness` | Repository needs reproducible browser QA | Screenshots, traces, reports, browser evidence | `webapp-dogfood-qa` |
 | `operational-auditing` | Auditing repo, deploy, workflows, or AI-generated systems | Operational risk audit | `pre-merge-review` |
-| `docs-assembly` | Generating or updating operational docs | Structured documentation set | `implementation-planning` |
+| `docs-assembly` | Generating/updating operational docs | Structured documentation set | `implementation-planning` |
+
+## Planning, experimentation, and authoring
+
+| Skill | Use when | Main output | Pair with |
+|---|---|---|---|
+| `spike-prototyping` | Testing an uncertain architecture/UX idea before production work | Spike report with validated/partial/invalidated verdict | `implementation-planning` when promoted |
+| `skill-authoring` | Creating/editing reusable playbook skills | Well-structured SKILL.md | `proof-loop-verification` |
+| `laravel-contract-first` | Laravel work where request/domain/persistence contracts should be fixed before implementation | Contract-first Laravel implementation plan/artifacts | Core principles as needed |
 
 ## Selection rules
 
-1. For a bug, load `systematic-debugging` first, not implementation planning.
-2. For a UI task, load `design-system-authoring` first, then `webapp-dogfood-qa` before sign-off.
-3. For uncertain architecture or UX ideas, run a spike before production implementation.
-4. Before merge, use `pre-merge-review`, then `merge-preview-check`, then `proof-loop-verification`.
-5. When adding a new workflow, use `skill-authoring` and keep it short.
-6. When browser access is limited, use `playwright-dogfood-harness` instead of relying on native screenshots.
-7. For inherited or AI-heavy repositories, run `operational-auditing` before major refactors.
+1. For a non-trivial new workstream, use `implementation-planning`; once scope is frozen, `anti-loop-execution` governs execution.
+2. For a bug, use `systematic-debugging`; repeated same-class failed corrections hand control back to `anti-loop-execution` for Causal Audit.
+3. When several components can disagree about state, use `authority-mapping` before inventing another coordinator, cache rule, or writer.
+4. When several issues/workstreams depend on one another, use `dependency-ownership` and type the edges instead of creating mutual blockers.
+5. When a retry may cross a payment/send/delete/commit/cutover or other non-repeatable effect, use `irreversible-boundary-reasoning` before choosing retry mechanics.
+6. Before quoting tests/review as proof, use `exact-state-verification` and `evidence-and-authority` at the level warranted by the risk.
+7. For UI tasks, load `design-system-authoring` first, then `webapp-dogfood-qa` before sign-off.
+8. For uncertain architecture or UX ideas, run a spike before production implementation.
+9. Before merge, use `pre-merge-review`, `merge-preview-check`, then `proof-loop-verification`.
+10. When browser access is limited, use `playwright-dogfood-harness` instead of relying on environment-specific screenshot capability.
+11. For inherited or AI-heavy repositories, run `operational-auditing` before major refactors.
+12. When adding a new reusable workflow, use `skill-authoring` and check this index for overlap first.
+
+## Core principle vs solution pattern
+
+A **core engineering principle** constrains reasoning/execution broadly and should remain technology-neutral.
+
+A **solution pattern** is an optional, proven way to solve a narrower technical problem. A pattern must state assumptions, trade-offs, alternatives, and when **not** to use it. Never promote a successful implementation pattern into a universal rule merely because it worked in one project.
 
 ## Do not load everything
 
-Load only the skills needed for the current task.
-If a task touches code, UI, deployment, and QA, load at most one skill per phase:
+Load only the skills needed for the current phase of work.
+A complex task may use several skills over time, but avoid loading one skill per technology simultaneously. Prefer the smallest owner for the current decision:
 
-- planning phase
-- implementation phase
-- review phase
-- QA phase
-- handoff phase
+- planning / ownership;
+- execution or causal audit;
+- implementation/debugging;
+- review/QA;
+- proof/merge;
+- handoff.
