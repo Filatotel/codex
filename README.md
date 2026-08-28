@@ -4,7 +4,7 @@ This repository contains a practical Codex playbook for safe, bounded, evidence-
 
 The playbook has two intentionally different knowledge layers:
 
-1. **Core engineering principles** — architecture-neutral rules for planning, authority, dependency ownership, anti-loop execution, exact-state evidence, irreversible boundaries, and acceptance.
+1. **Core engineering principles** — architecture-neutral rules for planning, authority, dependency ownership, anti-loop execution, exact-state evidence, irreversible boundaries, security-property calibration, async lifetime ownership, and acceptance.
 2. **Solution patterns** — optional implementation recipes for narrower technical problem classes. A successful pattern is never treated as the mandatory architecture for every project.
 
 ## Structure
@@ -24,6 +24,8 @@ The playbook has two intentionally different knowledge layers:
 - preserve branch and artifact provenance;
 - bind evidence to the exact state that produced it;
 - reason correctly about retry/recovery around irreversible effects;
+- calibrate security claims before selecting controls;
+- give correctness-relevant async side effects explicit lifetime/acknowledgement ownership;
 - distinguish mechanical checks, engineering judgment, and acceptance authority;
 - require evidence before declaring work complete;
 - keep durable session handoffs and project history;
@@ -39,8 +41,10 @@ The playbook has two intentionally different knowledge layers:
 - `exact-state-verification`
 - `irreversible-boundary-reasoning`
 - `evidence-and-authority`
+- `security-property-calibration`
+- `async-lifetime-ownership`
 
-These skills describe **how to reason and execute**, not which database, cloud, frontend framework, telemetry architecture, state model, or provider to select.
+These skills describe **how to reason and execute**, not which database, cloud, frontend framework, telemetry architecture, state model, security product, queue/runtime, or provider to select.
 
 ## Optional Solution Patterns
 
@@ -53,11 +57,15 @@ The repository also carries concrete recipes extracted from production engineeri
 - `single-writer-session-reconciliation`
 - `stable-semantic-identifiers`
 - `legacy-schema-adoption`
+- `transactional-semantic-state`
 
-### Events / recovery
+### Events / retry / recovery
 
 - `server-authoritative-event-journal`
 - `post-commit-recovery-cursor`
+- `immutable-retry-snapshot`
+- `capture-on-get-consume-on-post`
+- `plan-revalidate-apply-fence`
 
 ### Delivery / observation / provider / presentation
 
@@ -66,6 +74,10 @@ The repository also carries concrete recipes extracted from production engineeri
 - `provider-late-binding`
 - `presentation-completion-barrier`
 - `accessibility-commit-announcement`
+
+### Architecture enforcement
+
+- `architectural-dependency-fence`
 
 These are **not defaults**. For example, `server-authoritative-event-journal` is useful for a certain class of ordered accepted-event traces, while browser analytics, OpenTelemetry, event streams, transactional outboxes, or simple audit tables may be more appropriate elsewhere.
 

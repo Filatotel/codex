@@ -39,6 +39,7 @@ Do not use this skill for planned feature work without a bug or unknown failure.
 - Failure restated
 - Exact state/environment
 - Evidence collected
+- Failure class
 - Failing layer
 - Root cause or best bounded hypothesis
 - Minimal correction or next diagnostic experiment
@@ -67,6 +68,25 @@ Choose layers appropriate to the project. Typical examples:
 | Deployment/config | environment, bindings, routes, secrets/config names, artifact revision |
 | External integration | accepted request identity, provider response, retry semantics |
 | Observability | emitted event/log/trace, timestamp/source, gaps, sampling assumptions |
+
+## Failure taxonomy
+
+Preserve the class of failure until evidence justifies collapsing it into another cause.
+
+Useful classes include, where relevant:
+
+- **product/runtime defect** — implementation contradicts the accepted behavior;
+- **test/evidence defect** — the check does not actually encode the property it claims to test;
+- **workflow/tooling defect** — scripts, CI, generated artifacts, or automation are wrong;
+- **environment/config defect** — target state, binding, dependency, credential, or platform differs;
+- **contract/authority defect** — two components disagree about accepted semantics/ownership;
+- **external/provider defect** — third-party behavior or availability is causal;
+- **process/operation defect** — the procedure itself was invalid or executed against the wrong target;
+- **unknown** — evidence is insufficient to classify yet.
+
+These are diagnostic categories, not a universal ontology. Use the smallest set that preserves materially different correction paths.
+
+A red check is evidence of a failed claim/check path; it is not automatically evidence that product code is wrong.
 
 ## Procedure
 
@@ -111,7 +131,28 @@ Confirm the state you are debugging is the state you think it is:
 
 Use `exact-state-verification` when identity is non-trivial.
 
-### 5. Check recent changes and authority assumptions
+### 5. Classify the failure before selecting a fix
+
+Ask which correction path the evidence currently supports:
+
+```text
+product code?
+test/evidence?
+workflow/tooling?
+environment/config?
+contract/authority?
+provider?
+process?
+unknown?
+```
+
+Do not weaken or rewrite a correct product contract merely because a flawed test or workflow is red.
+
+Do not "fix CI" by changing tests until you have established that the test/evidence is the defective layer.
+
+Preserve multiple contributing classes when the failure is genuinely composite.
+
+### 6. Check recent changes and authority assumptions
 
 Inspect:
 
@@ -123,13 +164,13 @@ Inspect:
 
 Use `authority-mapping` or `irreversible-boundary-reasoning` when those are the real questions.
 
-### 6. Isolate the failing layer
+### 7. Isolate the failing layer
 
 Trace the shortest causal path from trigger to expected effect.
 
 Do not jump directly from visible symptom to the most familiar component.
 
-### 7. Form one falsifiable hypothesis
+### 8. Form one falsifiable hypothesis
 
 Write:
 
@@ -141,16 +182,17 @@ Minimal discriminating test: Z.
 
 Test one causal variable at a time when possible.
 
-### 8. Apply the smallest source fix
+### 9. Apply the smallest source fix
 
 After the hypothesis is supported:
 
 - fix the source, not only the symptom;
+- fix the correct failure class (product/test/workflow/environment/contract/etc.);
 - avoid unrelated cleanup;
 - preserve frozen scope;
 - add regression evidence when the failure class warrants it.
 
-### 9. Verify the correction on the current state
+### 10. Verify the correction on the current state
 
 Use the strongest relevant check:
 
@@ -174,7 +216,7 @@ Default rule unless the frozen workstream defines another threshold in advance:
 2 sequential same-class correction failures
 → stop point-fixing
 → CAUSAL AUDIT MODE
-→ re-check assumptions, authority, exact state, and failure model
+→ re-check assumptions, authority, exact state, failure model, and failure classification
 ```
 
 Likewise, repeated same-class tool/process failure without new evidence should stop retries and be classified as a process/environment problem.
@@ -188,19 +230,22 @@ A materially different failure after a real state change is not automatically th
 Avoid:
 
 - changing code before reading the exact failure;
+- assuming every red CI result is a product-code defect;
+- weakening/deleting a semantically correct check without proving the evidence layer is wrong;
 - fixing only the visible symptom;
 - stacking multiple fixes before testing;
 - retrying the same tool operation with no changed evidence;
 - assuming local success means production success;
 - assuming timeout means the operation did not happen;
 - hiding partial verification behind confident language;
-- weakening/deleting checks just to make the task green;
 - starting a new branch to escape an unresolved causal model.
 
 ## Verification checklist
 
 - [ ] Failure is stated against an exact relevant state.
 - [ ] Evidence precedes code changes.
+- [ ] Failure class is explicit enough to choose the right correction path.
+- [ ] Red evidence was not automatically interpreted as product defect.
 - [ ] Failing layer is bounded.
 - [ ] Hypothesis is falsifiable.
 - [ ] Correction is minimal and inside frozen scope.
@@ -212,6 +257,7 @@ Avoid:
 
 - `anti-loop-execution` for stop/resume discipline;
 - `exact-state-verification` for provenance;
+- `evidence-and-authority` when the failing check itself may be the defective evidence layer;
 - `authority-mapping` for source-of-truth conflicts;
 - `irreversible-boundary-reasoning` for post-commit/retry failures;
 - `proof-loop-verification` after the correction is complete.
