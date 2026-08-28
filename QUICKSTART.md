@@ -34,7 +34,9 @@ Add these when the project has the corresponding complexity:
 - `dependency-ownership` — multiple workstreams/providers/consumers;
 - `exact-state-verification` — CI/review/release evidence depends on precise revisions;
 - `irreversible-boundary-reasoning` — retries may cross non-repeatable effects;
-- `evidence-and-authority` — machine checks, semantic review, and release decisions must stay distinct.
+- `evidence-and-authority` — machine checks, semantic review, and release decisions must stay distinct;
+- `security-property-calibration` — a security requirement is broad or the adversary/trust boundary/achievable guarantee is unclear;
+- `async-lifetime-ownership` — correctness-relevant async effects may outlive the initiating request, process, or user-visible response.
 
 For debugging-heavy projects:
 
@@ -60,6 +62,9 @@ For experimental or architecture-heavy projects:
 2. `dependency-ownership` or `authority-mapping` only if those boundaries are genuinely complex.
 3. Freeze the workstream.
 4. `anti-loop-execution` governs execution from this point.
+
+Load `security-property-calibration` before selecting security controls when the property/adversary/boundary is still vague.
+Load `async-lifetime-ownership` when required side effects can outlive the initiating request/process.
 
 ### During ordinary execution
 
@@ -103,13 +108,18 @@ Examples of when to look:
 - stale tabs/clients can overwrite shared state → `single-writer-session-reconciliation`;
 - references must survive translation/rendering/reordering → `stable-semantic-identifiers`;
 - production DB predates native migration history → `legacy-schema-adoption`;
+- several tentative mutations form one semantic unit → `transactional-semantic-state`;
 - you need an ordered server-accepted event trace under retry/outage → `server-authoritative-event-journal`;
 - authoritative action commits before later continuation can fail → `post-commit-recovery-cursor`;
+- uncertain mutation retry must remain the same semantic operation → `immutable-retry-snapshot`;
+- one-time token link can be fetched automatically before user intent → `capture-on-get-consume-on-post`;
+- a consequential live mutation is planned from state that may change before apply → `plan-revalidate-apply-fence`;
 - prefetched/delivered data must not appear yet → `publication-frontier`;
 - diagnostics need read-only state without control capability → `read-only-observer-facade`;
 - external provider can be isolated behind a deterministic seam → `provider-late-binding`;
 - domain readiness can precede presentation completion → `presentation-completion-barrier`;
-- visually streaming status text should announce only committed units → `accessibility-commit-announcement`.
+- visually streaming status text should announce only committed units → `accessibility-commit-announcement`;
+- an important architectural `must not depend on` rule needs executable regression evidence → `architectural-dependency-fence`.
 
 A matching title is not enough. If assumptions differ, choose another design.
 
@@ -135,6 +145,16 @@ identify an irreversible boundary before retry design.
 
 Not implied:
 "every workflow must use an outbox."
+```
+
+Example:
+
+```text
+Core principle:
+calibrate the security property against the actual adversary and trust boundary.
+
+Not implied:
+"every protected system must use one specific security technology."
 ```
 
 Specific implementations belong to optional Solution Patterns, where assumptions, trade-offs, alternatives, and failure modes are explicit.
