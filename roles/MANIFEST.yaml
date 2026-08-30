@@ -1,0 +1,11 @@
+roles:
+  - role_id: control-director
+    contract_path: roles/control-director/ROLE.md
+  - role_id: control-verifier
+    contract_path: roles/control-verifier/ROLE.md
+  - role_id: executor
+    contract_path: roles/executor/ROLE.md
+  - role_id: owner-interface
+    contract_path: roles/owner-interface/ROLE.md
+
+agent_model: disposable_instances_of_durable_roles

@@ -1,0 +1,11 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"project-resolver/executor-result.schema.json",
+  "title":"EXECUTOR_RESULT",
+  "type":"object",
+  "required":["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","resulting_state_refs","evidence_refs","deferred_findings","limitations","claims"],
+  "properties":{
+    "artifact_type":{"const":"EXECUTOR_RESULT"},"artifact_id":{"type":"string","minLength":1},"produced_by_role":{"const":"executor"},"assignment_id":{"type":"string","minLength":1},"input_state_ref":{"type":["string","null"]},"status":{"enum":["COMPLETE","PARTIAL","BLOCKED","FAILED"]},"provenance":{"type":"array","items":{"type":"string"}},"related_artifacts":{"type":"array","items":{"type":"string"}},"resulting_state_refs":{"type":"array","items":{"type":"string"}},"evidence_refs":{"type":"array","items":{"type":"string"}},"deferred_findings":{"type":"array","items":{"type":"string"}},"limitations":{"type":"array","items":{"type":"string"}},"claims":{"type":"array","items":{"type":"object","required":["claim_id","claim"],"properties":{"claim_id":{"type":"string"},"claim":{"type":"string"}},"additionalProperties":true}}
+  },
+  "additionalProperties":true
+}

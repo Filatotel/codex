@@ -1,0 +1,11 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"project-resolver/director-decision.schema.json",
+  "title":"DIRECTOR_DECISION",
+  "type":"object",
+  "required":["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","executor_result_ref","verification_result_ref","control_state","decision","next_owner"],
+  "properties":{
+    "artifact_type":{"const":"DIRECTOR_DECISION"},"artifact_id":{"type":"string","minLength":1},"produced_by_role":{"const":"control-director"},"assignment_id":{"type":["string","null"]},"input_state_ref":{"type":["string","null"]},"status":{"type":"string","minLength":1},"provenance":{"type":"array","items":{"type":"string"}},"related_artifacts":{"type":"array","items":{"type":"string"}},"executor_result_ref":{"type":["string","null"]},"verification_result_ref":{"type":["string","null"]},"control_state":{"enum":["ASSIGN","WAIT","ESCALATE","COMPLETE"]},"decision":{"type":"string","minLength":1},"next_owner":{"type":["string","null"]}
+  },
+  "additionalProperties":true
+}

@@ -1,0 +1,11 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"project-resolver/verification-result.schema.json",
+  "title":"VERIFICATION_RESULT",
+  "type":"object",
+  "required":["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","executor_result_ref","claim_verdicts","additional_findings","evidence_gaps"],
+  "properties":{
+    "artifact_type":{"const":"VERIFICATION_RESULT"},"artifact_id":{"type":"string","minLength":1},"produced_by_role":{"const":"control-verifier"},"assignment_id":{"type":"string","minLength":1},"input_state_ref":{"type":["string","null"]},"status":{"enum":["CONFIRMED","QUALIFIED","NOT_PROVEN","BLOCKED"]},"provenance":{"type":"array","items":{"type":"string"}},"related_artifacts":{"type":"array","items":{"type":"string"}},"executor_result_ref":{"type":"string","minLength":1},"claim_verdicts":{"type":"array","items":{"type":"object","required":["claim_id","verdict"],"properties":{"claim_id":{"type":"string"},"verdict":{"enum":["CONFIRMED","QUALIFIED","NOT_PROVEN"]},"evidence_refs":{"type":"array","items":{"type":"string"}},"note":{"type":"string"}},"additionalProperties":true}},"additional_findings":{"type":"array","items":{"type":"string"}},"evidence_gaps":{"type":"array","items":{"type":"string"}}
+  },
+  "additionalProperties":true
+}
