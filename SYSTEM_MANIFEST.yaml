@@ -31,6 +31,7 @@ engine_registry:
       - classify_canon_change
       - validate_canon
       - freeze_canon
+      - final_canon_reconciliation
       - reopen_canon
     entry_conditions:
       - task_semantically_belongs_to_canon_engine

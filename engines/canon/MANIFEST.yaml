@@ -80,6 +80,7 @@ capabilities:
   classify_canon_change: manage_production_canon_change
   validate_canon: validate_and_freeze_canon
   freeze_canon: validate_and_freeze_canon
+  final_canon_reconciliation: final_canon_reconciliation
   reopen_canon: reopen_canon
 maturity_lifecycle:
   - IDEA

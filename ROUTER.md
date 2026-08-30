@@ -28,6 +28,7 @@ Selection is based on the transformation and authority required, not filename si
 | `classify_canon_change` | `canon` | load Canon manifest + production-time Canon change workflow |
 | `validate_canon` | `canon` | load Canon manifest + validate/freeze workflow; use Verification Engine separately for independent verification |
 | `freeze_canon` | `canon` | load Canon manifest + validate/freeze workflow and require explicit freeze authority |
+| `final_canon_reconciliation` | `canon` | load Canon manifest + final reconciliation workflow; this closes Canon state, not generic release verification |
 | `reopen_canon` | `canon` | load Canon manifest + reopen workflow and explicit reopen authority |
 | `implement_software_change` | `production/software` | load `engines/production/software/MANIFEST.yaml`, then its implementation workflow |
 | `diagnose_software_failure` | `production/software` | load `engines/production/software/MANIFEST.yaml`, then its diagnosis workflow |
