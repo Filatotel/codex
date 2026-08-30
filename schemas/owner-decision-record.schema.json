@@ -1,0 +1,11 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"project-resolver/owner-decision-record.schema.json",
+  "title":"OWNER_DECISION_RECORD",
+  "type":"object",
+  "required":["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","question_ref","options_presented","selected_option","owner_constraints","consequences_acknowledged"],
+  "properties":{
+    "artifact_type":{"const":"OWNER_DECISION_RECORD"},"artifact_id":{"type":"string","minLength":1},"produced_by_role":{"const":"owner-interface"},"assignment_id":{"type":["string","null"]},"input_state_ref":{"type":["string","null"]},"status":{"const":"RECORDED"},"provenance":{"type":"array","items":{"type":"string"}},"related_artifacts":{"type":"array","items":{"type":"string"}},"question_ref":{"type":"string","minLength":1},"options_presented":{"type":"array","minItems":1,"items":{"type":"string"}},"selected_option":{"type":"string","minLength":1},"owner_constraints":{"type":"array","items":{"type":"string"}},"consequences_acknowledged":{"type":"array","items":{"type":"string"}},"qualifications":{"type":"array","items":{"type":"string"}}
+  },
+  "additionalProperties":true
+}

@@ -97,7 +97,7 @@ What exact target state was integration risk checked against?
 
 ## Recommended artifact
 
-Update `templates/BRANCH_STATE.md` or equivalent with:
+Update `engines/production/software/templates/BRANCH_STATE.md` or equivalent with:
 
 - base SHA;
 - merge-base SHA;

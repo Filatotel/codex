@@ -1,174 +1,33 @@
-# AGENTS.md
+# Project Resolver Agent Rules
 
-This repository is a reusable Codex playbook for agent-driven software engineering.
+This repository is the **Project Resolver / Agent Project Operating System**. It is a modular monorepo of bounded engines, shared contracts, durable roles, protocols, skills, and evidence rules.
 
-## Purpose
+## Ordinary runtime intake
 
-Use this repository as a source of practical operating rules for software work.
-The priority is not verbosity. The priority is bounded execution, clear authority, branch/state integrity, durable context, and verifiable completion.
+For ordinary execution, read only:
 
-## Core operating rules
+1. `AGENTS.md`
+2. `SYSTEM_MANIFEST.yaml`
+3. `ROUTER.md`
 
-1. Never claim a task is complete without evidence for the exact candidate being claimed complete.
-2. Before substantial work, define objective, owner, scope, non-goals, dependencies, acceptance criteria, gates, and stop conditions; then freeze the workstream.
-3. Work in exactly one execution mode at a time:
-   - **EXECUTION MODE** — implement frozen scope;
-   - **CAUSAL AUDIT MODE** — stop feature work and establish cause after a stop condition.
-4. Repeated same-class failure is a signal to stop guessing, not permission for another point-fix.
-5. New out-of-scope findings are recorded separately unless they directly block correctness/security of frozen scope.
-6. Map decision authority when multiple components can observe, store, project, or mutate the same conceptual state.
-7. Do not confuse a carrier/projection/presentation/observer with the authority that decides a fact.
-8. Model multi-workstream dependencies explicitly; avoid provider/consumer coordination cycles.
-9. Evidence belongs to the exact artifact/state that produced it. Material state changes require re-evaluation of affected evidence.
-10. Identify irreversible/non-repeatable boundaries before designing retries or recovery.
-11. Distinguish mechanical evidence, engineering/semantic evidence, and explicit acceptance/release authority.
-12. Prefer small, reviewable changes over broad rewrites.
-13. Do not overwrite or delete unrelated code to make a local task pass.
-14. Record branch provenance before major edits and treat unexplained HEAD divergence as a stop condition.
-15. Keep durable handoff state in files/issues/artifacts, not only in chat history.
-16. Separate tactical handoff from long-term project history.
-17. When uncertain, preserve information rather than compressing it away.
-18. For UI work, use an explicit design contract instead of inventing one-off styling.
-19. Load only the skills needed for the current decision/work phase.
+Then load only the selected engine manifest, selected workflow/role contract, assignment, and required bounded skill namespace.
 
-## Core principle vs solution pattern
+**NO GLOBAL SKILL DISCOVERY DURING ORDINARY EXECUTION.** Do not recursively scan the repository, load every skill, or use a global catalog as the runtime router.
 
-Keep these categories separate.
+## Control rules
 
-### Core engineering principle
+- **State is durable. Chat is not authoritative state.** Use explicit artifacts and exact state references.
+- **Agents are disposable; roles are durable.** An active agent instance is assembled from relevant state + engine + workflow + role + assignment + required skills.
+- **Context is assembled, not inherited.** Do not rely on hidden or prior chat history as authority.
+- **Engine authority is bounded.** An engine owns its declared work class only. Software does not own K0/Owner authority, Canon truth, Research truth, or universal contracts.
+- Load only the selected engine manifest and its declared dependencies. Do not cross an engine boundary by convenience.
+- Follow the exact assignment and its authority. No silent scope expansion, no silent Owner-intent redefinition, and no silent state mutation.
+- Claims that depend on a candidate/revision/environment must cite exact-state evidence. `ARTIFACT != EVIDENCE`; evidence must actually support the claim.
+- Missing capability, missing authority, unresolved contradiction, or unavailable required engine is an explicit stop/escalation condition, not permission to improvise governance.
+- **Solution Patterns are optional.** Select them only when their assumptions and rejection conditions match; production success never promotes a pattern into universal law.
+- Relevant shared-state change invalidates affected evidence/preconditions until fresh verification, equivalence proof, rebuild/rebase, or explicit stop. A universal exclusive lease is not required.
+- Architecture is not reconsidered merely because implementation is difficult. Distinguish implementation failure, local architecture defect, and invalidated architecture assumption; open an Architecture Reconsideration Gate only on evidence or before an explicitly planned hard-to-reverse commitment.
 
-A broad rule about reasoning, ownership, execution, evidence, or recovery that remains useful across technology choices.
+## Durable control
 
-Examples:
-
-- stop repeated guess-and-patch loops;
-- identify authority before shared-state implementation;
-- bind evidence to exact state;
-- distinguish recovery before/after irreversible effects.
-
-### Solution pattern
-
-An optional implementation strategy for a narrower technical problem.
-
-A solution pattern must never become a global architecture mandate merely because it worked well before. It should state:
-
-- problem class;
-- assumptions;
-- use when;
-- do not use when;
-- pattern;
-- trade-offs;
-- alternatives;
-- failure modes;
-- verification.
-
-Projects remain free to choose a different solution when assumptions differ.
-
-## Progressive skill loading
-
-Do not read the whole playbook by default.
-
-Use:
-
-1. `SKILLS_INDEX.md` first;
-2. load the smallest skill that owns the current decision;
-3. add paired skills only when the work crosses a real boundary;
-4. load templates only if required.
-
-The playbook should behave like a toolbox, not one giant permanent prompt.
-
-## Workstream minimum
-
-Before substantial implementation, capture:
-
-- objective;
-- owner;
-- current authoritative state;
-- scope;
-- non-goals;
-- dependencies;
-- acceptance criteria;
-- gates;
-- stop conditions;
-- deferred-findings location.
-
-Then freeze the scope before entering Execution Mode.
-
-## Branch integrity minimum
-
-Before substantial branch work, capture:
-
-- current branch;
-- target branch;
-- base commit SHA;
-- merge base with target branch;
-- intended HEAD when established;
-- intended scope;
-- touched files.
-
-Before final sign-off, verify:
-
-- working HEAD equals intended HEAD;
-- PR HEAD equals intended HEAD if a PR exists;
-- review/test evidence applies to current HEAD or staleness is explicit;
-- diff still matches frozen scope;
-- target branch has not invalidated the work;
-- merge/rebase risk has been assessed.
-
-## Durable artifacts
-
-Useful artifacts include:
-
-- frozen implementation plan;
-- dependency/ownership map;
-- authority map;
-- causal audit note;
-- task evidence;
-- session handoff;
-- branch state;
-- merge preview notes;
-- project chronicle;
-- design contract;
-- QA report;
-- spike report.
-
-Templates live in `templates/`.
-Skills live in `.agents/skills/`.
-
-## Core engineering principles in this repository
-
-- `anti-loop-execution`
-- `authority-mapping`
-- `dependency-ownership`
-- `exact-state-verification`
-- `irreversible-boundary-reasoning`
-- `evidence-and-authority`
-- `security-property-calibration`
-- `async-lifetime-ownership`
-
-## Existing execution/support skills
-
-- `implementation-planning`
-- `systematic-debugging`
-- `git-branch-integrity`
-- `proof-loop-verification`
-- `pre-merge-review`
-- `merge-preview-check`
-- `session-handoff`
-- `project-chronicle`
-- `design-system-authoring`
-- `webapp-dogfood-qa`
-- `playwright-dogfood-harness`
-- `operational-auditing`
-- `docs-assembly`
-- `spike-prototyping`
-- `skill-authoring`
-- `laravel-contract-first`
-
-## Authoring guidance
-
-Keep files concise and decision-oriented.
-Prefer decision rules, procedures, evidence requirements, and failure modes over essays.
-Do not turn this repository into a giant generic prompt dump.
-Do not create a second skill merely to rename an existing responsibility.
-Do not encode one project's successful implementation choice as a universal engineering law.
+State changes require explicit authority and a durable mutation/decision record. Role-native outputs remain distinct: in particular, `EXECUTOR_RESULT` and `VERIFICATION_RESULT` are separate artifacts, and a Control Director consumes both where verification is required.
