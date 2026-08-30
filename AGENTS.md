@@ -143,6 +143,8 @@ Skills live in `.agents/skills/`.
 - `exact-state-verification`
 - `irreversible-boundary-reasoning`
 - `evidence-and-authority`
+- `security-property-calibration`
+- `async-lifetime-ownership`
 
 ## Existing execution/support skills
 

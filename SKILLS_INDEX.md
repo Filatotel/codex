@@ -15,6 +15,8 @@ These skills govern **how software work is reasoned about and executed**. They a
 | `exact-state-verification` | Evidence depends on a specific artifact/revision | Claim-to-exact-state evidence binding | `git-branch-integrity`, `proof-loop-verification` |
 | `irreversible-boundary-reasoning` | Retry/recovery crosses non-repeatable effects | Commit-boundary and pre/post recovery model | `authority-mapping`, `systematic-debugging` |
 | `evidence-and-authority` | Tests/review/approval are being used to justify a claim | Claim/evidence/authority matrix | `proof-loop-verification` |
+| `security-property-calibration` | Security requirement is vague or controls may protect the wrong property | Explicit asset/adversary/boundary/guarantee/non-goal/residual-risk statement | `authority-mapping`, `evidence-and-authority` |
+| `async-lifetime-ownership` | Async side effects may outlive request/response/process lifetime | Side-effect lifetime/ack/loss/retry ownership map | `irreversible-boundary-reasoning`, `authority-mapping` |
 
 ## Core execution and continuity skills
 
@@ -42,13 +44,17 @@ These are **not global architecture rules**. Load a pattern only after its `Assu
 | `single-writer-session-reconciliation` | Stale clients/tabs can overwrite newer shared state | Expected-revision mutation and authoritative reconciliation | `authority-mapping`, `irreversible-boundary-reasoning` |
 | `stable-semantic-identifiers` | Logical references must survive rendering/reordering/translation/storage changes | Durable semantic IDs independent of physical position | `authority-mapping`, `dependency-ownership` |
 | `legacy-schema-adoption` | Existing production DB predates trustworthy migration history | Proven legacy baseline adopted into native migrations as a finite bridge | `exact-state-verification`, `evidence-and-authority` |
+| `transactional-semantic-state` | Several internal mutations form one semantic unit and partial state must not become authoritative | Draft/isolation state published only at the real semantic boundary | `authority-mapping`, `irreversible-boundary-reasoning` |
 
-### Events and recovery
+### Events, retry, and recovery
 
 | Pattern | Problem class | Typical result | Related Core |
 |---|---|---|---|
 | `server-authoritative-event-journal` | Ordered accepted-event trace must survive retry/outage without breaking the product | Monotonic server events, bounded pending journal, idempotent immutable batches, explicit gaps | `authority-mapping`, `irreversible-boundary-reasoning` |
 | `post-commit-recovery-cursor` | Authoritative work commits before later continuation/presentation fails | Minimal continuation cursor that resumes post-commit work without replaying the commit | `irreversible-boundary-reasoning`, `exact-state-verification` |
+| `immutable-retry-snapshot` | Mutation outcome is uncertain and retry must remain the same semantic operation | Stable operation identity + immutable semantic payload across uncertain retry | `irreversible-boundary-reasoning`, `async-lifetime-ownership` |
+| `capture-on-get-consume-on-post` | Automated GET/prefetch can consume one-time link intent | Safe token capture + clean redirect + explicit protected consume mutation | `security-property-calibration`, `irreversible-boundary-reasoning` |
+| `plan-revalidate-apply-fence` | Consequential mutation depends on current authoritative state and a plan may go stale | Observe/plan → revalidate → explicit apply → authoritative postcondition | `irreversible-boundary-reasoning`, `exact-state-verification` |
 
 ### Delivery, observation, providers, and presentation
 
@@ -59,6 +65,12 @@ These are **not global architecture rules**. Load a pattern only after its `Assu
 | `provider-late-binding` | External provider complexity can be isolated behind an application contract | Provider-neutral seam + deterministic fake + later live-provider certification | `dependency-ownership`, `evidence-and-authority` |
 | `presentation-completion-barrier` | Domain readiness can precede user-visible/application presentation completion | Explicit presentation lease/barrier before dependent commands drain | `authority-mapping`, `irreversible-boundary-reasoning` |
 | `accessibility-commit-announcement` | Visually streaming text should not be announced mutation-by-mutation | Separate semantic commit signal and single live-region announcement | `authority-mapping`, `evidence-and-authority` |
+
+### Architecture enforcement
+
+| Pattern | Problem class | Typical result | Related Core |
+|---|---|---|---|
+| `architectural-dependency-fence` | A high-value architectural prohibition must not remain prose-only | Narrow executable negative guard over a declared dependency/capability universe | `authority-mapping`, `dependency-ownership`, `evidence-and-authority` |
 
 ## Design, QA, audit, and documentation
 
@@ -84,16 +96,18 @@ These are **not global architecture rules**. Load a pattern only after its `Assu
 2. For a bug, use `systematic-debugging`; repeated same-class failed corrections hand control back to `anti-loop-execution` for Causal Audit.
 3. When several components can disagree about state, use `authority-mapping` before inventing another coordinator, cache rule, or writer.
 4. When several issues/workstreams depend on one another, use `dependency-ownership` and type the edges instead of creating mutual blockers.
-5. When a retry may cross a payment/send/delete/commit/cutover or other non-repeatable effect, use `irreversible-boundary-reasoning` before choosing retry mechanics.
-6. Before quoting tests/review as proof, use `exact-state-verification` and `evidence-and-authority` at the level warranted by the risk.
-7. **Do not select a Solution Pattern by name alone.** Open it, check `Assumptions`, `Use when`, `Do not use when`, `Trade-offs`, and `Alternatives`; reject it when the problem differs.
-8. A Core Principle may guide selection of a pattern, but no Solution Pattern becomes mandatory merely because it worked in a prior project.
-9. For UI tasks, load `design-system-authoring` first, then `webapp-dogfood-qa` before sign-off.
-10. For uncertain architecture or UX ideas, run a spike before production implementation.
-11. Before merge, use `pre-merge-review`, `merge-preview-check`, then `proof-loop-verification`.
-12. When browser access is limited, use `playwright-dogfood-harness` instead of relying on environment-specific screenshot capability.
-13. For inherited or AI-heavy repositories, run `operational-auditing` before major refactors.
-14. When adding a new reusable workflow, use `skill-authoring` and check this index for overlap first.
+5. When a security request is phrased broadly, use `security-property-calibration` before choosing controls or claiming a guarantee.
+6. When async work can outlive the initiating request/process, use `async-lifetime-ownership` to classify required vs degradable work and name the real lifetime/acknowledgement owner.
+7. When a retry may cross a payment/send/delete/commit/cutover or other non-repeatable effect, use `irreversible-boundary-reasoning` before choosing retry mechanics.
+8. Before quoting tests/review as proof, use `exact-state-verification` and `evidence-and-authority` at the level warranted by the risk.
+9. **Do not select a Solution Pattern by name alone.** Open it, check `Assumptions`, `Use when`, `Do not use when`, `Trade-offs`, and `Alternatives`; reject it when the problem differs.
+10. A Core Principle may guide selection of a pattern, but no Solution Pattern becomes mandatory merely because it worked in a prior project.
+11. For UI tasks, load `design-system-authoring` first, then `webapp-dogfood-qa` before sign-off.
+12. For uncertain architecture or UX ideas, run a spike before production implementation.
+13. Before merge, use `pre-merge-review`, `merge-preview-check`, then `proof-loop-verification`.
+14. When browser access is limited, use `playwright-dogfood-harness` instead of relying on environment-specific screenshot capability.
+15. For inherited or AI-heavy repositories, run `operational-auditing` before major refactors.
+16. When adding a new reusable workflow, use `skill-authoring` and check this index for overlap first.
 
 ## Core principle vs solution pattern
 
