@@ -7,22 +7,21 @@ Use this bundle for a new visual-heavy site such as OneMoreBar.
 ### Always copy
 
 - `AGENTS.md`
-- `.agents/skills/git-branch-integrity/SKILL.md`
-- `.agents/skills/proof-loop-verification/SKILL.md`
-- `.agents/skills/session-handoff/SKILL.md`
-- `templates/BRANCH_STATE.md`
-- `templates/HANDOFF.md`
-- `templates/TASK_EVIDENCE.md`
-- `PRODUCT_REPO_RULES.md`
+- `engines/production/software/skills/git-branch-integrity/SKILL.md`
+- `engines/verification/skills/proof-loop-verification/SKILL.md`
+- `protocols/skills/session-handoff/SKILL.md`
+- `engines/production/software/templates/BRANCH_STATE.md`
+- `protocols/templates/HANDOFF.md`
+- `protocols/templates/TASK_EVIDENCE.md`
+- `engines/production/software/docs/PRODUCT_REPO_RULES.md`
 
 ### Copy for longer or riskier projects
 
-- `.agents/skills/project-chronicle/SKILL.md`
-- `.agents/skills/merge-preview-check/SKILL.md`
-- `templates/PROJECT_CHRONICLE.md`
-- `templates/MERGE_PREVIEW.md`
-- `scripts/validate_state.py`
-- `scripts/check_branch_integrity.py`
+- `protocols/skills/project-chronicle/SKILL.md`
+- `engines/production/software/skills/merge-preview-check/SKILL.md`
+- `protocols/templates/PROJECT_CHRONICLE.md`
+- `engines/production/software/templates/MERGE_PREVIEW.md`
+- `engines/production/software/tools/check_branch_integrity.py`
 
 ## Why this bundle fits Three.js sites
 
