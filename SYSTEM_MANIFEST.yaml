@@ -1,6 +1,6 @@
 system_id: project-resolver
 system_class: agent_project_operating_system
-version: "0.1.0-migration-wave-1"
+version: "0.2.0-migration-wave-2"
 status: structural_baseline_candidate
 
 root_control_files:
@@ -17,6 +17,27 @@ shared_namespaces:
   library: library/
 
 engine_registry:
+  - engine_id: canon
+    manifest_path: engines/canon/MANIFEST.yaml
+    status: available
+    capabilities:
+      - establish_canon_foundation
+      - register_canon_fact
+      - register_canon_assumption
+      - register_unknown
+      - register_ambiguity
+      - register_contradiction
+      - reconcile_research_into_canon
+      - classify_canon_change
+      - validate_canon
+      - freeze_canon
+      - final_canon_reconciliation
+      - reopen_canon
+    entry_conditions:
+      - task_semantically_belongs_to_canon_engine
+      - required_authority_is_present_or_the_requested_output_is_a_proposal
+      - relevant_canon_state_slice_is_identified
+
   - engine_id: production/software
     manifest_path: engines/production/software/MANIFEST.yaml
     status: available
@@ -43,8 +64,6 @@ engine_registry:
       - evidence_or_direct_state_is_available_or_requestable
 
 planned_engines:
-  - engine_id: canon
-    status: not_materialized
   - engine_id: research
     status: not_materialized
   - engine_id: foundation

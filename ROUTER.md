@@ -18,6 +18,18 @@ Selection is based on the transformation and authority required, not filename si
 
 | Capability | Engine | Next surface |
 |---|---|---|
+| `establish_canon_foundation` | `canon` | load `engines/canon/MANIFEST.yaml`, then `establish-canon-foundation` workflow |
+| `register_canon_fact` | `canon` | load Canon manifest + Foundation workflow + `register-canon-fact` only |
+| `register_canon_assumption` | `canon` | load Canon manifest + Foundation workflow + `register-canon-assumption` only |
+| `register_unknown` | `canon` | load Canon manifest + Foundation workflow + `register-unknown` only |
+| `register_ambiguity` | `canon` | load Canon manifest + Foundation workflow + `register-ambiguity` only |
+| `register_contradiction` | `canon` | load Canon manifest + Foundation workflow + `register-contradiction` only |
+| `reconcile_research_into_canon` | `canon` | load Canon manifest + Research reconciliation workflow; Research findings remain inputs, not Canon authority |
+| `classify_canon_change` | `canon` | load Canon manifest + production-time Canon change workflow |
+| `validate_canon` | `canon` | load Canon manifest + validate/freeze workflow; use Verification Engine separately for independent verification |
+| `freeze_canon` | `canon` | load Canon manifest + validate/freeze workflow and require explicit freeze authority |
+| `final_canon_reconciliation` | `canon` | load Canon manifest + final reconciliation workflow; this closes Canon state, not generic release verification |
+| `reopen_canon` | `canon` | load Canon manifest + reopen workflow and explicit reopen authority |
 | `implement_software_change` | `production/software` | load `engines/production/software/MANIFEST.yaml`, then its implementation workflow |
 | `diagnose_software_failure` | `production/software` | load `engines/production/software/MANIFEST.yaml`, then its diagnosis workflow |
 | `plan_software_work` | `production/software` | load the Software Engine manifest and bounded planning skill set |
@@ -25,9 +37,13 @@ Selection is based on the transformation and authority required, not filename si
 | `verify_completion_claim` | `verification` | load `engines/verification/MANIFEST.yaml`, then the completion-claim verification workflow |
 | `verify_exact_candidate_claims` | `verification` | load Verification Engine plus shared exact-state/evidence skills |
 
+## Canon boundary
+
+Canon routes govern accepted project truth lifecycle. They do not run substantive Research, implement software, draft narrative/manuscript output, translate source material, or acquire independent Verification authority. Research outputs enter Canon only through `reconcile_research_into_canon` and explicit Canon authority.
+
 ## Non-materialized engine gate
 
-If the required semantic capability belongs to Canon, Research, Foundation, or another engine whose status is `not_materialized`, return:
+If the required semantic capability belongs to Research, Foundation, a non-software Production domain, Translation, or another engine whose status is `not_materialized`, return:
 
 ```text
 ENGINE_NOT_MATERIALIZED / OWNER_OR_SYSTEM_GATE
@@ -36,7 +52,7 @@ required_engine: <engine>
 reason: <why this engine owns the task>
 ```
 
-Do not simulate a missing engine by borrowing Software skills or inventing new authority.
+Do not simulate a missing engine by borrowing Canon or Software skills or inventing new authority.
 
 ## Role activation
 
@@ -59,6 +75,6 @@ Relevant State Slice
 - no recursive repository-wide skill search during ordinary execution;
 - no loading every skill "for context";
 - no selection by fuzzy title similarity alone;
-- no use of the archived legacy global skill index as a runtime router;
+- no use of archived migration/source indexes as runtime routers;
 - no crossing engine authority boundaries because a nearby skill looks applicable;
 - no silently continuing when required authority, evidence, or engine capability is absent.
