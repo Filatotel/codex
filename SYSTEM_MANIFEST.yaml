@@ -1,0 +1,61 @@
+system_id: project-resolver
+system_class: agent_project_operating_system
+version: "0.1.0-migration-wave-1"
+status: structural_baseline_candidate
+
+root_control_files:
+  - AGENTS.md
+  - SYSTEM_MANIFEST.yaml
+  - ROUTER.md
+
+shared_namespaces:
+  kernel: kernel/
+  contracts: contracts/
+  protocols: protocols/
+  roles: roles/
+  schemas: schemas/
+  library: library/
+
+engine_registry:
+  - engine_id: production/software
+    manifest_path: engines/production/software/MANIFEST.yaml
+    status: available
+    capabilities:
+      - implement_software_change
+      - diagnose_software_failure
+      - plan_software_work
+      - review_software_change
+      - software_release_support
+      - technical_qa
+    entry_conditions:
+      - task_semantically_belongs_to_software_engine
+      - required_authority_is_present
+      - relevant_state_slice_is_identified
+
+  - engine_id: verification
+    manifest_path: engines/verification/MANIFEST.yaml
+    status: available
+    capabilities:
+      - verify_completion_claim
+      - verify_exact_candidate_claims
+    entry_conditions:
+      - exact_claim_or_acceptance_target_exists
+      - evidence_or_direct_state_is_available_or_requestable
+
+planned_engines:
+  - engine_id: canon
+    status: not_materialized
+  - engine_id: research
+    status: not_materialized
+  - engine_id: foundation
+    status: not_materialized
+  - engine_id: production/other-domains
+    status: not_materialized
+
+runtime_discovery:
+  mode: progressive_disclosure
+  ordinary_root_reads:
+    - AGENTS.md
+    - SYSTEM_MANIFEST.yaml
+    - ROUTER.md
+  global_skill_discovery: forbidden_during_ordinary_execution
