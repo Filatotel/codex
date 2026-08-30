@@ -1,0 +1,18 @@
+artifact_type: CANON_STATE
+project_id: "PROJECT_ID"
+canon_version: "1.0.0"
+maturity: CANON_1_0
+status: PROPOSED
+authority:
+  holder: "OWNER_OR_AUTHORIZED_HOLDER"
+  scope: "CANON_SCOPE"
+  source_ref: "AUTHORITY_SOURCE_REF"
+foundation_ref: "CANON_FOUNDATION_REF"
+research_release_ref: null
+reconciliation_ref: null
+entries: []
+freeze:
+  state: OPEN
+  scope: "CANON_SCOPE"
+  freeze_record_ref: null
+change_history: []

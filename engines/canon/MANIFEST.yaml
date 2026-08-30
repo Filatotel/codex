@@ -1,0 +1,98 @@
+engine_id: canon
+status: available
+purpose: governed project Canon truth lifecycle
+owns:
+  - canon_foundation_0x
+  - canon_state_registration
+  - canon_reconciliation
+  - canon_change_classification
+  - canon_internal_validation
+  - canon_freeze
+  - canon_reopen
+does_not_own:
+  - owner_authority
+  - substantive_research
+  - evidence_collection
+  - research_sufficiency
+  - production_foundation
+  - software_implementation
+  - narrative_or_manuscript_production
+  - translation
+  - interactive_runtime
+  - generic_independent_verification
+  - release_authority
+  - universal_artifact_ontology
+  - k0_routing
+inputs:
+  - owner_intent_or_authorized_canon_state
+  - exact_assignment
+  - current_canon_artifacts
+  - evidence_and_findings_when_reconciling
+  - production_change_signal_when_applicable
+outputs:
+  - CANON_FOUNDATION
+  - CANON_STATE
+  - CANON_CHANGE_PROPOSAL
+  - CANON_RECONCILIATION_RESULT
+  - CANON_FREEZE_RECORD
+entry_conditions:
+  - exact_assignment_and_authority_scope_are_known
+  - required_upstream_state_is_identified
+exit_conditions:
+  - bounded_canon_artifact_or_explicit_blocker_is_emitted
+allowed_dependencies:
+  - contracts/CORE_CONTRACTS.md
+  - protocols/artifacts.md
+  - protocols/context-assembly.md
+  - protocols/state-mutation.md
+  - roles/executor/ROLE.md
+  - roles/control-director/ROLE.md
+  - engines/canon/docs/CANON_AUTHORITY.md
+  - engines/canon/docs/CANON_FOUNDATION_MODEL.md
+forbidden_dependencies:
+  - automatic_research_to_canon_mutation
+  - implementation_as_canon_authority
+  - translation_as_source_canon_authority
+  - production_writing_as_canon_authority
+  - global_skill_discovery
+  - verification_engine_state_mutation
+roles:
+  - roles/executor/ROLE.md
+  - roles/control-director/ROLE.md
+workflows:
+  establish_canon_foundation: engines/canon/workflows/establish-canon-foundation.md
+  reconcile_research_into_canon: engines/canon/workflows/reconcile-research-into-canon.md
+  manage_production_canon_change: engines/canon/workflows/manage-production-canon-change.md
+  validate_and_freeze_canon: engines/canon/workflows/validate-and-freeze-canon.md
+  final_canon_reconciliation: engines/canon/workflows/final-canon-reconciliation.md
+  reopen_canon: engines/canon/workflows/reopen-canon.md
+skill_namespaces:
+  canon_skills: engines/canon/skills/
+  shared_core: kernel/skills/
+capabilities:
+  establish_canon_foundation: establish_canon_foundation
+  register_canon_fact: establish_canon_foundation
+  register_canon_assumption: establish_canon_foundation
+  register_unknown: establish_canon_foundation
+  register_ambiguity: establish_canon_foundation
+  register_contradiction: establish_canon_foundation
+  reconcile_research_into_canon: reconcile_research_into_canon
+  classify_canon_change: manage_production_canon_change
+  validate_canon: validate_and_freeze_canon
+  freeze_canon: validate_and_freeze_canon
+  reopen_canon: reopen_canon
+maturity_lifecycle:
+  - IDEA
+  - CANON_FOUNDATION_0_X
+  - RESEARCH
+  - CANON_RECONCILIATION
+  - CANON_1_0
+  - PRODUCTION_FOUNDATION
+  - PRODUCTION
+  - FINAL_CANON_RECONCILIATION
+  - CANON_2_0
+post_2_0_modes:
+  - ADDENDUM
+  - EXPANSION
+  - NEW_EDITION
+  - REOPEN
