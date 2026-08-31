@@ -31,11 +31,11 @@ There is no ordinary transition to participant collection, surveys, interviews, 
 
 ## Question admission
 
-Every candidate question is validated against `schemas/research-question.schema.json` and `tools/research_policy.py` before activation. Missing machine-executability fields fail closed. A question that requires a non-owner human is `REJECTED_DEFAULT_RESEARCH_ARCHITECTURE`; the engine redesigns the method or records a limitation.
+Every candidate question is validated against `schemas/research-question.schema.json` and `tools/research_policy.py::validate_question` before activation. The schema is closed against undeclared fields, and every declared free-form semantic field is recursively inspected. Missing machine-executability fields or conflicting human-dependent semantics fail closed. A question that requires a non-owner human is `REJECTED_DEFAULT_RESEARCH_ARCHITECTURE`; the engine redesigns the method or records a limitation.
 
 ## Work-package admission
 
-Every work package is validated against `schemas/research-work-package.schema.json` and the policy validator before activation. It declares an allowed AI `EXECUTOR_ROLE` and fixes `VERIFIER_ROLE=AI_R_VERIFIER`. `MACHINE_EXECUTABLE=true` and all human dependency flags must be explicit false. Owner gates, if any, must be explicit `OWNER_*` authority terms.
+Every work package is validated against `schemas/research-work-package.schema.json` and `tools/research_policy.py::validate_work_package` before activation. The schema is closed against undeclared fields and all method/execution semantic values are recursively inspected. It declares an allowed AI `EXECUTOR_ROLE` and fixes `VERIFIER_ROLE=AI_R_VERIFIER`. `MACHINE_EXECUTABLE=true` and all human dependency flags must be explicit false. Owner gates, if any, must be explicit `OWNER_*` authority terms.
 
 ## Verifier contract
 
@@ -56,15 +56,21 @@ Any prohibited value above zero is `STATUS = FAIL`.
 
 R-REPAIR repairs only a bounded verifier finding. Human-dependent methods are replaced, when feasible, by pre-existing datasets, public corpora, deterministic computation, model/ensemble annotation, structural analysis, published literature, official standards, or explicit proxies. If no valid machine method exists, record `UNKNOWN`, `INSUFFICIENT_PUBLIC_EVIDENCE`, or `UNMEASURED_HUMAN_CONSTRUCT`. Never introduce a new human dependency.
 
+## Clause/action policy classification
+
+Machine-only semantic classification operates at clause/action level and can return multiple findings for one input. A prohibition binds only to the human action it actually negates. A static-source cue identifies only the pre-existing evidence it describes. Neither an `EXPLICIT_PROHIBITION` nor a `STATIC_EXTERNAL_SOURCE` finding can erase a separate `ACTIVE_DEPENDENCY`; any active prohibited human action is fatal to default Research admission.
+
 ## Source provenance
 
 Active provenance classes include `PRIMARY_EXTERNAL_DATA`, `PUBLIC_DATASET`, `CORPUS`, `SCHOLARLY_ANALYSIS`, `DICTIONARY_REFERENCE`, `OFFICIAL_REFERENCE`, `COMMUNITY_ARCHIVE`, `EXTERNAL_PREEXISTING_HUMAN_DATA`, `SOFTWARE_DATASET`, `PROXY`, and `OTHER`.
 
-`LEGACY_HUMAN_TEST` is compatibility-only and requires `PROJECT_GENERATION_PROHIBITED=true`. It cannot be selected as a new default data-generation method.
+Every source must pass `tools/research_policy.py::validate_source` before admission. `LEGACY_HUMAN_TEST` is compatibility-only and requires `PROJECT_GENERATION_PROHIBITED=true`, `HUMAN_ORIGIN=true`, and legacy-preserved origin. `EXTERNAL_PREEXISTING_HUMAN_DATA` requires `PROJECT_GENERATION_PROHIBITED=true`, `HUMAN_ORIGIN=true`, and external-pre-existing origin. `OTHER` cannot hide project-generated human evidence: human-origin `OTHER` sources must be provably external/legacy and project-generation-prohibited, while ambiguous `UNKNOWN` origin fails closed.
 
 ## Machine experiments and freeze
 
-Default experiments conform to `schemas/machine-experiment.schema.json`; participant/recruitment/consent fields are PROHIBITED. Method freeze conforms to `schemas/research-method-freeze.schema.json` and freezes question, input identity, method/tool versions, prompt/rules, sampling, seed policy, metrics, aggregation, thresholds, limitations, and planned sensitivity analysis before substantive result inspection.
+Default experiments conform to `schemas/machine-experiment.schema.json` and must pass `tools/research_policy.py::validate_experiment`. Forbidden human-research keys are inspected recursively. Semantic classification applies recursively to value leaves only; schema/property names such as `PROHIBITED_OVERCLAIMS` have no semantic masking effect on unrelated values.
+
+Method freeze conforms to `schemas/research-method-freeze.schema.json` and must pass `tools/research_policy.py::validate_method_freeze` before `METHOD_FROZEN=true` can become authoritative. The freeze is closed against undeclared fields, carries explicit machine-only declarations, recursively rejects human-research keys/semantics, and freezes question, input identity, method/tool versions, prompt/rules, sampling, seed policy, metrics, aggregation, thresholds, limitations, and planned sensitivity analysis before substantive result inspection.
 
 ## Gap rule and overclaim guard
 
@@ -72,4 +78,8 @@ Direct human constructs may remain unmeasured. Machine proxies must be labeled a
 
 ## Separate human-research compatibility boundary
 
-The default engine cannot create or enter a `human-research/` namespace. `tools/research_policy.py::validate_human_research_authorization` requires an exact Owner/K0 authorization object, and `validate_separate_human_work_package` checks exact project/question/namespace equality. This is a separate workstream, not a Research Engine fallback and not a reusable authorization.
+The default engine cannot create or enter a `human-research/` namespace. A separate authorization object is not authority by itself. `tools/research_policy.py::validate_human_research_authorization` must receive or resolve the exact durable `OWNER_DECISION_RECORD` referenced by `OWNER_DECISION_RECORD_REF` and revalidate that the record is a genuine `RECORDED` Owner Interface artifact with `OWNER_K0` authority that explicitly created the same authorization identity, project, question, exact bounded scope, and namespace. Both record and authorization must be non-transitive and must preserve default Research mode unchanged. Missing, fabricated, mismatched, or agent-constructed provenance fails closed. `validate_separate_human_work_package` additionally checks exact project/question/namespace equality. This is a separate workstream, not a Research Engine fallback and not a reusable authorization.
+
+## Normal regression gate
+
+`python tools/validate_structure.py` is the ordinary deterministic structural gate. It validates active Research enforcement-surface reachability, schema closure and schema/policy required-field consistency, active runtime/config/document semantic lint, and the bounded machine-only negative regression matrix. Test fixtures and policy implementation source are executed/structurally checked rather than naively treated as executable Research instructions. Archives remain historical and outside runtime semantic lint.
