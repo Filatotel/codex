@@ -132,7 +132,7 @@ For every place two authorities could disagree, choose an explicit rule:
 - reconcile from owner;
 - merge by declared field ownership;
 - compensate;
-- require human/operational resolution;
+- require declared authority/operational resolution;
 - fail closed;
 - fail open where correctness allows.
 

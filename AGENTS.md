@@ -14,12 +14,19 @@ Then load only the selected engine manifest, selected workflow/role contract, as
 
 **NO GLOBAL SKILL DISCOVERY DURING ORDINARY EXECUTION.** Do not recursively scan the repository, load every skill, or use a global catalog as the runtime router.
 
+### Research constitutional preload
+
+When the selected capability belongs to the Research Engine, `kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md` is a mandatory upstream kernel contract and MUST be loaded before project-specific research architecture, work packages, methods, or executor prompts.
+
+A downstream research instruction cannot weaken that constitution. If a method requests prohibited non-owner human participation, stop and reject the method, then redesign it for machine execution or return an explicit evidence limitation. Do not convert the research project into `BLOCKED_PENDING_HUMANS`.
+
 ## Control rules
 
 - **State is durable. Chat is not authoritative state.** Use explicit artifacts and exact state references.
 - **Agents are disposable; roles are durable.** An active agent instance is assembled from relevant state + engine + workflow + role + assignment + required skills.
 - **Context is assembled, not inherited.** Do not rely on hidden or prior chat history as authority.
 - **Engine authority is bounded.** An engine owns its declared work class only. Software does not own K0/Owner authority, Canon truth, Research truth, or universal contracts.
+- **Default Research is machine-only.** Owner/K0 is the only default human actor and supplies project authority, not routine research labor. New third-party human research is invalid unless Owner/K0 explicitly creates a separate bounded `human-research/` workstream.
 - Load only the selected engine manifest and its declared dependencies. Do not cross an engine boundary by convenience.
 - Follow the exact assignment and its authority. No silent scope expansion, no silent Owner-intent redefinition, and no silent state mutation.
 - Claims that depend on a candidate/revision/environment must cite exact-state evidence. `ARTIFACT != EVIDENCE`; evidence must actually support the claim.
