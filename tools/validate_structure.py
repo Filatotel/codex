@@ -13,6 +13,7 @@ ROOT_REQUIRED = [
     "SYSTEM_MANIFEST.yaml",
     "ROUTER.md",
     "ARCHITECTURE_MIGRATION_MAP.md",
+    "kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md",
 ]
 
 ROLE_REQUIRED_SECTIONS = [
@@ -47,8 +48,8 @@ def fail(errors: list[str], message: str) -> None:
 
 
 def manifest_path_values(text: str) -> set[str]:
-    # Extract repository-relative md/yaml/json paths from simple Wave-1 YAML manifests.
-    return set(re.findall(r"(?:^|\s)([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.(?:md|yaml|json))\s*$", text, flags=re.MULTILINE))
+    # Extract repository-relative md/yaml/json/py paths from simple manifests.
+    return set(re.findall(r"(?:^|\s)([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.(?:md|yaml|json|py))\s*$", text, flags=re.MULTILINE))
 
 
 def validate() -> list[str]:
@@ -70,15 +71,22 @@ def validate() -> list[str]:
 
     if "global_skill_discovery: forbidden_during_ordinary_execution" not in system_manifest:
         fail(errors, "root manifest does not explicitly forbid ordinary global skill discovery")
+    if "research_machine_only: kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md" not in system_manifest:
+        fail(errors, "root manifest does not register the machine-only Research constitution")
+    if "engine_id: research" not in system_manifest or "status: available" not in system_manifest:
+        fail(errors, "Research Engine is not materialized as an available engine")
 
     router = (ROOT / "ROUTER.md").read_text(encoding="utf-8")
     for forbidden in [".agents/skills", "archive/legacy-codex/SKILLS_INDEX.md"]:
         if forbidden in router:
             fail(errors, f"router points to forbidden global/legacy discovery surface: {forbidden}")
+    if "kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md" not in router:
+        fail(errors, "router does not apply Research machine-only constitutional precedence")
 
     engine_manifests = [
         ROOT / "engines/production/software/MANIFEST.yaml",
         ROOT / "engines/verification/MANIFEST.yaml",
+        ROOT / "engines/research/MANIFEST.yaml",
     ]
     for manifest in engine_manifests:
         if not manifest.is_file():
@@ -88,6 +96,17 @@ def validate() -> list[str]:
         for rel in manifest_path_values(text):
             if not (ROOT / rel).exists():
                 fail(errors, f"{manifest.relative_to(ROOT)} references missing path: {rel}")
+
+    research_manifest = (ROOT / "engines/research/MANIFEST.yaml").read_text(encoding="utf-8")
+    for required in [
+        "default_research_mode: MACHINE_ONLY",
+        "constitutional_authority: kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md",
+        "third_party_human_research: true",
+        "owner_manual_research_labor: true",
+        "reachable_from_default_workflow: false",
+    ]:
+        if required not in research_manifest:
+            fail(errors, f"Research manifest missing machine-only control: {required}")
 
     role_paths = [
         ROOT / "roles/control-director/ROLE.md",
@@ -118,8 +137,20 @@ def validate() -> list[str]:
     for schema in sorted((ROOT / "schemas").glob("*.schema.json")):
         try:
             json.loads(schema.read_text(encoding="utf-8"))
-        except Exception as exc:  # deterministic syntax gate, no external validator dependency
+        except Exception as exc:
             fail(errors, f"invalid JSON schema syntax {schema.relative_to(ROOT)}: {exc}")
+
+    required_research_schemas = [
+        "schemas/research-question.schema.json",
+        "schemas/research-work-package.schema.json",
+        "schemas/machine-experiment.schema.json",
+        "schemas/research-method-freeze.schema.json",
+        "schemas/research-source.schema.json",
+    ]
+    for rel in required_research_schemas:
+        if not (ROOT / rel).is_file():
+            fail(errors, f"missing Research Engine schema: {rel}")
+
     if len(list((ROOT / "schemas").glob("*.schema.json"))) < 5:
         fail(errors, "fewer than five required role-native schemas are materialized")
 
@@ -152,6 +183,16 @@ def validate() -> list[str]:
     legacy_factory = ROOT / "archive/legacy-codex/LOCALFLOW_FACTORY.md"
     if not legacy_factory.is_file():
         fail(errors, "legacy LOCALFLOW_FACTORY.md was not preserved in archive")
+
+    # Machine-only Research is part of structural validation, not an optional prose lint.
+    try:
+        import sys
+        sys.path.insert(0, str(ROOT))
+        from tools.research_policy import lint_active_repository
+        for err in lint_active_repository(ROOT):
+            fail(errors, f"research machine-only policy: {err}")
+    except Exception as exc:
+        fail(errors, f"research machine-only policy validator unavailable: {exc}")
 
     return errors
 
