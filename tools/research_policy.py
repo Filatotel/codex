@@ -48,8 +48,9 @@ AMBIGUOUS_OWNER_TERMS = (
     "human review", "human validation", "human approval", "human decision",
 )
 
-# These patterns describe actions or executable action-nouns, not mere source mentions.
-# Static human-derived evidence is classified independently and never acts as an allowlist.
+# Action-oriented patterns. They identify project actions/dependencies, not merely the
+# presence of human-derived words. Static-source and prohibition semantics are tracked
+# independently, so one finding can never erase another.
 ACTIVE_ACTION_PATTERNS = (
     r"\brecruit(?:ing|ed)?\b.{0,50}\b(?:participants?|respondents?|speakers?|listeners?|users?|humans?|experts?|subjects?)\b",
     r"\b(?:participant|human|native[- ]speaker|speaker|respondent|user|expert)\s+recruitment\b",
@@ -60,15 +61,20 @@ ACTIVE_ACTION_PATTERNS = (
     r"\binterviewing\b.{0,35}\b(?:participants?|respondents?|speakers?|listeners?|users?|people|humans?|experts?|subjects?)\b",
     r"\b(?:conduct|run|deploy|administer|launch|start|resume|execute|perform)\b.{0,35}\b(?:survey|questionnaire|poll|interviews?|focus[ -]?groups?)\b",
     r"\b(?:survey|questionnaire|interview|focus[ -]?group)\s+(?:deployment|administration|collection)\b",
+    r"\b(?:participant|respondent|human)\s+(?:data\s+)?collection\b",
     r"\b(?:collect|gather|solicit|obtain)\b.{0,35}\b(?:human\s+data|human\s+evidence|responses?|participant\s+data|respondent\s+data|ratings?|feedback)\b",
     r"\b(?:ask|contact|consult)\b.{0,30}\b(?:experts?|speakers?|listeners?|participants?|respondents?|users?|humans?)\b",
-    r"\bhave\s+(?:humans?|experts?|speakers?|listeners?|participants?|respondents?)\s+(?:check|review|rate|validate|annotate|code)\b",
+    r"\b(?:send|give|administer)\b.{0,30}\b(?:survey|questionnaire)\b.{0,30}\b(?:participants?|respondents?|users?|speakers?|humans?)\b",
+    r"\bhave\s+(?:humans?|experts?|speakers?|listeners?|participants?|respondents?)\s+(?:check|review|rate|validate|annotate|code|assess|evaluate)\b",
+    r"\b(?:external\s+reviewers?|human\s+reviewers?|experts?|native[- ]speakers?|participants?|respondents?)\b.{0,30}\b(?:review|validate|rate|annotate|check|assess|evaluate)\b",
+    r"\b(?:review|validation|rating|annotation|assessment|evaluation)\s+by\s+(?:external\s+)?(?:experts?|humans?|reviewers?|speakers?|participants?)\b",
     r"\bget\s+(?:community|expert|speaker|listener|participant|respondent|user)\s+(?:feedback|review|validation|ratings?)\b",
     r"\btest\b.{0,30}\bwith\s+(?:listeners?|speakers?|users?|participants?|respondents?|humans?)\b",
     r"\bfind\s+(?:several\s+|\d+\s+)?(?:speakers?|participants?|experts?|listeners?|respondents?)\b",
-    r"\b(?:external|human|expert|community|stakeholder)\s+(?:human\s+)?(?:review|validation|consultation|rating|annotation)\b",
+    r"\b(?:external|human|expert|community|stakeholder)\s+(?:human\s+)?(?:review|validation|consultation|rating|annotation|assessment|evaluation)\b",
     r"\b(?:focus[ -]?group|user[ -]?testing|human[ -]?in[ -]?the[ -]?loop|collection[ -]?surface)\b",
     r"\b(?:new|project[- ]generated)\s+(?:human|participant|respondent|speaker|user).{0,30}\b(?:survey|interviews?|data|responses?|ratings?|evidence)\b",
+    r"\b(?:route|send|hand\s+off)\b.{0,30}\b(?:to\s+)?(?:humans?|participants?|external\s+reviewers?|experts?)\b",
     r"\bowner(?:/k0)?\b.{0,60}\b(?:manually\s+)?collect\b.{0,40}\b(?:urls?|sources?|data|responses?)\b",
     r"\bowner(?:/k0)?\b.{0,60}\bsearch\b.{0,40}\b(?:sources?|web|literature)\b",
     r"\bowner(?:/k0)?\b.{0,60}\b(?:annotate|code|rate)\b.{0,40}\b(?:dataset|items?|responses?|samples?)\b",
@@ -80,7 +86,7 @@ HUMAN_ACTION_MENTION_PATTERNS = ACTIVE_ACTION_PATTERNS + (
 )
 STATIC_SOURCE_PATTERNS = (
     r"\bpublished\s+(?:study|paper|survey|interviews?|dataset|corpus)\b",
-    r"\barchived\s+(?:interviews?|survey|responses?|dataset|corpus|human\s+data)\b",
+    r"\barchived\s+(?:public\s+)?(?:interviews?|interview\s+corpus|survey|responses?|dataset|corpus|human\s+data)\b",
     r"\brecorded\s+speech\s+corpus\b",
     r"\bexisting\s+(?:survey|human\s+annotation|expert\s+judgment|dataset|interviews?|responses?)\b",
     r"\bexternally\s+conducted\s+survey\b",
@@ -119,23 +125,45 @@ def _split_clauses(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"(?:\n+|(?<=[.!?])\s+|\s*;\s*)", normalized) if part.strip()]
 
 
+def _scope_after_last_contrast(prefix: str) -> str:
+    parts = re.split(r"\b(?:but|however|nevertheless|nonetheless|yet|still)\b", prefix, flags=re.I)
+    return parts[-1] if parts else prefix
+
+
 def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
-    before = clause[max(0, match.start() - 90):match.start()].lower()
-    after = clause[match.end():min(len(clause), match.end() + 60)].lower()
-    if re.search(r"(?:do\s+not|don't|must\s+not|should\s+not|cannot|can't|never|forbid(?:den)?\s+to|prohibit(?:ed)?\s+to)\s+(?:\w+\s+){0,2}$", before):
+    before = clause[max(0, match.start() - 120):match.start()].lower()
+    after = clause[match.end():min(len(clause), match.end() + 80)].lower()
+    prefix = clause[:match.start()].lower()
+    scoped = _scope_after_last_contrast(prefix)
+
+    # Direct action negation: the negative operator is immediately governing the action.
+    if re.search(r"(?:do\s+not|don't|must\s+not|should\s+not|may\s+not|cannot|can't|never|forbid(?:den)?\s+to|prohibit(?:ed)?\s+to)\s+(?:ever\s+|directly\s+)?(?:\w+\s+){0,1}$", before):
         return True
     if re.search(r"\bno\s+(?:third[- ]party\s+human\s+|participant\s+|human\s+)?$", before):
         return True
+
+    # Passive/direct suffix forms bind to the matched action itself.
     if re.search(r"^\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not\s+allowed|invalid)\b", after):
         return True
-    if re.search(r"^\s+must\s+not\b", after):
+    if re.search(r"^\s+(?:must|should|may)\s+(?:be\s+)?(?:prohibited|forbidden|zero|absent|false)\b", after):
         return True
-    # A list governed by "there is no" / "no transition" stays negated until a contrast cue.
-    broad_before = clause[:match.start()].lower()
-    if re.search(r"\b(?:there\s+is\s+no|there\s+are\s+no|no\s+(?:ordinary\s+)?transition)\b", broad_before):
-        tail = re.split(r"\b(?:but|however|nevertheless|nonetheless|yet)\b", broad_before)
-        if len(tail) == 1:
-            return True
+
+    # Explicit policy labels govern the rest of the clause until a contrast cue.
+    if re.match(r"^\s*(?:[-*]\s*)*(?:\*\*)?(?:prohibited|forbidden)(?:\*\*)?\s*:", scoped):
+        return True
+    if re.match(r"^\s*(?:[-*]\s*)*(?:\*\*)?default[- ]deny(?:\s+controls?)?(?:\*\*)?\s*:", scoped):
+        return True
+
+    # Negative governance relations may bind a list of actions rather than one adjacent verb.
+    if re.search(r"\b(?:must|should|may|can)\s+not\s+(?:be\s+)?(?:assigned|include|involve|require|create|enter|route|introduce|use|perform|conduct|authorize|permit)\b.*$", scoped):
+        return True
+    if re.search(r"\b(?:there\s+(?:is|are)\s+no|no\s+(?:ordinary\s+)?transition)\b.*$", scoped):
+        return True
+    if re.search(r"\b(?:never|does\s+not|do\s+not|cannot|can't)\s+(?:create|grant|provide|confer)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\s*$", before):
+        return True
+    if re.search(r"\bno\s+(?:authority|permission)\s+to\s*$", before):
+        return True
+
     return False
 
 
@@ -155,13 +183,15 @@ def _clause_has_human_prohibition(clause: str) -> bool:
 
 
 def classify_text(text: str) -> list[Finding]:
-    """Classify independent clauses/actions. Allowed context cannot erase a prohibited action."""
+    """Return independent clause/action findings; allowable context never masks another action."""
     findings: list[Finding] = []
     for clause in _split_clauses(text):
         t = _norm(clause)
+
         for pattern in SIMULATED_HUMAN_OVERCLAIM:
             if re.search(pattern, clause, flags=re.I | re.S):
                 findings.append(Finding("PROXY_OVERCLAIM", "machine/simulated output is labeled as human responses"))
+
         if _clause_has_static_source(clause):
             findings.append(Finding("STATIC_EXTERNAL_SOURCE", "pre-existing human-derived evidence"))
 
@@ -173,12 +203,17 @@ def classify_text(text: str) -> list[Finding]:
                     prohibited_action = True
                 else:
                     active_action = True
+
         if prohibited_action or _clause_has_human_prohibition(clause):
             findings.append(Finding("EXPLICIT_PROHIBITION", "human action is explicitly negated/prohibited"))
         if active_action:
-            findings.append(Finding("ACTIVE_DEPENDENCY", f"active prohibited human research action: {clause[:160]}"))
+            findings.append(Finding("ACTIVE_DEPENDENCY", f"active prohibited human research action: {clause[:180]}"))
 
-        historical_only = any(cue in t for cue in HISTORICAL_CUES) and not active_action and not re.search(r"\b(?:run|execute|resume|deploy|start|recruit|collect)\b", t)
+        historical_only = (
+            any(cue in t for cue in HISTORICAL_CUES)
+            and not active_action
+            and not re.search(r"\b(?:run|execute|resume|deploy|start|recruit|collect)\b", t)
+        )
         if historical_only and not _clause_has_static_source(clause):
             findings.append(Finding("HISTORICAL_REFERENCE", "historical/legacy reference"))
 
@@ -186,6 +221,7 @@ def classify_text(text: str) -> list[Finding]:
         for term in AMBIGUOUS_OWNER_TERMS:
             if term in t and not clause_prohibits_human_term:
                 findings.append(Finding("AMBIGUOUS_HUMAN_GATE_TERMINOLOGY", f"generic authority term: {term}"))
+
         if not active_action and any(cue in t for cue in OWNER_CUES) and any(cue in t for cue in OWNER_DECISION_CUES):
             findings.append(Finding("OWNER_AUTHORITY", "explicit Owner/K0 project authority"))
 
@@ -335,9 +371,25 @@ HUMAN_AUTH_FIELDS = {
 }
 OWNER_AUTH_DECISION_KIND = "CREATE_SEPARATE_HUMAN_RESEARCH_WORKSTREAM"
 OWNER_AUTH_SELECTED_OPTION = "AUTHORIZE_SEPARATE_HUMAN_RESEARCH_WORKSTREAM"
+OWNER_RECORD_REQUIRED = {
+    "artifact_type", "artifact_id", "produced_by_role", "assignment_id", "input_state_ref",
+    "status", "provenance", "related_artifacts", "question_ref", "options_presented",
+    "selected_option", "owner_constraints", "consequences_acknowledged", "authority_role",
+    "decision_kind", "project_id", "authorized_question_id", "authorized_scope",
+    "authorized_namespace", "authorization_id", "non_transitive",
+    "default_research_mode_unchanged",
+}
 
 
-def validate_human_research_authorization(auth: dict[str, Any], owner_decision_record: dict[str, Any] | None = None) -> list[str]:
+def validate_human_research_authorization(
+    auth: dict[str, Any],
+    owner_decision_record: dict[str, Any] | None = None,
+) -> list[str]:
+    """Validate a separate opt-in authorization against a supplied durable Owner record.
+
+    The authorization object is never authority by itself. The governed caller must resolve
+    OWNER_DECISION_RECORD_REF from durable project state and pass that exact record here.
+    """
     errors = _require_fields(auth, HUMAN_AUTH_FIELDS)
     errors += _reject_unknown_fields(auth, HUMAN_AUTH_FIELDS)
     for name in {
@@ -359,17 +411,18 @@ def validate_human_research_authorization(auth: dict[str, Any], owner_decision_r
         return sorted(set(errors))
 
     record = owner_decision_record
-    errors += _require_fields(record, {
-        "artifact_type", "artifact_id", "produced_by_role", "status", "authority_role",
-        "decision_kind", "selected_option", "project_id", "authorized_question_id",
-        "authorized_scope", "authorized_namespace", "authorization_id", "non_transitive",
-        "default_research_mode_unchanged",
-    })
+    errors += _require_fields(record, OWNER_RECORD_REQUIRED)
     checks = (
         (record.get("artifact_type") == "OWNER_DECISION_RECORD", "referenced record is not OWNER_DECISION_RECORD"),
         (record.get("artifact_id") == auth.get("OWNER_DECISION_RECORD_REF"), "OWNER_DECISION_RECORD_REF does not match record identity"),
         (record.get("produced_by_role") == "owner-interface", "Owner decision record is not produced by owner-interface"),
         (record.get("status") == "RECORDED", "Owner decision record is not durable RECORDED state"),
+        (bool(record.get("assignment_id")), "Owner decision record lacks durable assignment provenance"),
+        (bool(record.get("input_state_ref")), "Owner decision record lacks durable input-state provenance"),
+        (isinstance(record.get("provenance"), list) and bool(record.get("provenance")), "Owner decision record lacks provenance entries"),
+        (isinstance(record.get("related_artifacts"), list) and auth.get("AUTHORIZATION_ID") in record.get("related_artifacts", []), "Owner decision record does not bind the authorization artifact"),
+        (record.get("question_ref") == auth.get("QUESTION_ID"), "Owner decision question_ref differs from authorization"),
+        (isinstance(record.get("options_presented"), list) and OWNER_AUTH_SELECTED_OPTION in record.get("options_presented", []), "Owner decision did not present the human-research authorization option"),
         (record.get("authority_role") == "OWNER_K0", "Owner decision record authority is not OWNER_K0"),
         (record.get("decision_kind") == OWNER_AUTH_DECISION_KIND, "Owner decision does not authorize separate human research"),
         (record.get("selected_option") == OWNER_AUTH_SELECTED_OPTION, "Owner selected option does not authorize separate human research"),
@@ -387,7 +440,11 @@ def validate_human_research_authorization(auth: dict[str, Any], owner_decision_r
     return sorted(set(errors))
 
 
-def validate_separate_human_work_package(obj: dict[str, Any], auth: dict[str, Any], owner_decision_record: dict[str, Any] | None = None) -> list[str]:
+def validate_separate_human_work_package(
+    obj: dict[str, Any],
+    auth: dict[str, Any],
+    owner_decision_record: dict[str, Any] | None = None,
+) -> list[str]:
     errors = validate_human_research_authorization(auth, owner_decision_record)
     if errors:
         return errors
@@ -421,6 +478,7 @@ def validate_source(obj: dict[str, Any]) -> list[str]:
     origin = obj.get("ORIGIN")
     human_origin = obj.get("HUMAN_ORIGIN")
     prohibited = obj.get("PROJECT_GENERATION_PROHIBITED")
+
     if provenance not in SOURCE_CLASSES:
         errors.append("PROVENANCE_CLASS is not recognized")
     if origin not in SOURCE_ORIGINS:
@@ -431,23 +489,28 @@ def validate_source(obj: dict[str, Any]) -> list[str]:
         errors.append("PROJECT_GENERATION_PROHIBITED must be boolean")
     if not isinstance(obj.get("DESCRIPTION"), str) or not obj.get("DESCRIPTION"):
         errors.append("DESCRIPTION must be a non-empty string")
+
+    if human_origin is True:
+        if prohibited is not True:
+            errors.append("every human-origin source requires PROJECT_GENERATION_PROHIBITED=true")
+        if origin not in {"EXTERNAL_PREEXISTING", "LEGACY_PRESERVED"}:
+            errors.append("human-origin source must be provably external-preexisting or legacy-preserved")
+
     if provenance == "LEGACY_HUMAN_TEST":
         if prohibited is not True:
             errors.append("LEGACY_HUMAN_TEST requires PROJECT_GENERATION_PROHIBITED=true")
         if human_origin is not True or origin != "LEGACY_PRESERVED":
             errors.append("LEGACY_HUMAN_TEST must be HUMAN_ORIGIN=true and ORIGIN=LEGACY_PRESERVED")
+
     if provenance == "EXTERNAL_PREEXISTING_HUMAN_DATA":
         if prohibited is not True:
             errors.append("EXTERNAL_PREEXISTING_HUMAN_DATA requires PROJECT_GENERATION_PROHIBITED=true")
         if human_origin is not True or origin != "EXTERNAL_PREEXISTING":
             errors.append("EXTERNAL_PREEXISTING_HUMAN_DATA must prove external pre-existing human origin")
-    if human_origin is True and origin == "PROJECT_MACHINE_GENERATED":
-        errors.append("human-origin source cannot be project machine-generated")
-    if provenance == "OTHER":
-        if human_origin is True and (prohibited is not True or origin not in {"EXTERNAL_PREEXISTING", "LEGACY_PRESERVED"}):
-            errors.append("OTHER human-origin source must be provably external/legacy and project-generation-prohibited")
-        if origin == "UNKNOWN":
-            errors.append("OTHER source cannot use ambiguous UNKNOWN origin")
+
+    if provenance == "OTHER" and origin == "UNKNOWN":
+        errors.append("OTHER source cannot use ambiguous UNKNOWN origin")
+
     errors += _semantic_errors(obj.get("DESCRIPTION"), "DESCRIPTION")
     if obj.get("SOURCE_URI") is not None:
         errors += _semantic_errors(obj.get("SOURCE_URI"), "SOURCE_URI")
@@ -495,7 +558,7 @@ def validate_experiment(obj: dict[str, Any]) -> list[str]:
     errors += _reject_unknown_fields(obj, MACHINE_EXPERIMENT_REQUIRED)
     errors += _forbidden_key_errors(obj)
     for key, value in obj.items():
-        # Field names are structural only. Semantic classification applies only to value leaves.
+        # Keys are structural only. Semantic classification applies recursively to value leaves.
         errors += _semantic_errors(value, key)
     n_runs = obj.get("N_RUNS")
     if not isinstance(n_runs, int) or isinstance(n_runs, bool) or n_runs < 1:
@@ -530,7 +593,7 @@ def validate_method_freeze(obj: dict[str, Any]) -> list[str]:
 
 
 def lint_active_repository(root: Path = ROOT) -> list[str]:
-    """Lint runtime/config/document surfaces only; tools, tests, and archives are not executable Research artifacts."""
+    """Lint runtime/config/document surfaces; implementation/tests/archives are handled separately."""
     errors: list[str] = []
     active_roots = [
         root / "AGENTS.md", root / "ROUTER.md", root / "SYSTEM_MANIFEST.yaml",
@@ -543,7 +606,10 @@ def lint_active_repository(root: Path = ROOT) -> list[str]:
         if item.is_file():
             files.append(item)
         elif item.is_dir():
-            files.extend(p for p in item.rglob("*") if p.is_file() and p.suffix.lower() in {".md", ".yaml", ".yml", ".json"})
+            files.extend(
+                p for p in item.rglob("*")
+                if p.is_file() and p.suffix.lower() in {".md", ".yaml", ".yml", ".json"}
+            )
     for path in sorted(set(files)):
         text = path.read_text(encoding="utf-8", errors="replace")
         for finding in classify_text(text):
@@ -552,7 +618,7 @@ def lint_active_repository(root: Path = ROOT) -> list[str]:
     return sorted(set(errors))
 
 
-# Deterministic bounded regression matrix. This is called by the ordinary structural gate.
+# Deterministic bounded regression matrix called by the ordinary structural gate.
 def _base_wp() -> dict[str, Any]:
     return {
         "WORK_PACKAGE_ID": "WP-001", "QUESTION_ID": "Q-001", "NAMESPACE": "research/default",
@@ -592,10 +658,15 @@ def _owner_auth_pair() -> tuple[dict[str, Any], dict[str, Any]]:
     }
     record = {
         "artifact_type": "OWNER_DECISION_RECORD", "artifact_id": "ODR-001", "produced_by_role": "owner-interface",
-        "status": "RECORDED", "authority_role": "OWNER_K0", "decision_kind": OWNER_AUTH_DECISION_KIND,
-        "selected_option": OWNER_AUTH_SELECTED_OPTION, "project_id": "P-1", "authorized_question_id": "Q-H1",
-        "authorized_scope": "one bounded recognition study", "authorized_namespace": "human-research/P-1/Q-H1",
-        "authorization_id": "HRA-001", "non_transitive": True, "default_research_mode_unchanged": True,
+        "assignment_id": "ASG-OWNER-001", "input_state_ref": "state://P-1/owner/ODR-001", "status": "RECORDED",
+        "provenance": ["OWNER_K0 explicit decision"], "related_artifacts": ["HRA-001"], "question_ref": "Q-H1",
+        "options_presented": [OWNER_AUTH_SELECTED_OPTION, "REJECT_SEPARATE_HUMAN_RESEARCH_WORKSTREAM"],
+        "selected_option": OWNER_AUTH_SELECTED_OPTION, "owner_constraints": ["bounded exact scope"],
+        "consequences_acknowledged": ["default Research mode remains machine-only"],
+        "authority_role": "OWNER_K0", "decision_kind": OWNER_AUTH_DECISION_KIND, "project_id": "P-1",
+        "authorized_question_id": "Q-H1", "authorized_scope": "one bounded recognition study",
+        "authorized_namespace": "human-research/P-1/Q-H1", "authorization_id": "HRA-001",
+        "non_transitive": True, "default_research_mode_unchanged": True,
     }
     return auth, record
 
@@ -629,22 +700,32 @@ def _base_freeze() -> dict[str, Any]:
 
 def machine_only_regression_results() -> dict[str, str]:
     results: dict[str, str] = {}
+
     def check(case: str, condition: bool) -> None:
         results[case] = "PASS" if condition else "FAIL"
 
     check("T01", any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text("Recruit native speakers.")))
     check("T02", any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text("Recruit native speakers. Do not overclaim.")))
+
     findings = classify_text("Do not recruit native speakers.")
     check("T03", any(f.classification == "EXPLICIT_PROHIBITION" for f in findings) and not any(f.classification == "ACTIVE_DEPENDENCY" for f in findings))
-    findings = classify_text("Published survey.")
+
+    findings = classify_text("Use a published survey of 500 respondents.")
     check("T04", any(f.classification == "STATIC_EXTERNAL_SOURCE" for f in findings) and not any(f.classification == "ACTIVE_DEPENDENCY" for f in findings))
-    check("T05", any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text("Use a published survey, then recruit 20 respondents.")))
-    check("T06", any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text("Analyze archived interviews and interview five new speakers.")))
+
+    findings = classify_text("Use a published survey, then recruit 20 respondents.")
+    classes = {f.classification for f in findings}
+    check("T05", "STATIC_EXTERNAL_SOURCE" in classes and "ACTIVE_DEPENDENCY" in classes)
+
+    findings = classify_text("Analyze archived interviews and interview five new speakers.")
+    classes = {f.classification for f in findings}
+    check("T06", "STATIC_EXTERNAL_SOURCE" in classes and "ACTIVE_DEPENDENCY" in classes)
 
     wp = _base_wp(); wp["PARTICIPANT_PLAN"] = "Recruit 50 speakers."
     check("T07", bool(validate_work_package(wp)))
     wp = _base_wp(); wp["METADATA"] = {"execution": {"reviewers": "external experts"}}
     check("T08", bool(validate_work_package(wp)))
+
     question = _base_question(); question["AVAILABLE_MACHINE_METHODS"] = ["Recruit native speakers"]
     check("T09", bool(validate_question(question)))
     question = _base_question(); question["AVAILABLE_EXTERNAL_PREEXISTING_EVIDENCE"] = ["Published survey, then recruit 20 new respondents."]
@@ -668,6 +749,7 @@ def machine_only_regression_results() -> dict[str, str]:
         bad_record = dict(owner_record); bad_record[field] = value
         mismatch = mismatch and bool(validate_human_research_authorization(auth, bad_record))
     check("T17", mismatch)
+
     human_wp = {"PROJECT_ID": "P-1", "QUESTION_ID": "Q-H1", "NAMESPACE": "human-research/P-1/Q-H1"}
     default_wp = _base_wp(); default_wp["NAMESPACE"] = human_wp["NAMESPACE"]
     check("T18", not validate_human_research_authorization(auth, owner_record) and not validate_separate_human_work_package(human_wp, auth, owner_record) and bool(validate_work_package(default_wp)))
@@ -687,15 +769,27 @@ def machine_only_regression_results() -> dict[str, str]:
     freeze = _base_freeze(); freeze["METHOD"] = "Recruit 50 speakers and survey them."
     check("T24", bool(validate_method_freeze(freeze)))
     check("T25", not validate_method_freeze(_base_freeze()))
+
     wp = _base_wp(); wp["SOURCE_ACCESS_METHOD"] = "No suitable public evidence is currently available."; wp["COMPUTATION_METHOD"] = "Return UNKNOWN / INSUFFICIENT_PUBLIC_EVIDENCE."
     check("T26", not validate_work_package(wp))
-    check("T27", any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text("Do not recruit native speakers; nevertheless recruit 20 participants.")))
-    check("T28", any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text("Use a published survey; then recruit 20 respondents.")))
+
+    findings = classify_text("Human recruitment is prohibited, nevertheless recruit 20 speakers.")
+    classes = {f.classification for f in findings}
+    check("T27", "EXPLICIT_PROHIBITION" in classes and "ACTIVE_DEPENDENCY" in classes)
+
+    findings = classify_text("Use a published survey, then recruit 20 respondents.")
+    classes = {f.classification for f in findings}
+    check("T28", "STATIC_EXTERNAL_SOURCE" in classes and "ACTIVE_DEPENDENCY" in classes)
+
     return results
 
 
 def run_machine_only_regressions() -> list[str]:
-    return [f"{case}: machine-only regression failed" for case, result in machine_only_regression_results().items() if result != "PASS"]
+    return [
+        f"{case}: machine-only regression failed"
+        for case, result in machine_only_regression_results().items()
+        if result != "PASS"
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
