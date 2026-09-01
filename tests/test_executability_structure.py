@@ -24,9 +24,18 @@ class ExecutabilityStructureTest(unittest.TestCase):
         ]:
             self.assertIn(required, contract["required"])
 
+    def test_capability_profile_requires_evidence(self) -> None:
+        schema = json.loads((ROOT / "schemas/capability-profile.schema.json").read_text(encoding="utf-8"))
+        self.assertIn("capability_evidence", schema["required"])
+        self.assertIn("available_capabilities", schema["required"])
+        self.assertIn("unavailable_capabilities", schema["required"])
+        self.assertIn("freshness_boundary", schema["required"])
+
     def test_admissibility_schema_fails_closed(self) -> None:
         schema = json.loads((ROOT / "schemas/assignment-admissibility.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(schema["properties"]["status"]["enum"], ["ADMISSIBLE", "NOT_ADMISSIBLE"])
+        self.assertIn("mandatory_actions", schema["required"])
+        self.assertEqual(schema["properties"]["mandatory_actions"]["minItems"], 1)
         serialized = json.dumps(schema)
         self.assertIn('"maxItems": 0', serialized)
         self.assertIn('"minItems": 1', serialized)
@@ -39,7 +48,8 @@ class ExecutabilityStructureTest(unittest.TestCase):
             self.assertIn("ASSIGNMENT_NOT_ADMISSIBLE", text)
             self.assertIn("REQUIRED_CAPABILITIES", text)
         self.assertIn("NO ASSIGNMENT WITHOUT EXECUTABILITY PROOF", agents)
-        self.assertIn("prove REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES", director)
+        self.assertIn("REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES", director)
+        self.assertIn("UNKNOWN prerequisites, not zero prerequisites", router)
 
     def test_engine_manifests_require_destination_preflight(self) -> None:
         software = (ROOT / "engines/production/software/MANIFEST.yaml").read_text(encoding="utf-8")
