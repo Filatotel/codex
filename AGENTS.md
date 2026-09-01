@@ -20,18 +20,24 @@ When the selected capability belongs to the Research Engine, `kernel/RESEARCH_MA
 
 A downstream research instruction cannot weaken that constitution. If a method requests prohibited non-owner human participation, stop and reject the method, then redesign it for machine execution or return an explicit evidence limitation. Do not convert the research project into `BLOCKED_PENDING_HUMANS`.
 
+Research `MACHINE_EXECUTABLE` / `CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS` fields are method-level machine-only admission claims, not proof that the current destination instance has the required runtime/tools.
+
 ## Control rules
 
 - **State is durable. Chat is not authoritative state.** Use explicit artifacts and exact state references.
-- **Agents are disposable; roles are durable.** An active agent instance is assembled from relevant state + engine + workflow + role + assignment + required skills.
+- **Agents are disposable; roles are durable.** An active agent instance is assembled from relevant state + engine + workflow + role + destination capability profile + assignment admissibility proof + assignment + required skills.
 - **Context is assembled, not inherited.** Do not rely on hidden or prior chat history as authority.
 - **Engine authority is bounded.** An engine owns its declared work class only. Software does not own K0/Owner authority, Canon truth, Research truth, or universal contracts.
+- **Semantic capability != executable capability.** Engine/workflow selection does not imply that the selected destination has checkout, shell, language runtime, browser, database, deployment, network, CI, or connector access.
+- **NO ASSIGNMENT WITHOUT EXECUTABILITY PROOF.** Before `ASSIGN`, derive all capabilities required by mandatory actions and mandatory evidence/acceptance gates, bind an exact destination `CAPABILITY_PROFILE`, and prove `REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES` under `contracts/EXECUTABILITY_CONTRACT.md`.
+- If required capabilities are not proven, return `ASSIGNMENT_NOT_ADMISSIBLE` or choose another already-authorized executable destination/mode. Do not intentionally send impossible work downstream just to receive `BLOCKED`.
 - **Default Research is machine-only.** Owner/K0 is the only default human actor and supplies project authority, not routine research labor. New third-party human research is invalid unless Owner/K0 explicitly creates a separate bounded `human-research/` workstream.
 - Load only the selected engine manifest and its declared dependencies. Do not cross an engine boundary by convenience.
 - Follow the exact assignment and its authority. No silent scope expansion, no silent Owner-intent redefinition, and no silent state mutation.
 - Claims that depend on a candidate/revision/environment must cite exact-state evidence. `ARTIFACT != EVIDENCE`; evidence must actually support the claim.
-- Missing capability, missing authority, unresolved contradiction, or unavailable required engine is an explicit stop/escalation condition, not permission to improvise governance.
-- **Solution Patterns are optional.** Select them only when their assumptions and rejection conditions match; production success never promotes a pattern into universal law.
+- Missing capability discovered after a previously valid assignment is `BLOCKED_RUNTIME_DRIFT`; missing capability known before assignment is an admissibility failure, not ordinary Executor work.
+- Missing authority, unresolved contradiction, unavailable required engine, or absent mandatory evidence path is an explicit stop/escalation condition, not permission to improvise governance.
+- **Solution Patterns are optional.** Select them only when their assumptions, rejection conditions, and execution prerequisites match; production success never promotes a pattern into universal law.
 - Relevant shared-state change invalidates affected evidence/preconditions until fresh verification, equivalence proof, rebuild/rebase, or explicit stop. A universal exclusive lease is not required.
 - Architecture is not reconsidered merely because implementation is difficult. Distinguish implementation failure, local architecture defect, and invalidated architecture assumption; open an Architecture Reconsideration Gate only on evidence or before an explicitly planned hard-to-reverse commitment.
 

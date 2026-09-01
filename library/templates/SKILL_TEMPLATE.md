@@ -27,7 +27,34 @@ Collect only what is needed:
 - repository or project context
 - files, systems, or pages in scope
 - constraints and non-goals
-- available verification commands
+- required claims/evidence
+
+## Execution contract
+
+**Required execution capabilities for mandatory steps:**
+
+- TODO, for example `repository_remote_read`, `repository_local_checkout`, `shell`, `python_runtime`, `interactive_browser`
+- or explicitly: none beyond model reasoning / artifact reads
+
+**Supported execution modes:**
+
+| Mode | Required capabilities | Claim/evidence boundary |
+|---|---|---|
+| TODO | TODO | TODO |
+
+**Conditional / optional capabilities:**
+
+- TODO
+
+**Mandatory evidence paths and equivalent fallbacks:**
+
+- TODO. If no equivalent fallback exists, say so.
+
+**Unsupported environment behavior:**
+
+- Before assignment: return/trigger `ASSIGNMENT_NOT_ADMISSIBLE` for missing mandatory capabilities.
+- After a previously valid assignment loses a capability: return `BLOCKED_RUNTIME_DRIFT` with evidence.
+- Never silently weaken a mandatory claim to fit the available runtime.
 
 ## Required outputs
 
@@ -43,8 +70,8 @@ Produce a concise result with:
 
 1. Inspect the current context before acting.
 2. Restate the task in concrete terms.
-3. Identify the smallest useful workflow.
-4. Perform only the required steps.
+3. Identify the smallest useful workflow and supported execution mode.
+4. Perform only the required steps through capabilities proven by the assignment execution contract.
 5. Record evidence and risks.
 6. Use a clear verdict.
 
@@ -53,6 +80,8 @@ Produce a concise result with:
 Avoid:
 
 - vague success claims
+- hidden runtime/tool assumptions
+- claiming a fallback is equivalent when it proves a weaker state
 - unrelated refactors
 - long generic essays
 - hidden assumptions
@@ -63,6 +92,9 @@ Avoid:
 
 - [ ] The skill has a clear trigger.
 - [ ] The procedure is actionable.
+- [ ] Required execution capabilities are explicit for every mandatory external step.
+- [ ] Supported execution modes and evidence boundaries are explicit.
+- [ ] Unsupported-environment behavior is explicit.
 - [ ] The required outputs are explicit.
 - [ ] Known failure modes are listed.
 - [ ] The skill does not duplicate an existing skill.
@@ -72,6 +104,8 @@ Avoid:
 
 - Status
 - Scope
+- Execution mode
+- Capabilities used
 - Evidence
 - Risks
 - Next action

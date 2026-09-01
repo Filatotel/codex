@@ -3,7 +3,7 @@
   "$id": "project-resolver/assignment.schema.json",
   "title": "ASSIGNMENT",
   "type": "object",
-  "required": ["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","objective","authority","scope","acceptance","stop_conditions","result_to"],
+  "required": ["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","objective","authority","scope","acceptance","stop_conditions","result_to","execution_contract"],
   "properties": {
     "artifact_type": {"const":"ASSIGNMENT"},
     "artifact_id": {"type":"string","minLength":1},
@@ -19,7 +19,25 @@
     "acceptance": {"type":"array","items":{"type":"string"}},
     "required_outputs": {"type":"array","items":{"type":"string"}},
     "stop_conditions": {"type":"array","items":{"type":"string"}},
-    "result_to": {"type":"string","minLength":1}
+    "result_to": {"type":"string","minLength":1},
+    "execution_contract": {
+      "type":"object",
+      "required":["assignment_draft_ref","destination_id","runtime_identity","capability_profile_ref","admissibility_ref","proof_status","required_capabilities","unsatisfied_required_capabilities","mandatory_evidence_paths","execution_mode"],
+      "properties": {
+        "assignment_draft_ref":{"type":"string","minLength":1},
+        "destination_id":{"type":"string","minLength":1},
+        "runtime_identity":{"type":"string","minLength":1},
+        "capability_profile_ref":{"type":"string","minLength":1},
+        "admissibility_ref":{"type":"string","minLength":1},
+        "proof_status":{"const":"PROVEN"},
+        "required_capabilities":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
+        "unsatisfied_required_capabilities":{"type":"array","maxItems":0,"items":{"type":"string","minLength":1}},
+        "mandatory_evidence_paths":{"type":"array","items":{"type":"string","minLength":1}},
+        "execution_mode":{"type":"string","minLength":1},
+        "fallback_mode":{"type":["string","null"]}
+      },
+      "additionalProperties": true
+    }
   },
   "additionalProperties": true
 }

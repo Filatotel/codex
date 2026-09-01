@@ -10,7 +10,9 @@ There is no universal Artifact Agent. Artifact production is role-native.
 
 ## Required common artifact types
 
-- `ASSIGNMENT` — bounded instruction for current work.
+- `CAPABILITY_PROFILE` — freshness-bounded evidence of concrete execution surfaces available to one exact destination/runtime instance; it carries no authority by itself.
+- `ASSIGNMENT_ADMISSIBILITY` — pre-assignment control proof comparing mandatory required capabilities/evidence paths with one exact destination capability profile.
+- `ASSIGNMENT` — bounded instruction for current work; executable only when its destination-bound execution contract cites an `ADMISSIBLE` proof and contains no unsatisfied required capability.
 - `EXECUTOR_RESULT` — what the Executor actually did, resulting state, evidence refs, limitations/deferred findings.
 - `VERIFICATION_RESULT` — independent claim-by-claim verification of an exact result/candidate.
 - `DIRECTOR_DECISION` — admissible next transition selected from current state plus relevant results.
@@ -20,9 +22,19 @@ There is no universal Artifact Agent. Artifact production is role-native.
 
 ## Identity and provenance
 
-Every artifact has a stable `artifact_id`, `artifact_type`, `produced_by_role`, `assignment_id` where applicable, `input_state_ref`, `status`, `provenance/created_from`, and `related_artifacts`.
+Every artifact has a stable `artifact_id`, `artifact_type`, `produced_by_role`, `assignment_id` where applicable (nullable for pre-assignment artifacts), `input_state_ref`, `status`, `provenance/created_from`, and `related_artifacts`.
 
 Derived artifacts must not erase source identity. A summary cannot silently replace a primary result when the downstream decision requires the primary result.
+
+`CAPABILITY_PROFILE` must identify the exact destination/runtime and freshness boundary. `ASSIGNMENT_ADMISSIBILITY` must bind the assignment draft, destination, and exact capability profile used in the subset decision. An `ASSIGNMENT` must preserve those refs in its execution contract.
+
+## Pre-assignment executability separation
+
+`ASSIGNMENT_ADMISSIBILITY != VERIFICATION_RESULT`.
+
+Admissibility establishes only that the destination can execute/prove the mandatory assignment requirements at dispatch time. It does not establish that the work succeeded, that the candidate is correct, or that acceptance is satisfied.
+
+Known missing capability before dispatch yields `ASSIGNMENT_NOT_ADMISSIBLE` and no executable assignment. Loss of a previously proven capability after dispatch is runtime drift and may yield `BLOCKED_RUNTIME_DRIFT` from the active role.
 
 ## Execution and verification separation
 
@@ -32,4 +44,4 @@ The Executor owns truthful reporting of performed work; the Verifier owns indepe
 
 ## Artifact versus evidence
 
-Artifacts can contain evidence references, but artifact existence is not proof. Evidence must be evaluated against the exact claim, state, method, and trust boundary described by the evidence contract.
+Artifacts can contain evidence references, but artifact existence is not proof. Evidence must be evaluated against the exact claim, state, method, and trust boundary described by the evidence contract. A capability profile is evidence about the runtime surface only; it is neither authorization nor proof of task completion.

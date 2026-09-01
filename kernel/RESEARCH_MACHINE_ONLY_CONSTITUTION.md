@@ -34,6 +34,10 @@ Every admitted default research question and work package MUST prove all of the 
 
 A missing field is a denial, not an implicit pass.
 
+These booleans establish **method-level machine-only admissibility**. They do not prove that the exact destination agent/runtime currently has the concrete execution surfaces required by the method. A machine-only work package can still require a local checkout, shell, Python/Node/PHP runtime, browser, network, database, deployment access, or a specific connector that is absent from a particular destination.
+
+Therefore every Research execution/verification assignment is also subject to `contracts/EXECUTABILITY_CONTRACT.md`: the Control Director must derive concrete required capabilities from the work package's `EXECUTION_SURFACE`, source access, computation, verification method, and mandatory validators, bind an exact destination `CAPABILITY_PROFILE`, and prove `REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES` before `ASSIGN`. Known missing runtime capability is `ASSIGNMENT_NOT_ADMISSIBLE`, not a valid plan to discover `BLOCKED` downstream.
+
 An object that requires a prohibited human dependency is invalid at admission and MUST return `METHOD_NOT_MACHINE_EXECUTABLE` or `REJECTED_DEFAULT_RESEARCH_ARCHITECTURE`. It MUST NOT enter normal execution as `BLOCKED_PENDING_HUMANS`.
 
 ## Allowed pre-existing human-derived evidence
@@ -75,11 +79,12 @@ For Research Engine execution, authority order is:
 
 1. OWNER / K0 constitutional decision
 2. this kernel constitution
-3. Research Engine manifest/contracts
-4. project-specific research architecture
-5. research work package
-6. method / experiment freeze
-7. executor prompt
+3. universal destination executability contract
+4. Research Engine manifest/contracts
+5. project-specific research architecture
+6. research work package
+7. method / experiment freeze
+8. executor prompt
 
 A weaker downstream instruction that requests prohibited human participation is an invalid method instruction. Stop that method, not the research project; return a machine-executable remediation or an explicit evidence limitation.
 
@@ -100,4 +105,4 @@ Authorization is non-transitive, non-reusable, and does not modify the default R
 
 ## Enforcement requirement
 
-This constitution is enforceable, not advisory. Research question admission, work-package admission, experiment validation, static policy linting, and automated regression tests MUST reject active prohibited human dependencies before normal Research Engine execution.
+This constitution is enforceable, not advisory. Research question admission, work-package admission, experiment validation, static policy linting, and automated regression tests MUST reject active prohibited human dependencies before normal Research Engine execution. Destination executability remains a separate universal pre-assignment gate and must not be inferred from the machine-only admission booleans.

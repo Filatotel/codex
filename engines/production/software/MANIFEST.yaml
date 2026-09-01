@@ -22,6 +22,8 @@ inputs:
   - relevant_state_slice
   - exact_assignment
   - authority
+  - destination_capability_profile
+  - assignment_admissibility
 outputs:
   - software_work_product
   - executor_result
@@ -29,6 +31,7 @@ outputs:
 entry_conditions:
   - capability_semantically_belongs_to_software
   - required_authority_is_present
+  - destination_executability_preflight_passes
 exit_conditions:
   - executor_result_emitted
   - resulting_state_and_evidence_refs_recorded
@@ -62,3 +65,8 @@ capabilities:
   review_software_change: review_and_release
   software_release_support: review_and_release
   technical_qa: review_and_release
+execution_contract:
+  authority: contracts/EXECUTABILITY_CONTRACT.md
+  rule: required_capabilities_subset_of_destination_available_capabilities
+  assignment_without_proof: forbidden
+  modes_are_skill_or_workflow_declared: true
