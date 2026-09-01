@@ -15,7 +15,9 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertEqual(contract["properties"]["proof_status"]["const"], "PROVEN")
         self.assertEqual(contract["properties"]["unsatisfied_required_capabilities"]["maxItems"], 0)
         for required in [
+            "assignment_draft_ref",
             "destination_id",
+            "runtime_identity",
             "capability_profile_ref",
             "admissibility_ref",
             "required_capabilities",
@@ -30,11 +32,16 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertIn("available_capabilities", schema["required"])
         self.assertIn("unavailable_capabilities", schema["required"])
         self.assertIn("freshness_boundary", schema["required"])
+        self.assertIn("evidence_artifacts", schema["required"])
+        boundary = schema["properties"]["freshness_boundary"]
+        self.assertEqual(boundary["type"], "object")
+        self.assertEqual(boundary["required"], ["observed_at", "valid_until"])
 
     def test_admissibility_schema_fails_closed(self) -> None:
         schema = json.loads((ROOT / "schemas/assignment-admissibility.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(schema["properties"]["status"]["enum"], ["ADMISSIBLE", "NOT_ADMISSIBLE"])
         self.assertIn("mandatory_actions", schema["required"])
+        self.assertIn("runtime_identity", schema["required"])
         self.assertEqual(schema["properties"]["mandatory_actions"]["minItems"], 1)
         serialized = json.dumps(schema)
         self.assertIn('"maxItems": 0', serialized)

@@ -38,6 +38,14 @@ It records:
 
 A capability profile is evidence about a runtime, not authority to use that capability.
 
+For deterministic admission, the profile freshness boundary contains timezone-aware
+`observed_at` and `valid_until` timestamps. `valid_until` must still be in the future.
+Every available capability cites a separately represented, `RESOLVED`
+`CAPABILITY_EVIDENCE` artifact embedded in `evidence_artifacts`; that artifact must
+name the same exact `runtime_identity`, prove the cited capability, and remain valid
+for the whole profile freshness boundary. An arbitrary or unresolved string is not
+capability evidence.
+
 ## ASSIGNMENT_ADMISSIBILITY
 
 An `ASSIGNMENT_ADMISSIBILITY` record binds an assignment draft to an exact destination and capability profile. It records:
@@ -50,6 +58,11 @@ An `ASSIGNMENT_ADMISSIBILITY` record binds an assignment draft to an exact desti
 - `ADMISSIBLE` or `NOT_ADMISSIBLE`.
 
 `ADMISSIBLE` is valid only when the unsatisfied set is empty. The deterministic reference implementation lives at `tools/executability.py`.
+
+An executable assignment carries `execution_contract.assignment_draft_ref` equal
+to the cited admissibility record's `assignment_draft_id`, plus the same exact
+`runtime_identity`. Matching destination labels alone do not establish either
+binding.
 
 ## Capability vocabulary
 
