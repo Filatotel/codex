@@ -51,7 +51,9 @@ required_dependencies:
   - schemas/research-method-freeze.schema.json
   - schemas/research-source.schema.json
   - schemas/human-research-authorization.schema.json
+  - schemas/owner-decision-record.schema.json
   - tools/research_policy.py
+  - tools/validate_structure.py
 workflows:
   default_machine_research: engines/research/workflows/default-machine-research.md
 roles:
@@ -74,6 +76,14 @@ capabilities:
   run_research_experiment: default_machine_research
   verify_research_work: default_machine_research
   prepare_research_release: default_machine_research
+validation_bindings:
+  question: validate_question
+  work_package: validate_work_package
+  source: validate_source
+  experiment: validate_experiment
+  method_freeze: validate_method_freeze
+  separate_human_research_authorization: validate_human_research_authorization
+  structural_regression_gate: tools/validate_structure.py
 default_deny:
   third_party_human_research: true
   owner_manual_research_labor: true
@@ -82,4 +92,7 @@ default_deny:
 separate_human_research:
   reachable_from_default_workflow: false
   required_owner_authorization_validator: validate_human_research_authorization
+  required_owner_decision_record: OWNER_DECISION_RECORD
   namespace_prefix: human-research/
+  non_transitive: true
+  default_research_mode_unchanged: true

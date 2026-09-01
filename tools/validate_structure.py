@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,6 +43,29 @@ ACTIVE_SKILL_NAMESPACES = [
     ROOT / "library/skills",
 ]
 
+RESEARCH_ENFORCEMENT_SURFACES = [
+    "kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md",
+    "engines/research/MANIFEST.yaml",
+    "engines/research/RESEARCH_CONTROL_CONTRACT.md",
+    "engines/research/ROLES.md",
+    "engines/research/workflows/default-machine-research.md",
+    "engines/research/bootstrap/DEFAULT_MACHINE_ONLY_BOOTSTRAP.yaml",
+    "engines/research/templates/research-question.yaml",
+    "engines/research/templates/research-work-package.yaml",
+    "engines/research/templates/machine-experiment.yaml",
+    "schemas/research-question.schema.json",
+    "schemas/research-work-package.schema.json",
+    "schemas/research-source.schema.json",
+    "schemas/machine-experiment.schema.json",
+    "schemas/research-method-freeze.schema.json",
+    "schemas/human-research-authorization.schema.json",
+    "schemas/owner-decision-record.schema.json",
+    "tools/research_policy.py",
+    "tools/validate_structure.py",
+    "tests/test_research_machine_only.py",
+    "tests/test_structure.py",
+]
+
 
 def fail(errors: list[str], message: str) -> None:
     errors.append(message)
@@ -50,6 +74,32 @@ def fail(errors: list[str], message: str) -> None:
 def manifest_path_values(text: str) -> set[str]:
     # Extract repository-relative md/yaml/json/py paths from simple manifests.
     return set(re.findall(r"(?:^|\s)([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.(?:md|yaml|json|py))\s*$", text, flags=re.MULTILINE))
+
+
+def _load_schema(root: Path, rel: str) -> dict:
+    return json.loads((root / rel).read_text(encoding="utf-8"))
+
+
+def validate_research_machine_only_gate(
+    root: Path = ROOT,
+    regression_runner: Callable[[], list[str]] | None = None,
+) -> list[str]:
+    """Normal bounded Research gate: active-surface lint + deterministic policy regressions."""
+    errors: list[str] = []
+    try:
+        import sys
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from tools.research_policy import lint_active_repository, run_machine_only_regressions
+
+        for err in lint_active_repository(root):
+            fail(errors, f"research machine-only policy: {err}")
+        runner = regression_runner or run_machine_only_regressions
+        for err in runner():
+            fail(errors, f"research machine-only regression: {err}")
+    except Exception as exc:
+        fail(errors, f"research machine-only policy/regression validator unavailable: {exc}")
+    return errors
 
 
 def validate() -> list[str]:
@@ -104,9 +154,20 @@ def validate() -> list[str]:
         "third_party_human_research: true",
         "owner_manual_research_labor: true",
         "reachable_from_default_workflow: false",
+        "question: validate_question",
+        "work_package: validate_work_package",
+        "source: validate_source",
+        "experiment: validate_experiment",
+        "method_freeze: validate_method_freeze",
+        "separate_human_research_authorization: validate_human_research_authorization",
+        "structural_regression_gate: tools/validate_structure.py",
     ]:
         if required not in research_manifest:
             fail(errors, f"Research manifest missing machine-only control: {required}")
+
+    for rel in RESEARCH_ENFORCEMENT_SURFACES:
+        if not (ROOT / rel).is_file():
+            fail(errors, f"missing active Research enforcement surface: {rel}")
 
     role_paths = [
         ROOT / "roles/control-director/ROLE.md",
@@ -146,6 +207,8 @@ def validate() -> list[str]:
         "schemas/machine-experiment.schema.json",
         "schemas/research-method-freeze.schema.json",
         "schemas/research-source.schema.json",
+        "schemas/human-research-authorization.schema.json",
+        "schemas/owner-decision-record.schema.json",
     ]
     for rel in required_research_schemas:
         if not (ROOT / rel).is_file():
@@ -153,6 +216,37 @@ def validate() -> list[str]:
 
     if len(list((ROOT / "schemas").glob("*.schema.json"))) < 5:
         fail(errors, "fewer than five required role-native schemas are materialized")
+
+    # Schema/validator closure and required-field contracts must not drift apart.
+    try:
+        import sys
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from tools.research_policy import (
+            HUMAN_AUTH_FIELDS,
+            MACHINE_EXPERIMENT_REQUIRED,
+            METHOD_FREEZE_REQUIRED,
+            QUESTION_REQUIRED_FIELDS,
+            SOURCE_REQUIRED_FIELDS,
+            WORK_PACKAGE_REQUIRED_FIELDS,
+        )
+        schema_contracts = [
+            ("schemas/research-question.schema.json", QUESTION_REQUIRED_FIELDS),
+            ("schemas/research-work-package.schema.json", WORK_PACKAGE_REQUIRED_FIELDS),
+            ("schemas/research-source.schema.json", SOURCE_REQUIRED_FIELDS),
+            ("schemas/machine-experiment.schema.json", MACHINE_EXPERIMENT_REQUIRED),
+            ("schemas/research-method-freeze.schema.json", METHOD_FREEZE_REQUIRED),
+            ("schemas/human-research-authorization.schema.json", HUMAN_AUTH_FIELDS),
+        ]
+        for rel, policy_required in schema_contracts:
+            schema = _load_schema(ROOT, rel)
+            if schema.get("additionalProperties") is not False:
+                fail(errors, f"Research schema is not closed: {rel}")
+            schema_required = set(schema.get("required", []))
+            if schema_required != set(policy_required):
+                fail(errors, f"schema/policy required-field drift: {rel}")
+    except Exception as exc:
+        fail(errors, f"Research schema/policy contract comparison unavailable: {exc}")
 
     seen: dict[str, str] = {}
     for namespace in ACTIVE_SKILL_NAMESPACES:
@@ -184,16 +278,7 @@ def validate() -> list[str]:
     if not legacy_factory.is_file():
         fail(errors, "legacy LOCALFLOW_FACTORY.md was not preserved in archive")
 
-    # Machine-only Research is part of structural validation, not an optional prose lint.
-    try:
-        import sys
-        sys.path.insert(0, str(ROOT))
-        from tools.research_policy import lint_active_repository
-        for err in lint_active_repository(ROOT):
-            fail(errors, f"research machine-only policy: {err}")
-    except Exception as exc:
-        fail(errors, f"research machine-only policy validator unavailable: {exc}")
-
+    errors.extend(validate_research_machine_only_gate(ROOT))
     return errors
 
 

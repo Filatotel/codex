@@ -23,8 +23,9 @@ Ordinary execution does not scan the whole skill library.
 
 - **Production / Software** — the accepted Codex engineering knowledge, now bounded under `engines/production/software/`.
 - **Verification** — independent completion-claim verification using shared exact-state and evidence contracts.
+- **Research** — the machine-only Research Engine registered by `SYSTEM_MANIFEST.yaml`, with fail-closed question/work-package admission, source/experiment/freeze validation, and bounded automated regression enforcement.
 
-Canon, Research, Foundation, and other production-domain engines are explicitly planned but **not materialized** in this wave. The Canon Engine is expected to arrive through a separate migration wave rather than being improvised here.
+Canon, Foundation, and other production-domain engines are explicitly planned but **not materialized** in this wave. The Canon Engine is expected to arrive through a separate migration wave rather than being improvised here.
 
 ## Shared system layer
 
@@ -47,6 +48,6 @@ Canonical project state must survive in durable artifacts, not chat history. An 
 
 ## Migration scope
 
-Wave 1 creates the structural baseline only. It does not import the Canon repository, author Research/Foundation engines, implement the proposed capability waves in issues #23/#24, build a full autonomous scheduler, rename the repository, or turn technology-specific patterns into system architecture.
+Wave 1 creates the structural baseline only. It does not import the Canon repository, author Foundation or other planned engines, implement the proposed capability waves in issues #23/#24, build a full autonomous scheduler, rename the repository, or turn technology-specific patterns into system architecture.
 
 See `ARCHITECTURE_MIGRATION_MAP.md` for exact legacy accounting and migration ownership.
