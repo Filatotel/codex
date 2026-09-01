@@ -105,7 +105,7 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
         },
         "acceptance": ["required verification evidence is produced"],
         "stop_conditions": ["runtime drift invalidates the admitted execution route"],
-        "result_to": "control-layer",
+        "result_to": "agent-1",
         "execution_contract": {
             "assignment_draft_ref": "DRAFT-1",
             "destination_id": "agent-1",
@@ -129,15 +129,15 @@ def governed_chain(assignment, record, profile):
     route = {
         "artifact_type":"EXECUTION_ROUTE", "artifact_id":"ROUTE-1", "produced_by_role":"control-director",
         "assignment_id":None, "input_state_ref":"state-1", "status":"ADMISSIBLE", "provenance":["CAP-1"],
-        "related_artifacts":["CAP-1"], "assignment_draft_id":"DRAFT-1", "final_result_to":"control-layer",
+        "related_artifacts":["CAP-1"], "assignment_draft_id":"DRAFT-1", "final_result":{"segment_ref":"durable","destination_id":"agent-1"},
         "segments":[
             {"segment_id":"delivery","route_role":"CANDIDATE_DELIVERY","destination_id":"agent-1","runtime_identity":"runtime-1","capability_profile_ref":"CAP-1","required_capabilities":["repository_remote_read"],"execution_mode":"local"},
             {"segment_id":"execute","route_role":"EXECUTION_VERIFICATION","destination_id":"agent-1","runtime_identity":"runtime-1","capability_profile_ref":"CAP-1","required_capabilities":["shell","python_runtime"],"execution_mode":"local"},
             {"segment_id":"durable","route_role":"DURABLE_EVIDENCE_CONTROL","destination_id":"agent-1","runtime_identity":"runtime-1","capability_profile_ref":"CAP-1","required_capabilities":["durable_artifact_write"],"execution_mode":"local"},
         ],
         "handoffs":[
-            {"from_segment":"delivery","to_segment":"execute","required_capabilities":["repository_remote_read"],"same_surface":True},
-            {"from_segment":"execute","to_segment":"durable","required_capabilities":["durable_artifact_write"],"same_surface":True},
+            {"from_segment":"delivery","to_segment":"execute","source_required_capabilities":[],"target_required_capabilities":[],"internal_required_capabilities":["repository_remote_read"],"same_surface":True},
+            {"from_segment":"execute","to_segment":"durable","source_required_capabilities":[],"target_required_capabilities":[],"internal_required_capabilities":["durable_artifact_write"],"same_surface":True},
         ],
     }
     return resolver, route
@@ -176,20 +176,40 @@ class ExecutabilityContractTest(unittest.TestCase):
             for claim in candidate["capability_evidence"]: claim["evidence_ref"] = artifact["artifact_id"]
             segment["destination_id"] = candidate["destination_id"]; segment["runtime_identity"] = candidate["runtime_identity"]; segment["capability_profile_ref"] = candidate["artifact_id"]
             multi_profiles[candidate["artifact_id"]] = candidate; evidence[artifact["artifact_id"]] = artifact
-        for edge in multi["handoffs"]: edge["same_surface"] = False
+        multi["final_result"]["destination_id"] = "agent-C"
+        for edge in multi["handoffs"]:
+            edge["same_surface"] = False
+            edge["internal_required_capabilities"] = []
+            edge["source_required_capabilities"] = ["durable_artifact_write"]
+            edge["target_required_capabilities"] = ["repository_remote_read"]
         self.assertEqual(validate_execution_route(multi, multi_profiles, evidence.get), [])
         cases = []
-        no_publish = deepcopy(route); no_publish["segments"][2]["required_capabilities"] = ["repository_remote_write"]; cases.append(no_publish)
-        no_delivery = deepcopy(route); no_delivery["segments"][0]["required_capabilities"] = ["connector:github"]; cases.append(no_delivery)
-        no_readback = deepcopy(route); no_readback["handoffs"][1]["required_capabilities"] = ["durable_artifact_read"]; cases.append(no_readback)
+        no_publish = deepcopy(multi); no_publish["handoffs"][0]["source_required_capabilities"] = ["repository_remote_write"]; cases.append((no_publish,multi_profiles,evidence.get))
+        no_receive = deepcopy(multi); no_receive["handoffs"][0]["target_required_capabilities"] = ["durable_artifact_read"]; cases.append((no_receive,multi_profiles,evidence.get))
+        source_only = deepcopy(multi); source_only["handoffs"][0]["target_required_capabilities"] = []; cases.append((source_only,multi_profiles,evidence.get))
+        target_only = deepcopy(multi); target_only["handoffs"][0]["source_required_capabilities"] = []; cases.append((target_only,multi_profiles,evidence.get))
         missing_edge = deepcopy(route); missing_edge["handoffs"] = missing_edge["handoffs"][:1]; cases.append(missing_edge)
         runtime_mismatch = deepcopy(route); runtime_mismatch["segments"][1]["runtime_identity"] = "other"; cases.append(runtime_mismatch)
-        for bad in cases:
-            with self.subTest(route=bad): self.assertTrue(validate_execution_route(bad, profiles, resolver))
+        for case in cases:
+            bad, case_profiles, case_resolver = case if isinstance(case, tuple) else (case, profiles, resolver)
+            with self.subTest(route=bad): self.assertTrue(validate_execution_route(bad, case_profiles, case_resolver))
         bad_assignment = deepcopy(assignment); bad_assignment["result_to"] = "elsewhere"
         self.assertTrue(any("result_to" in e for e in validate_assignment_execution_contract(bad_assignment, record, profile, resolver, route)))
         other_draft = deepcopy(route); other_draft["assignment_draft_id"] = "OTHER"
         self.assertTrue(any("assignment_draft_id" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, other_draft)))
+        fake_endpoint = deepcopy(route); fake_endpoint["final_result"]["destination_id"] = "control-layer"
+        self.assertTrue(any("durable segment" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, fake_endpoint)))
+        wrong_segment = deepcopy(route); wrong_segment["final_result"]["segment_ref"] = "execute"
+        self.assertTrue(any("durable segment" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, wrong_segment)))
+        unresolved = deepcopy(route); unresolved["final_result"]["segment_ref"] = "missing"
+        self.assertTrue(any("unresolved" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, unresolved)))
+
+    def test_execution_segment_exact_assignment_binding(self) -> None:
+        for field, value in [("destination_id","other"),("runtime_identity","other"),("capability_profile_ref","other")]:
+            assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
+            route["segments"][1][field] = value
+            errors = validate_assignment_execution_contract(assignment, record, profile, resolver, route)
+            self.assertTrue(any(f"execution segment {field} mismatch" in error for error in errors), errors)
 
     def test_timestamp_strict_offsets_and_overflow_fail_closed(self) -> None:
         for valid in ["2026-01-01T00:00:00Z", "2026-01-01T00:00:00+05:30", "2026-01-01T00:00:00-05:00"]:

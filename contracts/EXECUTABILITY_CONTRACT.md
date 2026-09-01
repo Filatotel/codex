@@ -49,7 +49,7 @@ Timestamps use the reference validator's strict RFC3339/Python-datetime subset: 
 
 ## End-to-end EXECUTION_ROUTE
 
-**NO EXECUTABLE ASSIGNMENT WITHOUT AN ADMISSIBLE END-TO-END EXECUTION ROUTE.** Destination proof alone is insufficient. A schema-backed `EXECUTION_ROUTE` binds the exact assignment draft and final `result_to`, and contains exactly identified `CANDIDATE_DELIVERY`, `EXECUTION_VERIFICATION`, and `DURABLE_EVIDENCE_CONTROL` roles. Every segment binds its destination, runtime, capability profile, requirements, mode, and every ordered handoff binds transfer requirements. All segment and edge requirements must be proven. Same-surface operation is allowed only through explicit same-runtime equivalence. Missing delivery, execution, publication/readback, or final durable reachability returns `ASSIGNMENT_NOT_ADMISSIBLE`; capability loss after valid admission remains `BLOCKED_RUNTIME_DRIFT`.
+**NO EXECUTABLE ASSIGNMENT WITHOUT AN ADMISSIBLE END-TO-END EXECUTION ROUTE.** Destination proof alone is insufficient. A schema-backed `EXECUTION_ROUTE` binds the exact assignment draft and a structured final-result endpoint, and contains exactly identified `CANDIDATE_DELIVERY`, `EXECUTION_VERIFICATION`, and `DURABLE_EVIDENCE_CONTROL` roles. Every segment binds its destination, runtime, capability profile, requirements, and mode. Every cross-surface handoff separately proves source export/publish capabilities and target receive/read capabilities; capabilities on the wrong side cannot satisfy the edge. A same-surface handoff instead requires exact destination/runtime equivalence plus an internal-transfer capability on that runtime. All segment and directional edge requirements must be proven. The structured `final_result.segment_ref` must resolve to the durable segment and its `destination_id` must equal both that segment's destination and `ASSIGNMENT.result_to`. Missing delivery, execution, publication/readback, or final durable reachability returns `ASSIGNMENT_NOT_ADMISSIBLE`; capability loss after valid admission remains `BLOCKED_RUNTIME_DRIFT`.
 
 ## ASSIGNMENT_ADMISSIBILITY
 
@@ -68,7 +68,7 @@ An executable assignment carries `execution_contract.assignment_draft_ref` equal
 to the cited admissibility record's `assignment_draft_id`, plus the same exact
 `runtime_identity`. Matching destination labels alone do not establish either
 binding.
-It also carries `execution_contract.route_ref` equal to the exact admitted route, and `ASSIGNMENT.result_to` must equal that route's `final_result_to`.
+It also carries `execution_contract.route_ref` equal to the exact admitted route. The route's `EXECUTION_VERIFICATION` segment must exactly equal the assignment/admissibility `destination_id`, `runtime_identity`, and `capability_profile_ref`; `ASSIGNMENT.result_to` must equal the structured durable final endpoint.
 
 ## Capability vocabulary
 

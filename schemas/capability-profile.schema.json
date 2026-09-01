@@ -151,26 +151,38 @@
           },
           "observed_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
           },
           "valid_until": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
           },
           "produced_by_role": {
             "type": "string",
             "minLength": 1
           },
           "assignment_id": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
             ]
           },
           "input_state_ref": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
             ]
           },
           "provenance": {

@@ -52,6 +52,10 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertEqual(route["properties"]["status"]["const"], "ADMISSIBLE")
         self.assertEqual(route["properties"]["segments"]["minItems"], 3)
         self.assertEqual(route["properties"]["handoffs"]["minItems"], 2)
+        self.assertIn("final_result", route["required"])
+        handoff = route["properties"]["handoffs"]["items"]
+        for field in ["source_required_capabilities", "target_required_capabilities", "internal_required_capabilities"]:
+            self.assertIn(field, handoff["required"])
         profile = json.loads((ROOT / "schemas/capability-profile.schema.json").read_text(encoding="utf-8"))
         evidence = profile["properties"]["evidence_artifacts"]["items"]
         for field in ["observation_method", "created_from", "provenance", "related_artifacts"]:

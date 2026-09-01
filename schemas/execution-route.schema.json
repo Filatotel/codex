@@ -15,7 +15,7 @@
     "assignment_draft_id",
     "segments",
     "handoffs",
-    "final_result_to"
+    "final_result"
   ],
   "properties": {
     "artifact_type": {
@@ -30,15 +30,25 @@
       "minLength": 1
     },
     "assignment_id": {
-      "type": [
-        "string",
-        "null"
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
       ]
     },
     "input_state_ref": {
-      "type": [
-        "string",
-        "null"
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
       ]
     },
     "status": {
@@ -57,10 +67,6 @@
       }
     },
     "assignment_draft_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "final_result_to": {
       "type": "string",
       "minLength": 1
     },
@@ -116,7 +122,51 @@
           }
         },
         "additionalProperties": false
-      }
+      },
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "route_role": {
+                "const": "CANDIDATE_DELIVERY"
+              }
+            },
+            "required": [
+              "route_role"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "route_role": {
+                "const": "EXECUTION_VERIFICATION"
+              }
+            },
+            "required": [
+              "route_role"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "route_role": {
+                "const": "DURABLE_EVIDENCE_CONTROL"
+              }
+            },
+            "required": [
+              "route_role"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
     },
     "handoffs": {
       "type": "array",
@@ -126,7 +176,9 @@
         "required": [
           "from_segment",
           "to_segment",
-          "required_capabilities",
+          "source_required_capabilities",
+          "target_required_capabilities",
+          "internal_required_capabilities",
           "same_surface"
         ],
         "properties": {
@@ -138,21 +190,91 @@
             "type": "string",
             "minLength": 1
           },
-          "required_capabilities": {
+          "same_surface": {
+            "type": "boolean"
+          },
+          "source_required_capabilities": {
             "type": "array",
-            "minItems": 1,
             "uniqueItems": true,
             "items": {
               "type": "string",
               "minLength": 1
             }
           },
-          "same_surface": {
-            "type": "boolean"
+          "target_required_capabilities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "internal_required_capabilities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "same_surface": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "internal_required_capabilities": {
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "same_surface": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "source_required_capabilities": {
+                  "minItems": 1
+                },
+                "target_required_capabilities": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
       }
+    },
+    "final_result": {
+      "type": "object",
+      "required": [
+        "segment_ref",
+        "destination_id"
+      ],
+      "properties": {
+        "segment_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "destination_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
