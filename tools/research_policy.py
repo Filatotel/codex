@@ -45,6 +45,7 @@ ACTIVE_ACTION_PATTERNS = (
     r"\b(?:new|project[- ]generated)\s+(?:human|participant|respondent|speaker|user).{0,35}\b(?:survey|interviews?|data|responses?|ratings?|evidence)\b",
     r"\b(?:route|send|hand\s+off)\b.{0,30}\b(?:to\s+)?(?:humans?|participants?|external\s+reviewers?|experts?)\b",
     rf"\b{ASSIGNMENT_VERB}\b.{{0,60}}\b{THIRD_PARTY_RESEARCH_ACTOR}\b.{{0,50}}\b{RESEARCH_WORK_VERB}\b",
+    rf"\b{ASSIGNMENT_VERB}\b.{{0,60}}\b{THIRD_PARTY_RESEARCH_ACTOR}\b",
     rf"\b{ASSIGNMENT_VERB}\b.{{0,60}}\b{RESEARCH_LABOR_NOUN}\b",
     rf"\b(?:requires?|mandates?|needs?)\b.{{0,40}}\b{RESEARCH_LABOR_NOUN}\b",
     rf"\b{RESEARCH_LABOR_NOUN}\b.{{0,30}}\b(?:remains?|is|are)\s+(?:strictly\s+)?mandatory\b",
@@ -90,17 +91,51 @@ def _local_action_span(clause: str, match: re.Match[str]) -> tuple[str, str]:
     end = match.end() + (right.start() if right else len(clause) - match.end())
     return clause[start:match.start()].lower(), clause[match.end():end].lower()
 
+def _iter_action_matches(clause: str) -> Iterator[tuple[str, re.Match[str]]]:
+    """Yield action matches from independent coordination/contrast spans.
+
+    Bounded wildcard patterns therefore cannot merge an active action on one side
+    of a semantic boundary with a negated action on the other side.
+    """
+    hard_boundary = r"(?:[,;]|\b(?:but|however|nevertheless|nonetheless|yet)\b)"
+    hard_spans = (part.strip() for part in re.split(hard_boundary, clause, flags=re.I))
+    spans: list[str] = []
+    for hard_span in hard_spans:
+        coordinated = re.split(r"\band\b", hard_span, flags=re.I)
+        current = coordinated[0].strip() if coordinated else ""
+        for right in coordinated[1:]:
+            right = right.strip()
+            negation_governs_bare_coordination = bool(re.search(
+                r"\b(?:never|do\s+not|does\s+not|must\s+not|should\s+not|may\s+not|cannot|can't)\b",
+                current,
+                flags=re.I,
+            )) and bool(re.match(
+                r"(?:recruit|survey|interview|hire|assign|use|employ|contract|have|collect|gather|solicit|obtain|ask|contact|consult|review|rate|score|annotate|label|code|classify|assess|evaluate)\b",
+                right,
+                flags=re.I,
+            ))
+            if negation_governs_bare_coordination:
+                current = f"{current} and {right}"
+            else:
+                spans.append(current)
+                current = right
+        spans.append(current)
+    for span in spans:
+        span = span.strip()
+        if not span:
+            continue
+        for pattern in ACTIVE_ACTION_PATTERNS:
+            for match in re.finditer(pattern, span, flags=re.I | re.S):
+                yield span, match
+
 def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
     local_before, local_after = _local_action_span(clause, match)
     before = local_before[-120:]; after = local_after[:80]; scoped = local_before; whole_after = local_after
-    normalized = _norm(clause)
-    if re.match(r"^(?:[-*]\s*)?(?:\*\*)?(?:prohibited|forbidden)(?:\*\*)?\s*:", normalized): return True
-    if normalized.startswith("there is no ordinary transition to "): return True
-    # List-wide predicates govern every listed role/dependency, unlike a trailing
-    # qualifier attached to a separate action (for example recruitment, then a
-    # missing-response count that must be zero).
-    if re.match(r"(?:no default role.*?\s)?generic\s+`?reviewer`?,", normalized) and re.search(r"\bare invalid default research engine roles\.?$", normalized): return True
-    if normalized.startswith("migration passes only when ") and re.search(r"\b(?:dependencies|paths|gates) must be zero\.?$", normalized): return True
+    # Every decision below is anchored to this match's local span. Clause-wide
+    # grammatical predicates are classified separately and never leak through
+    # this action-local API.
+    matched = match.group(0).lower()
+    if re.search(r"\b(?:must\s+not|should\s+not|may\s+not|do\s+not|does\s+not|never|cannot|can't)\b", matched): return True
     if re.search(r"(?:do\s+not|don't|must\s+not|should\s+not|may\s+not|cannot|can't|never|forbid(?:den)?\s+to|prohibit(?:ed)?\s+to)\s+(?:ever\s+|directly\s+)?(?:\w+\s+){0,1}$",before): return True
     if re.search(r"\bno\s+(?:third[- ]party\s+human\s+|participant\s+|human\s+)?$",before): return True
     if re.search(r"^\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not\s+allowed|invalid)\b",after): return True
@@ -114,6 +149,31 @@ def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
     if re.search(r"\b(?:cancel|retire)\b.*$",scoped) and re.search(r"\bwithout\s+executing\b",whole_after): return True
     if re.search(r"\balready[- ]collected\b[^,;]{0,100}\bhistorical\b[^,;]{0,100}$",before): return True
     return False
+
+def _clause_is_list_wide_prohibition(clause: str) -> bool:
+    """Recognize predicates that grammatically govern an entire completed list.
+
+    Both forms are anchored at the start and terminal predicate. Appending a
+    contrast/coordinated active action makes the full-clause form stop matching,
+    so this classification cannot paint an independent later action as negated.
+    """
+    normalized = _norm(clause)
+    invalid_roles = bool(re.fullmatch(
+        r"(?:no default role may be instantiated as an arbitrary external person\.\s*)?"
+        r"generic\s+`?reviewer`?,.*\bare invalid default research engine roles\.?",
+        normalized,
+    ))
+    migration_zero = bool(re.fullmatch(
+        r"migration passes only when .+\b(?:dependencies|paths|gates) must be zero\.?",
+        normalized,
+    ))
+    has_independent_boundary = bool(re.search(r"\b(?:and|but|however|nevertheless|nonetheless|yet)\b", normalized))
+    prohibited_heading = bool(re.match(
+        r"^(?:[-*]\s*)?(?:\*\*)?(?:prohibited|forbidden)(?:\*\*)?\s*:",
+        normalized,
+    )) and not has_independent_boundary
+    no_transition_list = normalized.startswith("there is no ordinary transition to ") and not has_independent_boundary
+    return invalid_roles or migration_zero or prohibited_heading or no_transition_list
 
 def _clause_has_static_source(clause: str) -> bool: return any(re.search(p,clause,flags=re.I) for p in STATIC_SOURCE_PATTERNS)
 def _clause_has_human_prohibition(clause: str) -> bool:
@@ -131,14 +191,14 @@ def classify_text(text: str) -> list[Finding]:
     findings=[]
     for clause in _split_clauses(text):
         t=_norm(clause)
+        list_wide_prohibition = _clause_is_list_wide_prohibition(clause)
         for p in SIMULATED_HUMAN_OVERCLAIM:
             if re.search(p,clause,flags=re.I|re.S): findings.append(Finding("PROXY_OVERCLAIM","machine/simulated output is labeled as human responses"))
         if _clause_has_static_source(clause): findings.append(Finding("STATIC_EXTERNAL_SOURCE","pre-existing human-derived evidence"))
         prohibited_action=False; active_action=False
-        for p in ACTIVE_ACTION_PATTERNS:
-            for m in re.finditer(p,clause,flags=re.I|re.S):
-                if _action_is_negated(clause,m): prohibited_action=True
-                else: active_action=True
+        for action_span, match in _iter_action_matches(clause):
+            if list_wide_prohibition or _action_is_negated(action_span,match): prohibited_action=True
+            else: active_action=True
         if prohibited_action or _clause_has_human_prohibition(clause): findings.append(Finding("EXPLICIT_PROHIBITION","human action is explicitly negated/prohibited"))
         if active_action: findings.append(Finding("ACTIVE_DEPENDENCY",f"active prohibited human research action: {clause[:180]}"))
         historical_only=any(c in t for c in HISTORICAL_CUES) and not active_action and not re.search(r"\b(?:run|execute|resume|deploy|start|recruit|collect|require|mandatory)\b",t)
