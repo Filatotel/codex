@@ -42,6 +42,20 @@ class BranchIntegrityCheckerTest(unittest.TestCase):
         errors = checker.validate_branch_state_text(populated_state(**{"Tested HEAD:": ""}))
         self.assertIn("blank required identity: Tested HEAD:", errors)
 
+    def test_blank_required_non_identity_fields_fail(self) -> None:
+        for label in ("Current branch:", "Target branch:", "Risk level:"):
+            with self.subTest(label=label):
+                errors = checker.validate_branch_state_text(populated_state(**{label: ""}))
+                self.assertIn(f"blank required field: {label}", errors)
+
+    def test_multiline_value_does_not_fill_blank_identity(self) -> None:
+        text = populated_state(**{"Base SHA:": "\n  " + "a" * 40})
+        self.assertIn("blank required identity: Base SHA:", checker.validate_branch_state_text(text))
+
+    def test_duplicate_label_with_blank_first_does_not_bypass(self) -> None:
+        text = populated_state(**{"Base SHA:": ""}) + f"- Base SHA: {'a' * 40}\n"
+        self.assertIn("blank required identity: Base SHA:", checker.validate_branch_state_text(text))
+
     def test_permitted_na_passes(self) -> None:
         self.assertEqual(
             checker.validate_branch_state_text(

@@ -125,6 +125,20 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
             "Human annotation is prohibited.",
             "No third-party human research is allowed.",
             "The legacy workflow used human annotation before retirement.",
+            "Historically, human annotation was mandatory before retirement.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertFalse(any(f.classification in FATAL_FINDINGS for f in classify_text(text)), msg=str(classify_text(text)))
+
+    def test_live_repository_control_history_and_authority_clauses_are_non_fatal(self) -> None:
+        cases = (
+            "Generic reviewer, expert reviewer, participant coordinator, recruitment/survey operator, human coder/annotator/rater/validator, community solicitation liaison, or panel coordinator are invalid default Research Engine roles.",
+            "Already-collected historical project-generated human data remains historical lineage and is classified accurately.",
+            "Cancel or retire unexecuted project-generated human collection runs without executing them.",
+            "Migration passes only when required non-owner humans, Owner manual research labor, external human review, active human collection paths, and ambiguous generic human authority gates must be zero.",
+            "Retire the historical human review gate during migration remediation.",
+            "Do not require human approval for every trivial change.",
         )
         for text in cases:
             with self.subTest(text=text):
@@ -140,9 +154,24 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
             "Employ human coders to code the samples.",
             "Contract crowdworkers to classify the samples.",
             "Contract crowdworkers to classify the dataset.",
+            "Use crowd workers to classify samples.",
+            "Use crowdworkers to classify samples.",
+            "Use crowd-workers to classify samples.",
+            "Hire human labelers to label the research dataset.",
+            "Have panelists score the research outputs.",
             "Have external reviewers rate every generated item.",
             "The legacy pipeline requires human annotation for every new sample.",
             "In the legacy pipeline, human annotation remains mandatory.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertTrue(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), msg=str(classify_text(text)))
+
+    def test_mixed_prohibition_or_history_does_not_hide_active_requirement(self) -> None:
+        cases = (
+            "Human annotation is prohibited; nevertheless hire human labelers to label the dataset.",
+            "Historically human review was retired; the current method requires human review as research labor.",
+            "The legacy workflow is inactive, but human rating remains mandatory for every new output.",
         )
         for text in cases:
             with self.subTest(text=text):

@@ -54,10 +54,11 @@ def validate_branch_state_text(text: str) -> list[str]:
         if _field_value(text, label) is None:
             errors.append(f"missing required label: {label}")
 
-    for label in IDENTITY_LABELS:
+    for label in REQUIRED_LABELS:
         value = _field_value(text, label)
         if value is not None and not value:
-            errors.append(f"blank required identity: {label}")
+            kind = "identity" if label in IDENTITY_LABELS else "field"
+            errors.append(f"blank required {kind}: {label}")
 
     return errors
 

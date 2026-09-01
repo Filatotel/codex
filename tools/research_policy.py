@@ -14,8 +14,8 @@ DEFAULT_REQUIRED_FALSE = {"REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RE
 WP_REQUIRED_FALSE = DEFAULT_REQUIRED_FALSE | {"REQUIRES_EXTERNAL_REVIEWER","REQUIRES_NEW_HUMAN_DATA"}
 QUESTION_REQUIRED_FIELDS = {"QUESTION_ID","QUESTION","TARGET_CONSTRUCT","MACHINE_EXECUTABLE","AVAILABLE_MACHINE_METHODS","AVAILABLE_EXTERNAL_PREEXISTING_EVIDENCE","REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RESEARCH","REQUIRES_EXTERNAL_HUMAN_REVIEW","REQUIRES_HUMAN_DATA_COLLECTION","DIRECT_MEASUREMENT_POSSIBLE","PROXY_MEASUREMENT_POSSIBLE","EXPECTED_LIMITATION","OWNER_DECISION_COMPONENT","CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS","OWNER_AUTHORITY_ONLY_FOR_PROJECT_DECISIONS","ADMISSION_STATUS"}
 WORK_PACKAGE_REQUIRED_FIELDS = {"WORK_PACKAGE_ID","QUESTION_ID","NAMESPACE","EXECUTOR_ROLE","VERIFIER_ROLE","MACHINE_EXECUTABLE","REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RESEARCH","REQUIRES_EXTERNAL_REVIEWER","REQUIRES_EXTERNAL_HUMAN_REVIEW","REQUIRES_NEW_HUMAN_DATA","REQUIRES_HUMAN_DATA_COLLECTION","CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS","OWNER_AUTHORITY_ONLY_FOR_PROJECT_DECISIONS","EXECUTION_SURFACE","SOURCE_ACCESS_METHOD","COMPUTATION_METHOD","VERIFICATION_METHOD","LIMITATIONS","PROHIBITED_OVERCLAIMS","OWNER_GATE_IF_ANY"}
-AMBIGUOUS_OWNER_TERMS = ("human gate","human scope gate","human research pass","human pass","human review","human validation","human approval","human decision")
-THIRD_PARTY_RESEARCH_ACTOR = r"(?:participants?|respondents?|speakers?|listeners?|people|humans?|experts?|subjects?|interviewees?|(?:human\s+)?annotators?|(?:human\s+)?raters?|(?:human\s+)?coders?|(?:human\s+)?reviewers?|crowd\s*workers?|crowdworkers?|external\s+experts?|native[- ]speakers?)"
+AMBIGUOUS_OWNER_TERMS = ("human gate","human scope gate","human research pass","human pass","human review","human validation","human decision")
+THIRD_PARTY_RESEARCH_ACTOR = r"(?:participants?|respondents?|speakers?|listeners?|people|humans?|experts?|subjects?|interviewees?|(?:human\s+)?annotators?|human\s+labelers?|(?:human\s+)?raters?|(?:human\s+)?coders?|(?:human\s+)?reviewers?|crowd(?:\s+|-)workers?|crowdworkers?|(?:human\s+)?panelists?|external\s+experts?|native[- ]speakers?)"
 OWNER_OR_USER_CONTROL_ACTOR = r"(?:owner(?:/k0)?|project\s+owner|the\s+user|user)"
 HUMAN_TARGET = THIRD_PARTY_RESEARCH_ACTOR
 RESEARCH_LABOR_NOUN = r"(?:human\s+annotation|human\s+rating|human\s+coding|human\s+review|crowd[- ]?sourcing|crowd\s+sourcing|crowd\s+labor)"
@@ -41,7 +41,7 @@ ACTIVE_ACTION_PATTERNS = (
     r"\bget\s+(?:community|expert|speaker|listener|participant|respondent)\s+(?:feedback|review|validation|ratings?)\b",
     rf"\btest\b.{{0,35}}\bwith\s+{HUMAN_TARGET}\b",
     rf"\bfind\s+.{{0,30}}\b{HUMAN_TARGET}\b",
-    r"\b(?:focus[ -]?group|user[ -]?testing|human[ -]?in[ -]?the[ -]?loop|collection[ -]?surface)\b",
+    r"\b(?:focus[ -]?group|user[ -]?testing|human[ -]?in[ -]?the[- ]loop|collection[- ]surface)\b",
     r"\b(?:new|project[- ]generated)\s+(?:human|participant|respondent|speaker|user).{0,35}\b(?:survey|interviews?|data|responses?|ratings?|evidence)\b",
     r"\b(?:route|send|hand\s+off)\b.{0,30}\b(?:to\s+)?(?:humans?|participants?|external\s+reviewers?|experts?)\b",
     rf"\b{ASSIGNMENT_VERB}\b.{{0,60}}\b{THIRD_PARTY_RESEARCH_ACTOR}\b.{{0,50}}\b{RESEARCH_WORK_VERB}\b",
@@ -57,6 +57,7 @@ HUMAN_ACTION_MENTION_PATTERNS = ACTIVE_ACTION_PATTERNS + (
     r"\bparticipant\s+recruitment\b",
     r"\bthird[- ]party\s+human\s+research\b",
     rf"\b{RESEARCH_LABOR_NOUN}\b",
+    r"\bhuman\s+approval\b",
 )
 STATIC_SOURCE_PATTERNS = (r"\bpublished\s+(?:study|paper|survey|interviews?|dataset|corpus)\b",r"\barchived\b.{0,25}\b(?:interviews?|survey|responses?|dataset|corpus|human\s+data)\b",r"\brecorded\s+speech\s+corpus\b",r"\bexisting\s+(?:survey|human\s+annotation|expert\s+judgment|dataset|interviews?|responses?)\b",r"\bexternally\s+conducted\s+survey\b",r"\bpublic\s+dataset\b",r"\bpre[- ]?existing\b",r"\bexternal[_ -]preexisting[_ -]human[_ -]data\b",r"\bhistorical\s+corpus\b")
 HISTORICAL_CUES = ("historical","legacy","archived","preserved lineage","retired compatibility","before retirement")
@@ -79,7 +80,7 @@ def _scope_after_last_contrast(prefix: str) -> str:
     parts = re.split(r"\b(?:but|however|nevertheless|nonetheless|yet|still)\b",prefix,flags=re.I); return parts[-1] if parts else prefix
 
 def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
-    before = clause[max(0,match.start()-120):match.start()].lower(); after = clause[match.end():min(len(clause),match.end()+80)].lower(); scoped = _scope_after_last_contrast(clause[:match.start()].lower())
+    before = clause[max(0,match.start()-120):match.start()].lower(); after = clause[match.end():min(len(clause),match.end()+80)].lower(); scoped = _scope_after_last_contrast(clause[:match.start()].lower()); whole_after = clause[match.end():].lower()
     if re.search(r"(?:do\s+not|don't|must\s+not|should\s+not|may\s+not|cannot|can't|never|forbid(?:den)?\s+to|prohibit(?:ed)?\s+to)\s+(?:ever\s+|directly\s+)?(?:\w+\s+){0,1}$",before): return True
     if re.search(r"\bno\s+(?:third[- ]party\s+human\s+|participant\s+|human\s+)?$",before): return True
     if re.search(r"^\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not\s+allowed|invalid)\b",after): return True
@@ -90,16 +91,20 @@ def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
     if re.search(r"\b(?:there\s+(?:is|are)\s+no|no\s+(?:ordinary\s+)?transition)\b.*$",scoped): return True
     if re.search(r"\b(?:never|does\s+not|do\s+not|cannot|can't)\s+(?:creat(?:e|es|ed|ing)|grant(?:s|ed|ing)?|provid(?:e|es|ed|ing)|confer(?:s|red|ring)?)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\s*$",before): return True
     if re.search(r"\bno\s+(?:authority|permission)\s+to\s*$",before): return True
+    if re.search(r"\b(?:cancel|retire)\b.*$",scoped) and re.search(r"\bwithout\s+executing\b",whole_after): return True
+    if re.search(r"\balready[- ]collected\b[^,;]{0,100}\bhistorical\b[^,;]{0,100}$",before): return True
     return False
 
 def _clause_has_static_source(clause: str) -> bool: return any(re.search(p,clause,flags=re.I) for p in STATIC_SOURCE_PATTERNS)
 def _clause_has_human_prohibition(clause: str) -> bool:
     t=_norm(clause)
     if not any(c in t for c in PROHIBITION_CUES): return False
+    if re.search(r"\b(?:must|should|shall)\s+be\s+(?:zero|absent|false)\b",t): return True
+    if re.search(r"\b(?:is|are)\s+(?:strictly\s+)?invalid\b.{0,60}\b(?:roles?|dependencies?|paths?|gates?)\b",t): return True
     for p in HUMAN_ACTION_MENTION_PATTERNS:
         for m in re.finditer(p,clause,flags=re.I|re.S):
             if _action_is_negated(clause,m): return True
-    return bool(re.search(r"\b(?:human recruitment|recruitment|human research|third[- ]party human research|participant collection|human annotation|human rating|human coding|human review|crowd[- ]?sourcing|crowd sourcing|crowd labor)\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not allowed|invalid)\b",t))
+    return bool(re.search(r"\b(?:human recruitment|recruitment|human research|third[- ]party human research|participant collection|human annotation|human rating|human coding|human review|crowd[- ]?sourcing|crowd sourcing|crowd labor|human approval)\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not allowed|invalid)\b",t))
 
 def classify_text(text: str) -> list[Finding]:
     findings=[]
@@ -120,6 +125,8 @@ def classify_text(text: str) -> list[Finding]:
         clause_prohibits=prohibited_action or _clause_has_human_prohibition(clause)
         for term in AMBIGUOUS_OWNER_TERMS:
             if term in t and not clause_prohibits and not historical_only and not _clause_has_static_source(clause): findings.append(Finding("AMBIGUOUS_HUMAN_GATE_TERMINOLOGY",f"generic authority term: {term}"))
+        approval_required = bool(re.search(r"\b(?:requires?|mandates?|needs?)\s+(?:external\s+)?human\s+approval\b|\b(?:external\s+)?human\s+approval\b.{0,40}\b(?:is|remains|must\s+be)\s+(?:strictly\s+)?(?:required|mandatory|needed)\b",clause,flags=re.I))
+        if approval_required and not clause_prohibits and not historical_only and not _clause_has_static_source(clause): findings.append(Finding("AMBIGUOUS_HUMAN_GATE_TERMINOLOGY","generic authority term: human approval"))
         if not active_action and any(c in t for c in OWNER_CUES) and any(c in t for c in OWNER_DECISION_CUES): findings.append(Finding("OWNER_AUTHORITY","explicit Owner/K0 project authority"))
     unique=[]; seen=set()
     for f in findings:
@@ -137,7 +144,7 @@ def _validate_default_flags(obj:dict[str,Any],false_fields:set[str])->list[str]:
         if obj.get(n) is not False: errors.append(f"{n} must be false")
     return errors
 
-def _iter_string_leaves(value:Any,path:str="$")->Iterator[tuple[str,str]]:
+def _iter_string_leaves(value:Any,path:str="$ ")->Iterator[tuple[str,str]]:
     if isinstance(value,str): yield path,value
     elif isinstance(value,dict):
         for k,v in value.items(): yield from _iter_string_leaves(v,f"{path}.{k}")
@@ -254,7 +261,7 @@ def validate_source(obj:dict[str,Any])->list[str]:
 FORBIDDEN_HUMAN_KEYS={"participants","participant","participant_id","participant_age","participant_cohort","participant_plan","consent","recruitment","sample_recruitment","participant_compensation","human_subject_privacy","respondents","respondent","reviewers","human_reviewers","human_raters","human_annotators","interviewees","survey_respondents"}
 MACHINE_EXPERIMENT_REQUIRED={"EXPERIMENT_ID","RUN_ID","METHOD_VERSION","METHOD_STATUS","FREEZE_ID","INPUT_DATASET","INPUT_VERSION","INPUT_HASH","MODEL_OR_TOOL","MODEL_OR_TOOL_VERSION","PROMPT_OR_RULESET_VERSION","RANDOM_SEED","N_RUNS","BENCHMARK_SET","HOLDOUT_SET","PERTURBATION_SET","ADVERSARIAL_CASES","ERROR_METRIC","AGGREGATION_METHOD","UNCERTAINTY_METHOD","CROSS_METHOD_AGREEMENT","CROSS_MODEL_DISAGREEMENT","OUTPUT_HASH","REPRODUCTION_POINTER","LIMITATIONS","PROHIBITED_OVERCLAIMS"}
 def _normalize_key(key:Any)->str: return re.sub(r"[^a-z0-9]+","_",str(key).lower()).strip("_")
-def _forbidden_key_errors(value:Any,path:str="$")->list[str]:
+def _forbidden_key_errors(value:Any,path:str="$ ")->list[str]:
     errors=[]
     if isinstance(value,dict):
         for k,v in value.items():
