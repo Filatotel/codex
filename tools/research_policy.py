@@ -14,8 +14,8 @@ DEFAULT_REQUIRED_FALSE = {"REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RE
 WP_REQUIRED_FALSE = DEFAULT_REQUIRED_FALSE | {"REQUIRES_EXTERNAL_REVIEWER","REQUIRES_NEW_HUMAN_DATA"}
 QUESTION_REQUIRED_FIELDS = {"QUESTION_ID","QUESTION","TARGET_CONSTRUCT","MACHINE_EXECUTABLE","AVAILABLE_MACHINE_METHODS","AVAILABLE_EXTERNAL_PREEXISTING_EVIDENCE","REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RESEARCH","REQUIRES_EXTERNAL_HUMAN_REVIEW","REQUIRES_HUMAN_DATA_COLLECTION","DIRECT_MEASUREMENT_POSSIBLE","PROXY_MEASUREMENT_POSSIBLE","EXPECTED_LIMITATION","OWNER_DECISION_COMPONENT","CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS","OWNER_AUTHORITY_ONLY_FOR_PROJECT_DECISIONS","ADMISSION_STATUS"}
 WORK_PACKAGE_REQUIRED_FIELDS = {"WORK_PACKAGE_ID","QUESTION_ID","NAMESPACE","EXECUTOR_ROLE","VERIFIER_ROLE","MACHINE_EXECUTABLE","REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RESEARCH","REQUIRES_EXTERNAL_REVIEWER","REQUIRES_EXTERNAL_HUMAN_REVIEW","REQUIRES_NEW_HUMAN_DATA","REQUIRES_HUMAN_DATA_COLLECTION","CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS","OWNER_AUTHORITY_ONLY_FOR_PROJECT_DECISIONS","EXECUTION_SURFACE","SOURCE_ACCESS_METHOD","COMPUTATION_METHOD","VERIFICATION_METHOD","LIMITATIONS","PROHIBITED_OVERCLAIMS","OWNER_GATE_IF_ANY"}
-AMBIGUOUS_OWNER_TERMS = ("human gate","human scope gate","human research pass","human pass","human review","human validation","human approval","human decision")
-THIRD_PARTY_RESEARCH_ACTOR = r"(?:participants?|respondents?|speakers?|listeners?|people|humans?|experts?|subjects?|interviewees?|(?:human\s+)?annotators?|(?:human\s+)?raters?|(?:human\s+)?coders?|(?:human\s+)?reviewers?|crowd\s*workers?|crowdworkers?|external\s+experts?|native[- ]speakers?)"
+AMBIGUOUS_OWNER_TERMS = ("human gate","human scope gate","human research pass","human pass","human review","human validation","human decision")
+THIRD_PARTY_RESEARCH_ACTOR = r"(?:participants?|respondents?|speakers?|listeners?|people|humans?|experts?|subjects?|interviewees?|(?:human\s+)?annotators?|human\s+labelers?|(?:human\s+)?raters?|(?:human\s+)?coders?|(?:human\s+)?reviewers?|crowd(?:\s+|-)workers?|crowdworkers?|(?:human\s+)?panelists?|external\s+experts?|native[- ]speakers?)"
 OWNER_OR_USER_CONTROL_ACTOR = r"(?:owner(?:/k0)?|project\s+owner|the\s+user|user)"
 HUMAN_TARGET = THIRD_PARTY_RESEARCH_ACTOR
 RESEARCH_LABOR_NOUN = r"(?:human\s+annotation|human\s+rating|human\s+coding|human\s+review|crowd[- ]?sourcing|crowd\s+sourcing|crowd\s+labor)"
@@ -79,7 +79,7 @@ def _scope_after_last_contrast(prefix: str) -> str:
     parts = re.split(r"\b(?:but|however|nevertheless|nonetheless|yet|still)\b",prefix,flags=re.I); return parts[-1] if parts else prefix
 
 def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
-    before = clause[max(0,match.start()-120):match.start()].lower(); after = clause[match.end():min(len(clause),match.end()+80)].lower(); scoped = _scope_after_last_contrast(clause[:match.start()].lower())
+    before = clause[max(0,match.start()-120):match.start()].lower(); after = clause[match.end():min(len(clause),match.end()+80)].lower(); scoped = _scope_after_last_contrast(clause[:match.start()].lower()); whole_after = clause[match.end():].lower()
     if re.search(r"(?:do\s+not|don't|must\s+not|should\s+not|may\s+not|cannot|can't|never|forbid(?:den)?\s+to|prohibit(?:ed)?\s+to)\s+(?:ever\s+|directly\s+)?(?:\w+\s+){0,1}$",before): return True
     if re.search(r"\bno\s+(?:third[- ]party\s+human\s+|participant\s+|human\s+)?$",before): return True
     if re.search(r"^\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not\s+allowed|invalid)\b",after): return True
@@ -90,6 +90,10 @@ def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
     if re.search(r"\b(?:there\s+(?:is|are)\s+no|no\s+(?:ordinary\s+)?transition)\b.*$",scoped): return True
     if re.search(r"\b(?:never|does\s+not|do\s+not|cannot|can't)\s+(?:creat(?:e|es|ed|ing)|grant(?:s|ed|ing)?|provid(?:e|es|ed|ing)|confer(?:s|red|ring)?)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\s*$",before): return True
     if re.search(r"\bno\s+(?:authority|permission)\s+to\s*$",before): return True
+    if re.search(r"\b(?:cancel|retire)\b.*$",scoped) and re.search(r"\bwithout\s+executing\b",whole_after): return True
+    if re.search(r"\b(?:must|should|shall)\s+be\s+(?:zero|absent|false)\b",whole_after): return True
+    if re.search(r"\b(?:is|are)\s+(?:strictly\s+)?invalid\b",whole_after): return True
+    if re.search(r"\balready[- ]collected\b.*\bhistorical\b",clause[:match.end()],flags=re.I) and not re.search(r"\b(?:require|mandatory|recruit|hire|assign|use|employ|contract|have)\b",clause,flags=re.I): return True
     return False
 
 def _clause_has_static_source(clause: str) -> bool: return any(re.search(p,clause,flags=re.I) for p in STATIC_SOURCE_PATTERNS)
