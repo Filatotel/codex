@@ -41,7 +41,6 @@ ACTIVE_ACTION_PATTERNS = (
     r"\bget\s+(?:community|expert|speaker|listener|participant|respondent)\s+(?:feedback|review|validation|ratings?)\b",
     rf"\btest\b.{{0,35}}\bwith\s+{HUMAN_TARGET}\b",
     rf"\bfind\s+.{{0,30}}\b{HUMAN_TARGET}\b",
-    r"\b(?:external|human|expert|community|stakeholder)\s+(?:human\s+)?(?:review|validation|consultation|rating|annotation|assessment|evaluation|coding)\b",
     r"\b(?:focus[ -]?group|user[ -]?testing|human[ -]?in[ -]?the[ -]?loop|collection[ -]?surface)\b",
     r"\b(?:new|project[- ]generated)\s+(?:human|participant|respondent|speaker|user).{0,35}\b(?:survey|interviews?|data|responses?|ratings?|evidence)\b",
     r"\b(?:route|send|hand\s+off)\b.{0,30}\b(?:to\s+)?(?:humans?|participants?|external\s+reviewers?|experts?)\b",
@@ -89,7 +88,7 @@ def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
     if re.match(r"^\s*(?:[-*]\s*)*(?:\*\*)?default[- ]deny(?:\s+controls?)?(?:\*\*)?\s*:",scoped): return True
     if re.search(r"\b(?:must|should|may|can)\s+not\s+(?:be\s+)?(?:assigned|include|involve|require|create|enter|route|introduce|use|perform|conduct|authorize|permit)\b.*$",scoped): return True
     if re.search(r"\b(?:there\s+(?:is|are)\s+no|no\s+(?:ordinary\s+)?transition)\b.*$",scoped): return True
-    if re.search(r"\b(?:never|does\s+not|do\s+not|cannot|can't)\s+(?:create|grant|provide|confer)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\s*$",before): return True
+    if re.search(r"\b(?:never|does\s+not|do\s+not|cannot|can't)\s+(?:creat(?:e|es|ed|ing)|grant(?:s|ed|ing)?|provid(?:e|es|ed|ing)|confer(?:s|red|ring)?)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\s*$",before): return True
     if re.search(r"\bno\s+(?:authority|permission)\s+to\s*$",before): return True
     return False
 
