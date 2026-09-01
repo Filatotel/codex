@@ -10,8 +10,9 @@ sys.path.insert(0, str(ROOT))
 
 from tools.research_policy import (
     FATAL_FINDINGS,
-    _action_is_negated,
-    _iter_action_matches,
+    _action_dispositions,
+    _policy_units,
+    _propositions,
     classify_text,
     machine_only_regression_results,
     validate_experiment,
@@ -104,6 +105,10 @@ def base_freeze() -> dict:
 
 
 class ResearchMachineOnlyPolicyTest(unittest.TestCase):
+    @staticmethod
+    def classification_classes(text: str) -> set[str]:
+        return {finding.classification for finding in classify_text(text)}
+
     def test_T01_T42_bounded_regression_matrix(self) -> None:
         results = machine_only_regression_results()
         self.assertEqual(set(results), {f"T{i:02d}" for i in range(1,43)})
@@ -230,17 +235,265 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                 self.assertIn("EXPLICIT_PROHIBITION", classes, classify_text(text))
                 self.assertIn("ACTIVE_DEPENDENCY", classes, classify_text(text))
 
-    def test_action_negation_is_match_local_within_one_clause(self) -> None:
-        clause = "There is no ordinary transition to participant recruitment, but recruit human participants under the alternate path."
-        decisions = []
-        spans = set()
-        for action_span, match in _iter_action_matches(clause):
-            key = (action_span, match.start(), match.end())
-            if key not in spans:
-                spans.add(key)
-                decisions.append((match.group(0), _action_is_negated(action_span, match)))
-        self.assertTrue(any(negated for _, negated in decisions), decisions)
-        self.assertTrue(any(not negated for _, negated in decisions), decisions)
+    def test_direct_shared_governor_cases(self) -> None:
+        cases = (
+            "There is no ordinary transition to recruit human participants and survey respondents.",
+            "There is no ordinary transition to recruit human participants or survey respondents.",
+            "Prohibited: recruit human participants and survey respondents.",
+            "Forbidden: recruit human participants and survey respondents.",
+            "Default-deny controls: recruit human participants and survey respondents.",
+            "Never recruit human participants and survey respondents.",
+            "Do not recruit human participants and survey respondents.",
+            "Must not recruit human participants and survey respondents.",
+            "Should not recruit human participants and survey respondents.",
+            "Cannot recruit human participants and survey respondents.",
+            "No authority to recruit human participants and survey respondents.",
+            "Prohibited: recruit human participants, survey respondents, and interview speakers.",
+            "Never recruit human participants, survey respondents, and interview speakers.",
+            "There is no ordinary transition to recruit human participants, survey respondents, or interview speakers.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                classes = {f.classification for f in classify_text(text)}
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+
+    def test_generated_shared_governor_action_coordination_matrix(self) -> None:
+        governors = ("Never ", "Do not ", "Must not ", "Should not ", "Cannot ", "Prohibited: ", "Forbidden: ", "Default-deny controls: ", "There is no ordinary transition to ", "There is no authority to ")
+        actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")
+        coordinators = (" and ", " or ", ", ", ", and ", ", or ")
+        for governor in governors:
+            for index, action in enumerate(actions):
+                other = actions[(index + 1) % len(actions)]
+                for coordinator in coordinators:
+                    text = governor + action + coordinator + other + "."
+                    with self.subTest(text=text):
+                        classes = {f.classification for f in classify_text(text)}
+                        self.assertIn("EXPLICIT_PROHIBITION", classes)
+                        self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+
+    def test_generated_soft_wrap_matrix_and_action_observability(self) -> None:
+        governors = ("Never ", "Do not ", "Must not ", "Should not ", "Cannot ", "Prohibited: ", "Forbidden: ", "Default-deny controls: ", "There is no ordinary transition to ", "There is no authority to ")
+        actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")
+        coordinators = ((" and ", "\nand "), (" or ", "\nor "), (", ", ",\n"), (", and ", ",\nand "), (", or ", ",\nor "))
+        for action in actions:
+            with self.subTest(standalone=action):
+                self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes(action + "."))
+        for governor in governors:
+            for index, action in enumerate(actions):
+                other = actions[(index + 1) % len(actions)]
+                for single_joiner, wrapped_joiner in coordinators:
+                    single = governor + action + single_joiner + other + "."
+                    wrapped = governor + action + wrapped_joiner + other + "."
+                    with self.subTest(wrapped=wrapped):
+                        self.assertEqual(self.classification_classes(single), self.classification_classes(wrapped))
+                        self.assertIn("EXPLICIT_PROHIBITION", self.classification_classes(wrapped))
+                        self.assertNotIn("ACTIVE_DEPENDENCY", self.classification_classes(wrapped))
+                        units = _policy_units(wrapped)
+                        propositions = [part for unit in units for part in _propositions(unit)]
+                        decisions = [decision for number, proposition in enumerate(propositions) for decision in _action_dispositions(proposition, number)]
+                        self.assertEqual({decision.source_item_index for decision in decisions}, {0, 1}, decisions)
+                        for source_item_index in (0, 1):
+                            item_decisions = [decision for decision in decisions if decision.source_item_index == source_item_index]
+                            self.assertTrue(item_decisions, decisions)
+                            self.assertEqual(len({decision.source_item_text for decision in item_decisions}), 1, item_decisions)
+                            self.assertTrue(all(decision.disposition == "NON_ACTIVE" for decision in item_decisions), item_decisions)
+                        self.assertTrue(all(decision.disposition == "NON_ACTIVE" for decision in decisions), decisions)
+
+    def test_source_action_identity_for_governed_ungoverned_and_wrapped_pairs(self) -> None:
+        cases = (
+            ("Prohibited: recruit human participants and survey respondents.", "NON_ACTIVE"),
+            ("recruit human participants and survey respondents.", "ACTIVE"),
+            ("Prohibited: recruit human participants\nand survey respondents.", "NON_ACTIVE"),
+            ("Prohibited: use human raters to score outputs\nand contact external experts.", "NON_ACTIVE"),
+        )
+        for text, disposition in cases:
+            units = _policy_units(text)
+            propositions = [part for unit in units for part in _propositions(unit)]
+            decisions = [decision for number, proposition in enumerate(propositions) for decision in _action_dispositions(proposition, number)]
+            with self.subTest(text=text):
+                self.assertEqual({decision.source_item_index for decision in decisions}, {0, 1}, decisions)
+                for source_item_index in (0, 1):
+                    item_decisions = [decision for decision in decisions if decision.source_item_index == source_item_index]
+                    self.assertTrue(item_decisions, decisions)
+                    self.assertEqual({decision.disposition for decision in item_decisions}, {disposition})
+                    self.assertEqual(len({decision.source_item_text for decision in item_decisions}), 1)
+
+    def test_overlapping_matches_preserve_source_action_identity(self) -> None:
+        text = "Prohibited: use human raters to score outputs and contact external experts."
+        proposition = _propositions(_policy_units(text)[0])[0]
+        decisions = _action_dispositions(proposition, 0)
+        first = [decision for decision in decisions if decision.source_item_index == 0]
+        second = [decision for decision in decisions if decision.source_item_index == 1]
+        self.assertGreater(len(first), 1, decisions)
+        self.assertTrue(second, decisions)
+        self.assertEqual({decision.source_item_index for decision in first}, {0})
+        self.assertEqual({decision.source_item_text for decision in first}, {"use human raters to score outputs"})
+        self.assertEqual({decision.source_item_index for decision in second}, {1})
+        self.assertEqual({decision.source_item_text for decision in second}, {"contact external experts."})
+        self.assertTrue(all(decision.disposition == "NON_ACTIVE" for decision in decisions))
+
+    def test_generated_bidirectional_contrast_matrix(self) -> None:
+        markers = ("but", "however", "yet", "nevertheless", "nonetheless")
+        pairs = (("recruit human participants", "survey respondents"), ("hire human annotators", "contact external experts"), ("interview speakers", "use human raters to score outputs"))
+        for marker in markers:
+            for first, second in pairs:
+                for text in (f"Prohibited: {first}, {marker} {second}.", f"{first}, {marker} never {second}."):
+                    with self.subTest(text=text):
+                        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(text)})
+
+    def test_generated_contrast_wrap_matrix(self) -> None:
+        markers = ("but", "however", "yet", "nevertheless", "nonetheless")
+        pairs = (("recruit human participants", "survey respondents"), ("hire human annotators", "contact external experts"), ("interview speakers", "use human raters to score outputs"))
+        for marker in markers:
+            for first, second in pairs:
+                layouts = (
+                    (f"Prohibited: {first}, {marker} {second}.", f"Prohibited: {first},\n{marker} {second}."),
+                    (f"{first}, {marker} never {second}.", f"{first},\n{marker} never {second}."),
+                )
+                for single, wrapped in layouts:
+                    with self.subTest(wrapped=wrapped):
+                        self.assertEqual(self.classification_classes(single), self.classification_classes(wrapped))
+                        self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes(wrapped))
+
+    def test_direct_active_and_mixed_cases(self) -> None:
+        cases = (
+            "There is no ordinary transition to participant recruitment, but recruit human participants under the alternate path.",
+            "Prohibited: recruit human participants, but recruit respondents under the exception path.",
+            "Never recruit human participants by default, but recruit 20 participants under the alternate path.",
+            "Human annotation is forbidden; however hire human labelers for the new dataset.",
+            "There is no ordinary transition to human review, yet human reviewers score every new output on the alternate path.",
+            "Already-collected historical project-generated human data remains historical lineage and human reviewers score every new output.",
+            "Already-collected historical human data remains preserved, and human reviewers score every new output.",
+            "Retire the old participant collection without executing it and recruit 20 new participants.",
+            "Recruit 20 participants and never recruit human participants in the fallback path.",
+            "Use a published survey and recruit 20 new respondents.",
+            "Analyze archived interviews and interview five new speakers.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(text)})
+        for text in cases[:5]:
+            with self.subTest(coexisting=text):
+                self.assertIn("EXPLICIT_PROHIBITION", {f.classification for f in classify_text(text)})
+
+    def test_direct_multiline_safe_and_active_layout_invariance(self) -> None:
+        safe = (
+            "There is no ordinary transition to recruit human participants\nand survey respondents.",
+            "There is no ordinary transition to\nrecruit human participants and survey respondents.",
+            "There is no ordinary transition to recruit\nhuman participants and survey respondents.",
+            "There is no ordinary transition to recruit human participants\nor survey respondents.",
+            "Prohibited: recruit human participants\nand survey respondents.",
+            "Forbidden: recruit human participants\nand survey respondents.",
+            "Default-deny controls: recruit human participants\nand survey respondents.",
+            "Never recruit human participants\nand survey respondents.",
+            "Do not recruit human participants\nand survey respondents.",
+            "Must not recruit human participants\nand survey respondents.",
+            "Cannot recruit human participants\nand survey respondents.",
+            "There is no authority to recruit human participants\nand survey respondents.",
+            "Prohibited: recruit human participants,\nsurvey respondents,\nand interview speakers.",
+            "There is no ordinary transition to recruit human participants,\nsurvey respondents,\nor interview speakers.",
+        )
+        active = (
+            "There is no ordinary transition to participant recruitment,\nbut recruit human participants under the alternate path.",
+            "Prohibited: recruit human participants,\nbut recruit respondents under the exception path.",
+            "Never recruit human participants by default,\nbut recruit 20 participants under the alternate path.",
+            "Already-collected historical project-generated human data\nremains historical lineage and human reviewers score every new output.",
+            "Already-collected historical human data remains preserved,\nand human reviewers score every new output.",
+            "Retire the old participant collection without executing it\nand recruit 20 new participants.",
+            "Recruit 20 participants\nand never recruit human participants in the fallback path.",
+            "Use a published survey\nand recruit 20 new respondents.",
+            "Analyze archived interviews\nand interview five new speakers.",
+        )
+        for text in safe:
+            with self.subTest(safe=text):
+                classes = self.classification_classes(text)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+                self.assertEqual(classes, self.classification_classes(text.replace("\n", " ")))
+        for text in active:
+            with self.subTest(active=text):
+                classes = self.classification_classes(text)
+                self.assertIn("ACTIVE_DEPENDENCY", classes)
+                self.assertEqual(classes, self.classification_classes(text.replace("\n", " ")))
+
+    def test_paragraph_and_markdown_structural_boundaries(self) -> None:
+        paragraphs = (
+            "Prohibited: recruit human participants.\n\nRecruit external experts under the alternate method.",
+            "There is no ordinary transition to recruit human participants\nand survey respondents.\n\nRecruit external experts under the alternate method.",
+            "Never recruit human participants.\n\nSurvey respondents for the new study.",
+        )
+        for text in paragraphs:
+            with self.subTest(paragraph=text):
+                classes = self.classification_classes(text)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertIn("ACTIVE_DEPENDENCY", classes)
+        governed = "Prohibited:\n\n- recruit human participants\n  and survey respondents\n- interview speakers"
+        governed_action = "Prohibited:\n\n- use human raters\n  to score outputs\n- contact external experts"
+        for text in (governed, governed_action):
+            with self.subTest(governed=text):
+                classes = self.classification_classes(text)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+        self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes("- recruit human participants\n  and survey respondents"))
+        stopped = "Prohibited:\n\n- recruit human participants\n- survey respondents\n\nRecruit external experts under the exception path."
+        self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes(stopped))
+
+    def test_atx_headings_are_structural_policy_boundaries(self) -> None:
+        safe = (
+            "# Research transition policy\nThere is no ordinary transition to recruit human participants\nand survey respondents.",
+            "### Policy\nThere is no ordinary transition to\nrecruit human participants\nand survey respondents.",
+            "###### Policy\nProhibited: recruit human participants\nand survey respondents.",
+            "# Research policy\nProhibited:\n\n- recruit human participants\n- survey respondents",
+            "   ## Research policy\nProhibited:\n\n- recruit human participants\n- survey respondents",
+        )
+        for text in safe:
+            with self.subTest(safe=text):
+                classes = self.classification_classes(text)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+        active = "## Policy\nRecruit human participants\nand survey respondents."
+        self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes(active))
+        terminated = "There is no ordinary transition to recruit human participants.\n## Alternate method\nRecruit external experts for the new study."
+        classes = self.classification_classes(terminated)
+        self.assertIn("EXPLICIT_PROHIBITION", classes)
+        self.assertIn("ACTIVE_DEPENDENCY", classes)
+        self.assertEqual(_policy_units("# Heading with recruit participants\nMachine-only prose."), ["Machine-only prose."])
+
+    def test_atx_heading_grammar_is_bounded(self) -> None:
+        self.assertEqual(_policy_units("# Heading\ntext"), ["text"])
+        self.assertEqual(_policy_units("   ###### Heading\ntext"), ["text"])
+        self.assertEqual(_policy_units("#not-a-heading\ntext"), ["#not-a-heading text"])
+        self.assertEqual(_policy_units("foo # bar\ntext"), ["foo # bar text"])
+        self.assertEqual(_policy_units("    # four-leading-spaces-is-not-an-ATX-heading\ntext"), ["# four-leading-spaces-is-not-an-ATX-heading text"])
+        self.assertEqual(_policy_units("####### not-a-heading\ntext"), ["####### not-a-heading text"])
+
+    def test_metamorphic_scope_invariants(self) -> None:
+        actions = ("recruit human participants", "survey respondents", "interview speakers")
+        for joiner in (" and ", " or ", ", ", ", and ", ", or "):
+            governed = "Prohibited: " + joiner.join(actions) + "."
+            self.assertNotIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(governed)})  # M1
+            self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(joiner.join(actions) + ".")})  # M2/M6
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text("Prohibited: recruit human participants, but survey respondents.")})  # M3
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text("Published survey evidence is historical, and recruit human participants.")})  # M4
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text("Recruit human participants, but never survey respondents.")})  # M5
+        layouts = (
+            ("Prohibited: recruit human participants and survey respondents.", "Prohibited: recruit human participants\nand survey respondents."),
+            ("Recruit human participants and survey respondents.", "Recruit human participants\nand survey respondents."),
+            ("Prohibited: recruit human participants, but survey respondents.", "Prohibited: recruit human participants,\nbut survey respondents."),
+            ("Historical human data is preserved, and recruit human participants.", "Historical human data is preserved,\nand recruit human participants."),
+            ("Use a published survey and recruit human participants.", "Use a published survey\nand recruit human participants."),
+        )
+        for single, wrapped in layouts:
+            self.assertEqual(self.classification_classes(single), self.classification_classes(wrapped))  # M7
+
+    def test_markdown_governed_list_scope(self) -> None:
+        governed = "Prohibited:\n\n- recruit human participants\n- survey respondents\n- interview speakers"
+        classes = {f.classification for f in classify_text(governed)}
+        self.assertIn("EXPLICIT_PROHIBITION", classes)
+        self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+        mixed = "Prohibited:\n\n- recruit human participants\n- survey respondents\n\nHowever, recruit external experts under the exception path."
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(mixed)})
 
     def test_pure_and_genuinely_list_wide_prohibitions_remain_non_active(self) -> None:
         cases = (

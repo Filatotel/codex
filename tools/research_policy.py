@@ -74,106 +74,148 @@ class Finding:
     message: str
 
 def _norm(text: str) -> str: return re.sub(r"\s+"," ",text.lower()).strip()
-def _split_clauses(text: str) -> list[str]:
-    normalized = str(text).replace("\r\n","\n").replace("\r","\n")
-    return [p.strip() for p in re.split(r"(?:\n+|(?<=[.!?])\s+|\s*;\s*)",normalized) if p.strip()]
-def _local_action_span(clause: str, match: re.Match[str]) -> tuple[str, str]:
-    """Return text locally governing an action, never an unrelated conjunct.
+POLICY_HEADING = re.compile(r"^\s*(?:[-*]\s+)?(?:\*\*)?(?:prohibited|forbidden|default[- ]deny(?:\s+controls?)?)(?:\*\*)?\s*:\s*(.*)$", re.I)
+CONTRAST = re.compile(r"\s*(?:,\s*|\b)(?:but|however|yet|nevertheless|nonetheless)\b[,\s]*", re.I)
+BULLET = re.compile(r"^\s*[-*]\s+(\S.*)$")
+ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?=\s|$)")
 
-    Commas and coordinating/contrast conjunctions are semantic span boundaries for
-    policy negation.  This deliberately makes a later active action win over a
-    historical/prohibited action earlier in the same grammatical sentence.
-    """
-    boundary = r"(?:[,;]|\b(?:and|but|however|nevertheless|nonetheless|yet)\b)"
-    left = list(re.finditer(boundary, clause[:match.start()], flags=re.I))
-    right = re.search(boundary, clause[match.end():], flags=re.I)
-    start = left[-1].end() if left else 0
-    end = match.end() + (right.start() if right else len(clause) - match.end())
-    return clause[start:match.start()].lower(), clause[match.end():end].lower()
+@dataclass(frozen=True)
+class ActionDisposition:
+    action: str
+    proposition_id: int
+    source_item_index: int
+    source_item_text: str
+    governor: str | None
+    disposition: str
+    reason: str
 
-def _iter_action_matches(clause: str) -> Iterator[tuple[str, re.Match[str]]]:
-    """Yield action matches from independent coordination/contrast spans.
+def _policy_units(text: str) -> list[str]:
+    """Assemble bounded Markdown structures without treating soft wraps as scope."""
+    lines = str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    units: list[str] = []
+    prose: list[str] = []
 
-    Bounded wildcard patterns therefore cannot merge an active action on one side
-    of a semantic boundary with a negated action on the other side.
-    """
-    hard_boundary = r"(?:[,;]|\b(?:but|however|nevertheless|nonetheless|yet)\b)"
-    hard_spans = (part.strip() for part in re.split(hard_boundary, clause, flags=re.I))
-    spans: list[str] = []
-    for hard_span in hard_spans:
-        coordinated = re.split(r"\band\b", hard_span, flags=re.I)
-        current = coordinated[0].strip() if coordinated else ""
-        for right in coordinated[1:]:
-            right = right.strip()
-            negation_governs_bare_coordination = bool(re.search(
-                r"\b(?:never|do\s+not|does\s+not|must\s+not|should\s+not|may\s+not|cannot|can't)\b",
-                current,
-                flags=re.I,
-            )) and bool(re.match(
-                r"(?:recruit|survey|interview|hire|assign|use|employ|contract|have|collect|gather|solicit|obtain|ask|contact|consult|review|rate|score|annotate|label|code|classify|assess|evaluate)\b",
-                right,
-                flags=re.I,
-            ))
-            if negation_governs_bare_coordination:
-                current = f"{current} and {right}"
-            else:
-                spans.append(current)
-                current = right
-        spans.append(current)
-    for span in spans:
-        span = span.strip()
-        if not span:
+    def flush_prose() -> None:
+        if prose:
+            units.append(" ".join(part.strip() for part in prose))
+            prose.clear()
+
+    def bullet_item(start: int) -> tuple[str, int]:
+        match = BULLET.match(lines[start])
+        parts = [match.group(1)] if match else []
+        cursor = start + 1
+        while cursor < len(lines) and lines[cursor].strip() and not BULLET.match(lines[cursor]):
+            if not lines[cursor][:1].isspace():
+                break
+            parts.append(lines[cursor].strip())
+            cursor += 1
+        return " ".join(parts), cursor
+
+    i = 0
+    while i < len(lines):
+        if not lines[i].strip():
+            flush_prose()
+            i += 1
             continue
-        for pattern in ACTIVE_ACTION_PATTERNS:
-            for match in re.finditer(pattern, span, flags=re.I | re.S):
-                yield span, match
+        if ATX_HEADING.match(lines[i]):
+            flush_prose()
+            i += 1
+            continue
+        heading = POLICY_HEADING.match(lines[i])
+        if heading and not heading.group(1).strip():
+            flush_prose()
+            items: list[str] = []
+            j = i + 1
+            while j < len(lines) and not lines[j].strip(): j += 1
+            while j < len(lines) and BULLET.match(lines[j]):
+                item, j = bullet_item(j)
+                items.append(item)
+            if items:
+                units.append(f"{lines[i].strip()} " + ", ".join(items))
+                i = j
+                continue
+            units.append(lines[i].strip())
+            i += 1
+            continue
+        if BULLET.match(lines[i]):
+            flush_prose()
+            item, i = bullet_item(i)
+            units.append(f"- {item}")
+            continue
+        prose.append(lines[i])
+        i += 1
+    flush_prose()
+    return units
 
-def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
-    local_before, local_after = _local_action_span(clause, match)
-    before = local_before[-120:]; after = local_after[:80]; scoped = local_before; whole_after = local_after
-    # Every decision below is anchored to this match's local span. Clause-wide
-    # grammatical predicates are classified separately and never leak through
-    # this action-local API.
-    matched = match.group(0).lower()
-    if re.search(r"\b(?:must\s+not|should\s+not|may\s+not|do\s+not|does\s+not|never|cannot|can't)\b", matched): return True
-    if re.search(r"(?:do\s+not|don't|must\s+not|should\s+not|may\s+not|cannot|can't|never|forbid(?:den)?\s+to|prohibit(?:ed)?\s+to)\s+(?:ever\s+|directly\s+)?(?:\w+\s+){0,1}$",before): return True
-    if re.search(r"\bno\s+(?:third[- ]party\s+human\s+|participant\s+|human\s+)?$",before): return True
-    if re.search(r"^\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not\s+allowed|invalid)\b",after): return True
-    if re.search(r"^\s+(?:must|should|may)\s+(?:be\s+)?(?:prohibited|forbidden|zero|absent|false)\b",after): return True
-    if re.match(r"^\s*(?:[-*]\s*)*(?:\*\*)?(?:prohibited|forbidden)(?:\*\*)?\s*:",scoped): return True
-    if re.match(r"^\s*(?:[-*]\s*)*(?:\*\*)?default[- ]deny(?:\s+controls?)?(?:\*\*)?\s*:",scoped): return True
-    if re.search(r"\b(?:must|should|may|can)\s+not\s+(?:be\s+)?(?:assigned|include|involve|require|create|enter|route|introduce|use|perform|conduct|authorize|permit)\b.*$",scoped): return True
-    if re.search(r"\b(?:there\s+(?:is|are)\s+no|no\s+(?:ordinary\s+)?transition)\b.*$",scoped): return True
-    if re.search(r"\b(?:never|does\s+not|do\s+not|cannot|can't)\s+(?:creat(?:e|es|ed|ing)|grant(?:s|ed|ing)?|provid(?:e|es|ed|ing)|confer(?:s|red|ring)?)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\s*$",before): return True
-    if re.search(r"\bno\s+(?:authority|permission)\s+to\s*$",before): return True
-    if re.search(r"\b(?:cancel|retire)\b.*$",scoped) and re.search(r"\bwithout\s+executing\b",whole_after): return True
-    if re.search(r"\balready[- ]collected\b[^,;]{0,100}\bhistorical\b[^,;]{0,100}$",before): return True
-    return False
+def _propositions(unit: str) -> list[str]:
+    return [p.strip() for p in re.split(r"(?<=[.!?])\s+|\s*;\s*", unit) if p.strip() for p in CONTRAST.split(p) if p.strip()]
 
-def _clause_is_list_wide_prohibition(clause: str) -> bool:
-    """Recognize predicates that grammatically govern an entire completed list.
+def _shared_governor(proposition: str) -> str | None:
+    t = _norm(proposition)
+    leading = re.match(r"^(?:[-*]\s*)?(never|do not|does not|must not|should not|may not|cannot|can't)\b", t)
+    if leading: return leading.group(1)
+    heading = POLICY_HEADING.match(proposition)
+    if heading: return _norm(proposition[:heading.end() - len(heading.group(1))])
+    denial = re.match(r"^(?:there (?:is no ordinary transition|are no ordinary transitions|is no authority|is no permission) to|no (?:ordinary transition|authority|permission) to)\b", t)
+    if denial: return denial.group(0)
+    authority_denial = re.search(r"\b(?:never|does not|do not|cannot|can't)\s+(?:create|creates|grant|grants|provide|provides|confer|confers)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\b", t)
+    if authority_denial: return authority_denial.group(0)
+    if re.fullmatch(r"(?:no default role may be instantiated as an arbitrary external person\.\s*)?generic\s+`?reviewer`?,.*\bare invalid default research engine roles\.?", t): return "terminal invalid-role predicate"
+    if re.fullmatch(r"migration passes only when .+\b(?:dependencies|paths|gates) must be zero\.?", t): return "terminal zero predicate"
+    return None
 
-    Both forms are anchored at the start and terminal predicate. Appending a
-    contrast/coordinated active action makes the full-clause form stop matching,
-    so this classification cannot paint an independent later action as negated.
+def _source_item_text(item: str, source_item_index: int, governor: str | None) -> str:
+    if source_item_index != 0 or governor is None:
+        return item.strip()
+    heading = POLICY_HEADING.match(item)
+    if heading:
+        return heading.group(1).strip()
+    governed_prefix = re.compile(
+        r"^\s*(?:(?:never|do\s+not|does\s+not|must\s+not|should\s+not|may\s+not|cannot|can't)\b|"
+        r"(?:there\s+(?:is\s+no\s+ordinary\s+transition|are\s+no\s+ordinary\s+transitions|is\s+no\s+authority|is\s+no\s+permission)\s+to|"
+        r"no\s+(?:ordinary\s+transition|authority|permission)\s+to)\b)\s*",
+        re.I,
+    )
+    return governed_prefix.sub("", item, count=1).strip()
+
+def _action_matches(proposition: str) -> Iterator[tuple[int, str, re.Match[str]]]:
+    """Decompose action items only after proposition scope is resolved.
+
+    Coordination is a lexical item delimiter here, never evidence for or against
+    shared scope.  Returning the item alongside its match keeps broad legacy
+    recognizers from consuming a separately disposable neighboring action.
     """
-    normalized = _norm(clause)
-    invalid_roles = bool(re.fullmatch(
-        r"(?:no default role may be instantiated as an arbitrary external person\.\s*)?"
-        r"generic\s+`?reviewer`?,.*\bare invalid default research engine roles\.?",
-        normalized,
-    ))
-    migration_zero = bool(re.fullmatch(
-        r"migration passes only when .+\b(?:dependencies|paths|gates) must be zero\.?",
-        normalized,
-    ))
-    has_independent_boundary = bool(re.search(r"\b(?:and|but|however|nevertheless|nonetheless|yet)\b", normalized))
-    prohibited_heading = bool(re.match(
-        r"^(?:[-*]\s*)?(?:\*\*)?(?:prohibited|forbidden)(?:\*\*)?\s*:",
-        normalized,
-    )) and not has_independent_boundary
-    no_transition_list = normalized.startswith("there is no ordinary transition to ") and not has_independent_boundary
-    return invalid_roles or migration_zero or prohibited_heading or no_transition_list
+    items = re.split(r"\s*,\s*|\s+\b(?:and|or)\b\s+", proposition, flags=re.I)
+    governor = _shared_governor(proposition)
+    for source_item_index, item in enumerate(items):
+        source_item_text = _source_item_text(item, source_item_index, governor)
+        seen: set[tuple[int, int]] = set()
+        for pattern in ACTIVE_ACTION_PATTERNS:
+            for match in re.finditer(pattern, source_item_text, flags=re.I | re.S):
+                key = (match.start(), match.end())
+                if key not in seen:
+                    seen.add(key)
+                    yield source_item_index, source_item_text, match
+
+def _local_non_active(proposition: str, match: re.Match[str]) -> str | None:
+    before = proposition[:match.start()].lower()[-100:]
+    after = proposition[match.end():].lower()[:100]
+    matched = match.group(0).lower()
+    if re.search(r"\b(?:never|do\s+not|does\s+not|must\s+not|should\s+not|may\s+not|cannot|can't)\b", matched): return "local negation"
+    if re.search(r"\b(?:never|does\s+not|do\s+not|cannot|can't)\b[^,;]{0,70}$", before): return "local negation"
+    if re.search(r"\b(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not allowed|invalid)\b", after): return "local prohibition predicate"
+    if re.search(r"\b(?:cancel|retire)\b", before) and re.search(r"\bwithout\s+executing\b", after): return "retired without execution"
+    if re.search(r"\balready[- ]collected\b", before) and re.search(r"\bhistorical\b", before + matched + after): return "historical lineage"
+    return None
+
+def _action_dispositions(proposition: str, proposition_id: int) -> list[ActionDisposition]:
+    governor = _shared_governor(proposition)
+    decisions = []
+    for source_item_index, source_item_text, match in _action_matches(proposition):
+        local = _local_non_active(source_item_text, match)
+        reason = governor or local
+        decisions.append(ActionDisposition(match.group(0), proposition_id, source_item_index, source_item_text, governor, "NON_ACTIVE" if reason else "ACTIVE", reason or "no supported non-active scope"))
+    return decisions
 
 def _clause_has_static_source(clause: str) -> bool: return any(re.search(p,clause,flags=re.I) for p in STATIC_SOURCE_PATTERNS)
 def _clause_has_human_prohibition(clause: str) -> bool:
@@ -182,28 +224,25 @@ def _clause_has_human_prohibition(clause: str) -> bool:
     if not any(c in t for c in PROHIBITION_CUES): return False
     if re.search(r"\b(?:must|should|shall)\s+be\s+(?:zero|absent|false)\b",t): return True
     if re.search(r"\b(?:is|are)\s+(?:strictly\s+)?invalid\b.{0,60}\b(?:roles?|dependencies?|paths?|gates?)\b",t): return True
-    for p in HUMAN_ACTION_MENTION_PATTERNS:
-        for m in re.finditer(p,clause,flags=re.I|re.S):
-            if _action_is_negated(clause,m): return True
     return bool(re.search(r"\b(?:human recruitment|recruitment|human research|third[- ]party human research|participant collection|human annotation|human rating|human coding|human review|crowd[- ]?sourcing|crowd sourcing|crowd labor|human approval)\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not allowed|invalid)\b",t))
 
 def classify_text(text: str) -> list[Finding]:
     findings=[]
-    for clause in _split_clauses(text):
+    clauses = [p for unit in _policy_units(text) for p in _propositions(unit)]
+    for proposition_id, clause in enumerate(clauses):
         t=_norm(clause)
-        list_wide_prohibition = _clause_is_list_wide_prohibition(clause)
         for p in SIMULATED_HUMAN_OVERCLAIM:
             if re.search(p,clause,flags=re.I|re.S): findings.append(Finding("PROXY_OVERCLAIM","machine/simulated output is labeled as human responses"))
         if _clause_has_static_source(clause): findings.append(Finding("STATIC_EXTERNAL_SOURCE","pre-existing human-derived evidence"))
-        prohibited_action=False; active_action=False
-        for action_span, match in _iter_action_matches(clause):
-            if list_wide_prohibition or _action_is_negated(action_span,match): prohibited_action=True
-            else: active_action=True
+        dispositions = _action_dispositions(clause, proposition_id)
+        governed_mention = _shared_governor(clause) is not None and any(re.search(pattern, clause, flags=re.I | re.S) for pattern in HUMAN_ACTION_MENTION_PATTERNS)
+        prohibited_action=any(d.disposition == "NON_ACTIVE" for d in dispositions) or governed_mention
+        active_action=any(d.disposition == "ACTIVE" for d in dispositions)
         if prohibited_action or _clause_has_human_prohibition(clause): findings.append(Finding("EXPLICIT_PROHIBITION","human action is explicitly negated/prohibited"))
         if active_action: findings.append(Finding("ACTIVE_DEPENDENCY",f"active prohibited human research action: {clause[:180]}"))
         historical_only=any(c in t for c in HISTORICAL_CUES) and not active_action and not re.search(r"\b(?:run|execute|resume|deploy|start|recruit|collect|require|mandatory)\b",t)
         if historical_only and not _clause_has_static_source(clause): findings.append(Finding("HISTORICAL_REFERENCE","historical/legacy reference"))
-        clause_prohibits=prohibited_action or _clause_has_human_prohibition(clause)
+        clause_prohibits=prohibited_action or _clause_has_human_prohibition(clause) or _shared_governor(clause) is not None
         for term in AMBIGUOUS_OWNER_TERMS:
             if term in t and not clause_prohibits and not historical_only and not _clause_has_static_source(clause): findings.append(Finding("AMBIGUOUS_HUMAN_GATE_TERMINOLOGY",f"generic authority term: {term}"))
         approval_required = bool(re.search(r"\b(?:requires?|mandates?|needs?)\s+(?:external\s+)?human\s+approval\b|\b(?:external\s+)?human\s+approval\b.{0,40}\b(?:is|remains|must\s+be)\s+(?:strictly\s+)?(?:required|mandatory|needed)\b",clause,flags=re.I))
