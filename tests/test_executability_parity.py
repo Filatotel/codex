@@ -18,6 +18,22 @@ from tools.executability import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def cross_surface_fixture():
+    assignment,record,profile=deepcopy(valid_chain()); _,route=governed_chain(assignment,record,profile)
+    profiles={}; evidence={}
+    for segment,suffix in zip(route['segments'],['D','X','C']):
+        candidate=deepcopy(profile); candidate['artifact_id']=f'CAP-{suffix}'; candidate['destination_id']=f'agent-{suffix}'; candidate['runtime_identity']=f'runtime-{suffix}'
+        artifact=candidate['evidence_artifacts'][0]; artifact['artifact_id']=f'EVIDENCE-{suffix}'; artifact['runtime_identity']=candidate['runtime_identity']
+        candidate['related_artifacts']=[artifact['artifact_id']]
+        for claim in candidate['capability_evidence']: claim['evidence_ref']=artifact['artifact_id']
+        segment['destination_id']=candidate['destination_id']; segment['runtime_identity']=candidate['runtime_identity']; segment['capability_profile_ref']=candidate['artifact_id']
+        profiles[candidate['artifact_id']]=candidate; evidence[artifact['artifact_id']]=artifact
+    route['final_result']['destination_id']='agent-C'
+    for edge in route['handoffs']:
+        edge.update(same_surface=False,internal_required_capabilities=[],source_required_capabilities=['durable_artifact_write'],target_required_capabilities=['repository_remote_read'])
+    return route,profiles,evidence.get
+
+
 def schema_accepts(value: object, schema: dict) -> bool:
     """Execute only the JSON-Schema keywords used by the committed parity fixtures."""
     def valid(instance: object, rule: dict) -> bool:
@@ -75,6 +91,20 @@ class ExecutabilitySchemaReferenceParityTest(unittest.TestCase):
                 self.assertFalse(schema_accepts(artifact,self.evidence_schema))
                 self.assertTrue(validate_capability_evidence_artifact(artifact))
 
+    def test_timestamp_strict_subset_schema_reference_parity(self) -> None:
+        _,_,profile=deepcopy(valid_chain()); base=profile['evidence_artifacts'][0]
+        valid=['2026-01-01T00:00:00Z','2026-01-01T00:00:00+05:30','2026-01-01T00:00:00-05:00']
+        invalid=['2026-01-01T00:00:00','2026-01-01T00:00:00+14:99','2026-01-01T00:00:00+24:00','2026-01-01T00:00:00+99:99','2026-01-01T00:60:00Z','2026-01-01T00:00:60Z','2026-01-01T00:00:00.Z','not-a-timestamp']
+        for timestamp in valid:
+            artifact=deepcopy(base); artifact['observed_at']=timestamp
+            with self.subTest(valid=timestamp): self.assertTrue(schema_accepts(artifact,self.evidence_schema)); self.assertEqual(validate_capability_evidence_artifact(artifact),[])
+        for timestamp in invalid:
+            artifact=deepcopy(base); artifact['observed_at']=timestamp
+            with self.subTest(invalid=timestamp): self.assertFalse(schema_accepts(artifact,self.evidence_schema)); self.assertTrue(any('observed_at' in error for error in validate_capability_evidence_artifact(artifact)))
+        overflow=deepcopy(base); overflow['observed_at']='9999-12-31T23:59:59-23:59'
+        self.assertTrue(schema_accepts(overflow,self.evidence_schema))  # Runtime-domain normalization is reference-only.
+        self.assertTrue(any('observed_at' in error for error in validate_capability_evidence_artifact(overflow)))
+
     def test_primary_artifact_happy_path_schema_reference_parity(self) -> None:
         assignment,record,profile=deepcopy(valid_chain()); resolver,route=governed_chain(assignment,record,profile)
         pairs=[(profile,self.profile_schema,validate_capability_profile(profile,resolver)),(record,self.record_schema,validate_admissibility_record(record)),(route,self.route_schema,validate_execution_route(route,{'CAP-1':profile},resolver)),(assignment,self.assignment_schema,validate_assignment_artifact(assignment))]
@@ -99,6 +129,21 @@ class ExecutabilitySchemaReferenceParityTest(unittest.TestCase):
         wrong_order=deepcopy(base); wrong_order['handoffs'][0]['to_segment']='durable'
         self.assertTrue(schema_accepts(wrong_order,self.route_schema))
         self.assertTrue(validate_execution_route(wrong_order,profiles,resolver))  # Deliberately semantic/reference-only.
+
+    def test_same_surface_boolean_structural_parity(self) -> None:
+        route,profiles,resolver=cross_surface_fixture()
+        self.assertTrue(schema_accepts(route,self.route_schema)); self.assertEqual(validate_execution_route(route,profiles,resolver),[])
+        for value in ['MISSING','false',0,None,{}]:
+            invalid=deepcopy(route)
+            if value == 'MISSING': invalid['handoffs'][0].pop('same_surface')
+            else: invalid['handoffs'][0]['same_surface']=value
+            errors=validate_execution_route(invalid,profiles,resolver)
+            with self.subTest(value=value):
+                self.assertFalse(schema_accepts(invalid,self.route_schema))
+                expected='same_surface is required' if value == 'MISSING' else 'same_surface must be a boolean'
+                self.assertTrue(any(expected in error for error in errors),errors)
+        _,_,profile=deepcopy(valid_chain()); same_resolver,same_route=governed_chain(*deepcopy(valid_chain()))
+        self.assertTrue(schema_accepts(same_route,self.route_schema)); self.assertEqual(validate_execution_route(same_route,{'CAP-1':profile},same_resolver),[])
 
     def test_assignment_route_binding_is_deliberately_semantic(self) -> None:
         assignment,record,profile=deepcopy(valid_chain())

@@ -505,6 +505,13 @@ def validate_execution_route(
     for index, edge in enumerate(edges):
         if not isinstance(edge, Mapping): errors.append(f"execution_route.handoffs[{index}] must be an object"); continue
         source, target = edge.get("from_segment"), edge.get("to_segment")
+        same_surface = edge.get("same_surface")
+        if "same_surface" not in edge:
+            errors.append(f"execution_route.handoffs[{index}].same_surface is required")
+            continue
+        if not isinstance(same_surface, bool):
+            errors.append(f"execution_route.handoffs[{index}].same_surface must be a boolean")
+            continue
         source_required = _string_list(edge.get("source_required_capabilities"), f"execution_route.handoffs[{index}].source_required_capabilities", errors, unique=True) or []
         target_required = _string_list(edge.get("target_required_capabilities"), f"execution_route.handoffs[{index}].target_required_capabilities", errors, unique=True) or []
         internal_required = _string_list(edge.get("internal_required_capabilities"), f"execution_route.handoffs[{index}].internal_required_capabilities", errors, unique=True) or []
@@ -512,7 +519,7 @@ def validate_execution_route(
         seen_pairs.add((source, target))
         source_available = segment_caps.get(str(source), set())
         target_available = segment_caps.get(str(target), set())
-        if edge.get("same_surface") is True:
+        if same_surface:
             source_seg = segment_by_id.get(str(source), {})
             target_seg = segment_by_id.get(str(target), {})
             if (source_seg.get("destination_id"), source_seg.get("runtime_identity")) != (target_seg.get("destination_id"), target_seg.get("runtime_identity")):

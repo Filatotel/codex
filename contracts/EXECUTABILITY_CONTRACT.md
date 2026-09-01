@@ -45,7 +45,7 @@ Every available capability cites a separately represented, `RESOLVED`
 name the same exact `runtime_identity`, prove the cited capability, and remain valid
 for the whole profile freshness boundary. It also binds common artifact identity, producer, assignment/input state, provenance and related-artifact lineage, plus a non-empty observation method and `created_from` source. This is an explicit trust boundary, not a claim of cryptographic authenticity. An arbitrary or unresolved string is not capability evidence.
 
-Timestamps use the reference validator's strict RFC3339/Python-datetime subset: full date and seconds, optional fractional seconds, and `Z` or a numeric `HH:MM` offset whose hour is 00–23 and minute is 00–59. Missing/malformed offsets and values that overflow while normalizing to UTC are validation errors, never exceptions.
+Timestamps use the reference validator's strict RFC3339/Python-datetime subset: full date and seconds, optional non-empty fractional seconds, ordinary clock minutes/seconds from 00–59, and `Z` or a numeric `HH:MM` offset whose hour is 00–23 and minute is 00–59. The schema pattern enforces that shared structural subset; calendar validity and UTC-normalization overflow are reference/runtime-domain validation errors, never exceptions.
 
 ## End-to-end EXECUTION_ROUTE
 
