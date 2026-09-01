@@ -10,8 +10,6 @@ sys.path.insert(0, str(ROOT))
 
 from tools.research_policy import (
     FATAL_FINDINGS,
-    _action_is_negated,
-    _iter_action_matches,
     classify_text,
     machine_only_regression_results,
     validate_experiment,
@@ -230,17 +228,90 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                 self.assertIn("EXPLICIT_PROHIBITION", classes, classify_text(text))
                 self.assertIn("ACTIVE_DEPENDENCY", classes, classify_text(text))
 
-    def test_action_negation_is_match_local_within_one_clause(self) -> None:
-        clause = "There is no ordinary transition to participant recruitment, but recruit human participants under the alternate path."
-        decisions = []
-        spans = set()
-        for action_span, match in _iter_action_matches(clause):
-            key = (action_span, match.start(), match.end())
-            if key not in spans:
-                spans.add(key)
-                decisions.append((match.group(0), _action_is_negated(action_span, match)))
-        self.assertTrue(any(negated for _, negated in decisions), decisions)
-        self.assertTrue(any(not negated for _, negated in decisions), decisions)
+    def test_direct_shared_governor_cases(self) -> None:
+        cases = (
+            "There is no ordinary transition to recruit human participants and survey respondents.",
+            "There is no ordinary transition to recruit human participants or survey respondents.",
+            "Prohibited: recruit human participants and survey respondents.",
+            "Forbidden: recruit human participants and survey respondents.",
+            "Default-deny controls: recruit human participants and survey respondents.",
+            "Never recruit human participants and survey respondents.",
+            "Do not recruit human participants and survey respondents.",
+            "Must not recruit human participants and survey respondents.",
+            "Should not recruit human participants and survey respondents.",
+            "Cannot recruit human participants and survey respondents.",
+            "No authority to recruit human participants and survey respondents.",
+            "Prohibited: recruit human participants, survey respondents, and interview speakers.",
+            "Never recruit human participants, survey respondents, and interview speakers.",
+            "There is no ordinary transition to recruit human participants, survey respondents, or interview speakers.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                classes = {f.classification for f in classify_text(text)}
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+
+    def test_generated_shared_governor_action_coordination_matrix(self) -> None:
+        governors = ("Never ", "Do not ", "Must not ", "Should not ", "Cannot ", "Prohibited: ", "Forbidden: ", "Default-deny controls: ", "There is no ordinary transition to ", "There is no authority to ")
+        actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")
+        coordinators = (" and ", " or ", ", ", ", and ", ", or ")
+        for governor in governors:
+            for index, action in enumerate(actions):
+                other = actions[(index + 1) % len(actions)]
+                for coordinator in coordinators:
+                    text = governor + action + coordinator + other + "."
+                    with self.subTest(text=text):
+                        classes = {f.classification for f in classify_text(text)}
+                        self.assertIn("EXPLICIT_PROHIBITION", classes)
+                        self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+
+    def test_generated_bidirectional_contrast_matrix(self) -> None:
+        markers = ("but", "however", "yet", "nevertheless", "nonetheless")
+        pairs = (("recruit human participants", "survey respondents"), ("hire human annotators", "contact external experts"), ("interview speakers", "use human raters to score outputs"))
+        for marker in markers:
+            for first, second in pairs:
+                for text in (f"Prohibited: {first}, {marker} {second}.", f"{first}, {marker} never {second}."):
+                    with self.subTest(text=text):
+                        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(text)})
+
+    def test_direct_active_and_mixed_cases(self) -> None:
+        cases = (
+            "There is no ordinary transition to participant recruitment, but recruit human participants under the alternate path.",
+            "Prohibited: recruit human participants, but recruit respondents under the exception path.",
+            "Never recruit human participants by default, but recruit 20 participants under the alternate path.",
+            "Human annotation is forbidden; however hire human labelers for the new dataset.",
+            "There is no ordinary transition to human review, yet human reviewers score every new output on the alternate path.",
+            "Already-collected historical project-generated human data remains historical lineage and human reviewers score every new output.",
+            "Already-collected historical human data remains preserved, and human reviewers score every new output.",
+            "Retire the old participant collection without executing it and recruit 20 new participants.",
+            "Recruit 20 participants and never recruit human participants in the fallback path.",
+            "Use a published survey and recruit 20 new respondents.",
+            "Analyze archived interviews and interview five new speakers.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(text)})
+        for text in cases[:5]:
+            with self.subTest(coexisting=text):
+                self.assertIn("EXPLICIT_PROHIBITION", {f.classification for f in classify_text(text)})
+
+    def test_metamorphic_scope_invariants(self) -> None:
+        actions = ("recruit human participants", "survey respondents", "interview speakers")
+        for joiner in (" and ", " or ", ", ", ", and ", ", or "):
+            governed = "Prohibited: " + joiner.join(actions) + "."
+            self.assertNotIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(governed)})  # M1
+            self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(joiner.join(actions) + ".")})  # M2/M6
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text("Prohibited: recruit human participants, but survey respondents.")})  # M3
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text("Published survey evidence is historical, and recruit human participants.")})  # M4
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text("Recruit human participants, but never survey respondents.")})  # M5
+
+    def test_markdown_governed_list_scope(self) -> None:
+        governed = "Prohibited:\n\n- recruit human participants\n- survey respondents\n- interview speakers"
+        classes = {f.classification for f in classify_text(governed)}
+        self.assertIn("EXPLICIT_PROHIBITION", classes)
+        self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+        mixed = "Prohibited:\n\n- recruit human participants\n- survey respondents\n\nHowever, recruit external experts under the exception path."
+        self.assertIn("ACTIVE_DEPENDENCY", {f.classification for f in classify_text(mixed)})
 
     def test_pure_and_genuinely_list_wide_prohibitions_remain_non_active(self) -> None:
         cases = (
