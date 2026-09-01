@@ -181,16 +181,98 @@ def validate_admissibility_against_profile(
     return errors
 
 
+def validate_assignment_execution_contract(
+    assignment: Mapping[str, object],
+    record: Mapping[str, object],
+    profile: Mapping[str, object],
+) -> list[str]:
+    """Validate the complete executable-assignment proof chain."""
+    errors = validate_admissibility_against_profile(record, profile)
+    contract = assignment.get("execution_contract")
+    if not isinstance(contract, Mapping):
+        return errors + ["assignment.execution_contract must be an object"]
+
+    if record.get("status") != "ADMISSIBLE":
+        errors.append("executable assignment cites a non-ADMISSIBLE record")
+
+    record_id = record.get("artifact_id")
+    if contract.get("admissibility_ref") != record_id:
+        errors.append(
+            f"admissibility_ref mismatch: assignment {contract.get('admissibility_ref')!r}, record {record_id!r}"
+        )
+
+    profile_id = profile.get("artifact_id")
+    if contract.get("capability_profile_ref") != profile_id:
+        errors.append(
+            "assignment capability_profile_ref mismatch: "
+            f"assignment {contract.get('capability_profile_ref')!r}, profile {profile_id!r}"
+        )
+
+    destination = record.get("destination_id")
+    if contract.get("destination_id") != destination:
+        errors.append(
+            f"assignment destination mismatch: assignment {contract.get('destination_id')!r}, proof {destination!r}"
+        )
+
+    if contract.get("proof_status") != "PROVEN":
+        errors.append("assignment execution proof_status must be PROVEN")
+
+    record_required = record.get("required_capabilities")
+    assignment_required = contract.get("required_capabilities")
+    if isinstance(record_required, list) and isinstance(assignment_required, list):
+        if _normalize(record_required) != _normalize(assignment_required):
+            errors.append(
+                "assignment required_capabilities do not match admissibility record: "
+                f"assignment {_normalize(assignment_required)}, proof {_normalize(record_required)}"
+            )
+    else:
+        errors.append("assignment/proof required_capabilities must be lists")
+
+    record_missing = record.get("unsatisfied_required_capabilities")
+    assignment_missing = contract.get("unsatisfied_required_capabilities")
+    if isinstance(record_missing, list) and isinstance(assignment_missing, list):
+        if _normalize(record_missing) != _normalize(assignment_missing):
+            errors.append(
+                "assignment unsatisfied_required_capabilities do not match admissibility record"
+            )
+        if _normalize(assignment_missing):
+            errors.append("executable assignment contains unsatisfied required capabilities")
+    else:
+        errors.append("assignment/proof unsatisfied_required_capabilities must be lists")
+
+    record_paths = record.get("mandatory_evidence_paths")
+    assignment_paths = contract.get("mandatory_evidence_paths")
+    if isinstance(record_paths, list) and isinstance(assignment_paths, list):
+        if _normalize(record_paths) != _normalize(assignment_paths):
+            errors.append(
+                "assignment mandatory_evidence_paths do not match admissibility record: "
+                f"assignment {_normalize(assignment_paths)}, proof {_normalize(record_paths)}"
+            )
+    else:
+        errors.append("assignment/proof mandatory_evidence_paths must be lists")
+
+    if contract.get("execution_mode") != record.get("execution_mode"):
+        errors.append(
+            "assignment execution_mode does not match admissibility record: "
+            f"assignment {contract.get('execution_mode')!r}, proof {record.get('execution_mode')!r}"
+        )
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Evaluate Project Resolver destination executability")
     parser.add_argument("--required", nargs="*", default=[])
     parser.add_argument("--available", nargs="*", default=[])
     parser.add_argument("--record", help="Validate an ASSIGNMENT_ADMISSIBILITY JSON file")
     parser.add_argument("--profile", help="Validate against an exact CAPABILITY_PROFILE JSON file")
+    parser.add_argument("--assignment", help="Validate the complete ASSIGNMENT proof chain")
     args = parser.parse_args()
 
     if args.profile and not args.record:
         parser.error("--profile requires --record")
+    if args.assignment and (not args.record or not args.profile):
+        parser.error("--assignment requires --record and --profile")
 
     if args.record:
         with open(args.record, "r", encoding="utf-8") as handle:
@@ -198,7 +280,12 @@ def main() -> int:
         if args.profile:
             with open(args.profile, "r", encoding="utf-8") as handle:
                 profile = json.load(handle)
-            errors = validate_admissibility_against_profile(record, profile)
+            if args.assignment:
+                with open(args.assignment, "r", encoding="utf-8") as handle:
+                    assignment = json.load(handle)
+                errors = validate_assignment_execution_contract(assignment, record, profile)
+            else:
+                errors = validate_admissibility_against_profile(record, profile)
         else:
             errors = validate_admissibility_record(record)
         print(json.dumps({"valid": not errors, "errors": errors}, indent=2))
