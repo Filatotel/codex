@@ -43,7 +43,7 @@ def find_branch_state_file(root: Path) -> Path | None:
 
 
 def _field_value(text: str, label: str) -> str | None:
-    match = re.search(rf"(?m)^\s*-?\s*{re.escape(label)}\s*(.*)$", text)
+    match = re.search(rf"(?m)^[ \t]*-?[ \t]*{re.escape(label)}[ \t]*(.*)$", text)
     return None if match is None else match.group(1).strip()
 
 
