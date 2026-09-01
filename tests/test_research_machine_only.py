@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from tools.research_policy import (
+    FATAL_FINDINGS,
     classify_text,
     machine_only_regression_results,
     validate_experiment,
@@ -101,9 +102,9 @@ def base_freeze() -> dict:
 
 
 class ResearchMachineOnlyPolicyTest(unittest.TestCase):
-    def test_T01_T28_bounded_regression_matrix(self) -> None:
+    def test_T01_T42_bounded_regression_matrix(self) -> None:
         results = machine_only_regression_results()
-        self.assertEqual(set(results), {f"T{i:02d}" for i in range(1,29)})
+        self.assertEqual(set(results), {f"T{i:02d}" for i in range(1,43)})
         self.assertEqual({k:v for k,v in results.items() if v != "PASS"}, {}, msg=str(results))
 
     def test_clause_action_classifier_preserves_mixed_findings(self) -> None:
@@ -113,6 +114,39 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
         self.assertIn("STATIC_EXTERNAL_SOURCE", classes); self.assertIn("ACTIVE_DEPENDENCY", classes)
         classes = {f.classification for f in classify_text("Analyze archived interviews and interview five new speakers.")}
         self.assertIn("STATIC_EXTERNAL_SOURCE", classes); self.assertIn("ACTIVE_DEPENDENCY", classes)
+
+    def test_owner_user_control_and_prohibition_text_are_non_fatal(self) -> None:
+        cases = (
+            "Ask the user again if required project authority is missing.",
+            "Contact the user for the missing repository identifier.",
+            "Consult Owner/K0 before accepting the project decision.",
+            "Never recruit human participants.",
+            "This workflow never creates authority to recruit humans.",
+            "Human annotation is prohibited.",
+            "No third-party human research is allowed.",
+            "The legacy workflow used human annotation before retirement.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertFalse(any(f.classification in FATAL_FINDINGS for f in classify_text(text)), msg=str(classify_text(text)))
+
+    def test_third_party_annotation_rating_coding_and_crowd_labor_are_fatal(self) -> None:
+        cases = (
+            "Hire five human annotators to label the dataset.",
+            "Assign human annotators to label the dataset.",
+            "Use three human raters to score the outputs.",
+            "Use human raters to score the responses.",
+            "Employ coders to code the interview responses.",
+            "Employ human coders to code the samples.",
+            "Contract crowdworkers to classify the samples.",
+            "Contract crowdworkers to classify the dataset.",
+            "Have external reviewers rate every generated item.",
+            "The legacy pipeline requires human annotation for every new sample.",
+            "In the legacy pipeline, human annotation remains mandatory.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertTrue(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), msg=str(classify_text(text)))
 
     def test_question_recursively_checks_semantic_fields(self) -> None:
         q = base_question(); q["AVAILABLE_MACHINE_METHODS"] = ["deterministic pass", ["Recruit native speakers"]]
