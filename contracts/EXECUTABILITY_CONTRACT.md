@@ -112,12 +112,24 @@ Every Research assignment still requires this global destination executability p
 
 ## Skill and pattern law
 
-Every reusable skill and Solution Pattern that can require external execution surfaces must declare:
+Every **new or substantively edited** reusable skill and Solution Pattern that can require external execution surfaces must declare:
 
 - required execution capabilities;
 - supported execution modes;
 - conditional/optional capabilities;
 - evidence path or equivalent fallback rules;
 - unsupported-environment behavior.
+
+### Migration compatibility for existing unannotated skills
+
+Migration-preserved active skills/patterns that predate this contract are not automatically invalid merely because they do not yet contain a dedicated Execution contract section. Until each is explicitly annotated:
+
+1. absence of a declaration means **execution prerequisites are UNKNOWN, not empty**;
+2. before selecting that legacy skill/pattern for an assignment, the Control Director/router MUST inspect only that selected skill/pattern's mandatory procedure/evidence steps and derive concrete required capabilities from them;
+3. if any mandatory prerequisite cannot be derived confidently, selection is `ASSIGNMENT_NOT_ADMISSIBLE` pending bounded capability clarification/annotation;
+4. the router MUST NOT infer capability-free execution from missing metadata;
+5. later bounded compatibility remediation may add declarations without changing the skill/pattern's proven procedural substance.
+
+This compatibility rule preserves the migration invariant that legacy procedural substance was not silently rewritten while still preventing unannotated skills from bypassing destination preflight.
 
 A pattern may remain valid even when the current destination cannot execute it. In that case selection is not admissible for that destination; the pattern itself is not defective merely for requiring a real runtime.
