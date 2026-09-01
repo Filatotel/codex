@@ -36,7 +36,7 @@ jobs:
         run: npx wait-on $PREVIEW_URL
 
       - name: Run dogfood QA
-        run: npx playwright test tests/dogfood --reporter=html
+        run: npm run qa:dogfood -- --reporter=html
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

@@ -50,9 +50,9 @@ A boundary map:
 steps before authoritative boundary
 boundary itself
 steps after boundary
-reversible effects
-compensatable effects
-irreversible/non-repeatable effects
+reversibility classification
+compensation classification
+repeatability / retry classification
 pre-boundary recovery
 post-boundary recovery
 retry identity/idempotency requirements
@@ -60,16 +60,29 @@ retry identity/idempotency requirements
 
 ## Procedure
 
-### 1. Classify effects
+### 1. Classify effects on independent axes
 
-For each meaningful effect, classify it as one of:
+For each meaningful effect, classify one value on **each** applicable axis. These axes are independent; do not collapse them into one mutually exclusive category.
+
+**Axis 1 — Reversibility**
 
 - **reversible** — can be rolled back without changing external truth;
-- **compensatable** — cannot be undone, but an explicit compensating action can restore business intent;
-- **idempotently repeatable** — repeating the same operation with the same identity is safe;
-- **non-repeatable / irreversible** — replay may duplicate or contradict reality.
+- **irreversible** — cannot be honestly undone as if it never happened.
 
-The classification is semantic, not based only on storage technology.
+**Axis 2 — Compensation**
+
+- **compensatable** — a separate explicit action can restore business intent or offset the effect;
+- **non-compensatable / no defined compensation** — no valid compensating action is defined.
+
+**Axis 3 — Repeatability / Retry**
+
+- **idempotently repeatable with the same identity** — repeating the same operation under the same identity does not create a second effect;
+- **conditionally repeatable** — replay is safe only after specified reconciliation/preconditions;
+- **non-repeatable** — replay may duplicate or contradict reality.
+
+An effect therefore occupies one value on each axis. The classification is semantic, not based only on storage technology.
+
+Example: a payment capture may be **irreversible**, **compensatable** by a separate refund, and **idempotently repeatable with the same idempotency identity**. The refund is compensation, not rollback of the capture.
 
 ### 2. Find the authoritative boundary
 
@@ -107,7 +120,7 @@ Recovery may instead:
 
 - resume remaining continuation steps;
 - reconcile from authoritative state;
-- repeat only idempotent post-commit work;
+- repeat only retry-safe post-commit work under the required identity/preconditions;
 - deliver a previously committed result again;
 - compensate explicitly;
 - escalate for manual repair.
@@ -149,6 +162,7 @@ At minimum, test or reason explicitly about:
 - Rollback of local state does not erase an already-visible external effect.
 - A retry must not silently become a second intent.
 - Compensation is a new action, not time travel.
+- Reversibility, compensation, and retry repeatability must be reasoned about separately.
 - Post-commit failure is often a continuation problem, not a reason to replay the original command.
 - If the system cannot tell whether an irreversible effect occurred, design an identity/reconciliation strategy before relying on retries.
 
@@ -160,16 +174,19 @@ Avoid:
 - marking success before the system's real commit boundary;
 - assuming HTTP timeout means no side effect;
 - using database rollback language for effects outside that transaction;
+- treating compensation as proof that the original effect was reversible;
 - retrying with a new identity when the old operation may have succeeded;
 - compensating silently while claiming the original effect never occurred.
 
 ## Verification checklist
 
-- [ ] Irreversible/compensatable effects are identified.
+- [ ] Irreversible effects are identified explicitly.
+- [ ] Each relevant effect has independent reversibility, compensation, and repeatability/retry classifications.
 - [ ] The authoritative commit boundary is explicit.
 - [ ] Pre- and post-boundary recovery differ where truth differs.
 - [ ] Lost response is distinguished from failed operation.
 - [ ] Duplicate/retry behavior is safe or explicitly blocked.
+- [ ] Compensation is modeled as a separate action, not rollback.
 - [ ] Post-commit recovery does not replay already-authoritative work.
 
 ## Pair with

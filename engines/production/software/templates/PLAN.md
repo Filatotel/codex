@@ -1,8 +1,12 @@
 # PLAN
 
-## Goal
+## Objective
 
 What outcome should exist after implementation?
+
+## Owner
+
+Who owns the workstream and its acceptance authority?
 
 ## Scope
 
@@ -12,15 +16,13 @@ What is included?
 
 What explicitly should NOT change?
 
-## Systems touched
+## Dependencies
 
-- TODO
+| Dependency | Type | Why needed / constraint |
+|---|---|---|
+| TODO | TODO | TODO |
 
-## Files likely touched
-
-- TODO
-
-## Constraints
+## Systems / files likely touched
 
 - TODO
 
@@ -40,6 +42,18 @@ What explicitly should NOT change?
 
 - TODO
 
+## Acceptance criteria
+
+- TODO
+
+## Gates
+
+- TODO
+
+## Stop conditions
+
+- TODO
+
 ## Verification
 
 ```bash
@@ -47,10 +61,10 @@ npm run build
 npm run qa:dogfood
 ```
 
-## Acceptance criteria
+## Rollback / recovery
 
 - TODO
 
-## Rollback plan
+## Deferred findings
 
 - TODO
