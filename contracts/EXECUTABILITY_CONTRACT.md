@@ -41,10 +41,15 @@ A capability profile is evidence about a runtime, not authority to use that capa
 For deterministic admission, the profile freshness boundary contains timezone-aware
 `observed_at` and `valid_until` timestamps. `valid_until` must still be in the future.
 Every available capability cites a separately represented, `RESOLVED`
-`CAPABILITY_EVIDENCE` artifact embedded in `evidence_artifacts`; that artifact must
+`CAPABILITY_EVIDENCE` artifact. An embedded copy in `evidence_artifacts` is transport/cache data only and is never authoritative by existence or self-declared status. Complete-chain validation MUST resolve the reference through an explicitly supplied governed evidence source (an offline governed bundle is valid), fail closed when resolution is absent/fails, and reject material disagreement with an embedded copy. The resolved artifact must
 name the same exact `runtime_identity`, prove the cited capability, and remain valid
-for the whole profile freshness boundary. An arbitrary or unresolved string is not
-capability evidence.
+for the whole profile freshness boundary. It also binds common artifact identity, producer, assignment/input state, provenance and related-artifact lineage, plus a non-empty observation method and `created_from` source. This is an explicit trust boundary, not a claim of cryptographic authenticity. An arbitrary or unresolved string is not capability evidence.
+
+Timestamps use the reference validator's strict RFC3339/Python-datetime subset: full date and seconds, optional non-empty fractional seconds, ordinary clock minutes/seconds from 00–59, and `Z` or a numeric `HH:MM` offset whose hour is 00–23 and minute is 00–59. The schema pattern enforces that shared structural subset; calendar validity and UTC-normalization overflow are reference/runtime-domain validation errors, never exceptions.
+
+## End-to-end EXECUTION_ROUTE
+
+**NO EXECUTABLE ASSIGNMENT WITHOUT AN ADMISSIBLE END-TO-END EXECUTION ROUTE.** Destination proof alone is insufficient. A schema-backed `EXECUTION_ROUTE` binds the exact assignment draft and a structured final-result endpoint, and contains exactly identified `CANDIDATE_DELIVERY`, `EXECUTION_VERIFICATION`, and `DURABLE_EVIDENCE_CONTROL` roles. Every segment binds its destination, runtime, capability profile, requirements, and mode. Every cross-surface handoff separately proves source export/publish capabilities and target receive/read capabilities; capabilities on the wrong side cannot satisfy the edge. A same-surface handoff instead requires exact destination/runtime equivalence plus an internal-transfer capability on that runtime. All segment and directional edge requirements must be proven. The structured `final_result.segment_ref` must resolve to the durable segment and its `destination_id` must equal both that segment's destination and `ASSIGNMENT.result_to`. Missing delivery, execution, publication/readback, or final durable reachability returns `ASSIGNMENT_NOT_ADMISSIBLE`; capability loss after valid admission remains `BLOCKED_RUNTIME_DRIFT`.
 
 ## ASSIGNMENT_ADMISSIBILITY
 
@@ -63,6 +68,7 @@ An executable assignment carries `execution_contract.assignment_draft_ref` equal
 to the cited admissibility record's `assignment_draft_id`, plus the same exact
 `runtime_identity`. Matching destination labels alone do not establish either
 binding.
+It also carries `execution_contract.route_ref` equal to the exact admitted route. The route's `EXECUTION_VERIFICATION` segment must exactly equal the assignment/admissibility `destination_id`, `runtime_identity`, and `capability_profile_ref`; `ASSIGNMENT.result_to` must equal the structured durable final endpoint.
 
 ## Capability vocabulary
 

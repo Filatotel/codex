@@ -10,6 +10,8 @@ sys.path.insert(0, str(ROOT))
 
 from tools.research_policy import (
     FATAL_FINDINGS,
+    _action_is_negated,
+    _iter_action_matches,
     classify_text,
     machine_only_regression_results,
     validate_experiment,
@@ -123,6 +125,7 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
             "Never recruit human participants.",
             "This workflow never creates authority to recruit humans.",
             "Human annotation is prohibited.",
+            "Never recruit human participants and survey them.",
             "No third-party human research is allowed.",
             "The legacy workflow used human annotation before retirement.",
             "Historically, human annotation was mandatory before retirement.",
@@ -176,6 +179,82 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
         for text in cases:
             with self.subTest(text=text):
                 self.assertTrue(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), msg=str(classify_text(text)))
+
+    def test_action_scoped_history_and_negation_adversarial_matrix(self) -> None:
+        active = (
+            "Already-collected historical project-generated human data remains historical lineage and human reviewers score every new output.",
+            "Already-collected historical human data remains preserved, and human reviewers score every new output.",
+            "Recruit 20 participants, and missing responses must be zero.",
+            "Retire the old participant collection without executing it and recruit 20 new participants.",
+            "Historical human review was retired but human rating remains mandatory for every new output.",
+            "Human annotation is prohibited; nevertheless hire human labelers to label the new dataset.",
+        )
+        inactive = (
+            "Already-collected historical human data remains historical lineage.",
+            "Retire the historical participant collection without executing it.",
+            "Never recruit human participants.",
+            "Human annotation is prohibited.",
+            "This workflow never creates authority to recruit humans.",
+            "Use a published survey as static external evidence.",
+        )
+        for text in active:
+            with self.subTest(active=text):
+                self.assertTrue(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), classify_text(text))
+        for text in inactive:
+            with self.subTest(inactive=text):
+                self.assertFalse(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), classify_text(text))
+
+    def test_clause_global_negation_cannot_swallow_independent_action_family(self) -> None:
+        mixed = (
+            "There is no ordinary transition to participant recruitment, but recruit human participants under the alternate path.",
+            "Human recruitment is prohibited, but recruit 20 participants under the exception path.",
+            "Human annotation is forbidden; however hire human labelers for the new dataset.",
+            "Never recruit human participants by default, but the exception requires recruiting 10 participants.",
+            "There is no ordinary transition to human review, yet human reviewers score every new output on the alternate path.",
+            "Retire the old participant collection without executing it, but recruit 20 new participants.",
+            "Already-collected historical human data remains historical lineage, but human reviewers rate every new output.",
+            "Recruit 20 participants, but participant recruitment is prohibited for future runs.",
+            "Recruit 20 participants and never recruit human participants in the fallback path.",
+            "Historical human review was retired, but human rating remains mandatory.",
+            "Human annotation is forbidden; nevertheless hire human labelers for the new dataset.",
+        )
+        for text in mixed:
+            with self.subTest(text=text):
+                classes = {finding.classification for finding in classify_text(text)}
+                self.assertIn("ACTIVE_DEPENDENCY", classes, classify_text(text))
+
+        mixed_prohibition = mixed[:3]
+        for text in mixed_prohibition:
+            with self.subTest(mixed_findings=text):
+                classes = {finding.classification for finding in classify_text(text)}
+                self.assertIn("EXPLICIT_PROHIBITION", classes, classify_text(text))
+                self.assertIn("ACTIVE_DEPENDENCY", classes, classify_text(text))
+
+    def test_action_negation_is_match_local_within_one_clause(self) -> None:
+        clause = "There is no ordinary transition to participant recruitment, but recruit human participants under the alternate path."
+        decisions = []
+        spans = set()
+        for action_span, match in _iter_action_matches(clause):
+            key = (action_span, match.start(), match.end())
+            if key not in spans:
+                spans.add(key)
+                decisions.append((match.group(0), _action_is_negated(action_span, match)))
+        self.assertTrue(any(negated for _, negated in decisions), decisions)
+        self.assertTrue(any(not negated for _, negated in decisions), decisions)
+
+    def test_pure_and_genuinely_list_wide_prohibitions_remain_non_active(self) -> None:
+        cases = (
+            "Human review is prohibited and human reviewers must not score outputs.",
+            "Never recruit human participants.",
+            "Retire the historical participant collection without executing it.",
+            "Already-collected historical human data remains historical lineage.",
+            "Human annotation is prohibited.",
+            "Generic reviewer, expert reviewer, participant coordinator, recruitment/survey operator, human coder/annotator/rater/validator, community solicitation liaison, or panel coordinator are invalid default Research Engine roles.",
+            "Migration passes only when required non-owner humans, Owner manual research labor, external human review, active human collection paths, and ambiguous generic human authority gates must be zero.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertFalse(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), classify_text(text))
 
     def test_question_recursively_checks_semantic_fields(self) -> None:
         q = base_question(); q["AVAILABLE_MACHINE_METHODS"] = ["deterministic pass", ["Recruit native speakers"]]

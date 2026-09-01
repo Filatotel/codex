@@ -47,6 +47,24 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertIn('"maxItems": 0', serialized)
         self.assertIn('"minItems": 1', serialized)
 
+    def test_route_and_evidence_schema_parity_surface(self) -> None:
+        route = json.loads((ROOT / "schemas/execution-route.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(route["properties"]["status"]["const"], "ADMISSIBLE")
+        self.assertEqual(route["properties"]["segments"]["minItems"], 3)
+        self.assertEqual(route["properties"]["handoffs"]["minItems"], 2)
+        self.assertIn("final_result", route["required"])
+        handoff = route["properties"]["handoffs"]["items"]
+        for field in ["source_required_capabilities", "target_required_capabilities", "internal_required_capabilities"]:
+            self.assertIn(field, handoff["required"])
+        profile = json.loads((ROOT / "schemas/capability-profile.schema.json").read_text(encoding="utf-8"))
+        evidence = profile["properties"]["evidence_artifacts"]["items"]
+        for field in ["observation_method", "created_from", "provenance", "related_artifacts"]:
+            self.assertIn(field, evidence["required"])
+        assignment = json.loads((ROOT / "schemas/assignment.schema.json").read_text(encoding="utf-8"))
+        admissibility = json.loads((ROOT / "schemas/assignment-admissibility.schema.json").read_text(encoding="utf-8"))
+        self.assertIn("route_ref", assignment["properties"]["execution_contract"]["required"])
+        self.assertIn("route_ref", admissibility["required"])
+
     def test_root_router_and_director_require_preflight_before_assign(self) -> None:
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         router = (ROOT / "ROUTER.md").read_text(encoding="utf-8")

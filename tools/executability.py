@@ -4,8 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime, timezone
+
+CapabilityEvidenceResolver = Callable[[str], Mapping[str, object] | None]
 
 
 def _normalize(values: Iterable[str]) -> list[str]:
@@ -22,15 +24,20 @@ def _timestamp(value: object, field: str, errors: list[str]) -> datetime | None:
     ) is None:
         errors.append(f"{field} must be an RFC3339 date-time")
         return None
+    offset = re.search(r"([+-])(\d{2}):(\d{2})$", value)
+    if offset and (int(offset.group(2)) > 23 or int(offset.group(3)) > 59):
+        errors.append(f"{field} has an invalid timezone offset")
+        return None
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        normalized = parsed.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
         errors.append(f"{field} must be an ISO-8601 timestamp")
         return None
     if parsed.tzinfo is None:
         errors.append(f"{field} must include a timezone")
         return None
-    return parsed.astimezone(timezone.utc)
+    return normalized
 
 
 def _string_list(
@@ -72,7 +79,29 @@ def evaluate_assignment_admissibility(
     }
 
 
-def validate_capability_profile(profile: Mapping[str, object]) -> list[str]:
+def validate_capability_evidence_artifact(artifact: Mapping[str, object]) -> list[str]:
+    """Validate the schema-backed structural surface of CAPABILITY_EVIDENCE."""
+    errors: list[str] = []
+    if artifact.get("artifact_type") != "CAPABILITY_EVIDENCE": errors.append("artifact_type must be CAPABILITY_EVIDENCE")
+    if artifact.get("status") != "RESOLVED": errors.append("status must be RESOLVED")
+    for field in ["artifact_id", "produced_by_role", "runtime_identity", "observation_method", "created_from"]:
+        if not isinstance(artifact.get(field), str) or not str(artifact[field]).strip(): errors.append(f"{field} must be a non-empty string")
+    for field in ["assignment_id", "input_state_ref"]:
+        value = artifact.get(field)
+        if field not in artifact: errors.append(f"{field} is required")
+        elif value is not None and (not isinstance(value, str) or not value.strip()): errors.append(f"{field} must be null or a non-empty string")
+    for field in ["provenance", "related_artifacts"]:
+        _string_list(artifact.get(field), field, errors, min_items=1)
+    _string_list(artifact.get("capabilities"), "capabilities", errors, unique=True, min_items=1)
+    _timestamp(artifact.get("observed_at"), "observed_at", errors)
+    _timestamp(artifact.get("valid_until"), "valid_until", errors)
+    return errors
+
+
+def validate_capability_profile(
+    profile: Mapping[str, object],
+    evidence_resolver: CapabilityEvidenceResolver | None = None,
+) -> list[str]:
     """Validate internal consistency, freshness, runtime binding, and evidence coverage."""
     errors: list[str] = []
     if profile.get("artifact_type") != "CAPABILITY_PROFILE":
@@ -140,20 +169,21 @@ def validate_capability_profile(profile: Mapping[str, object]) -> list[str]:
         errors.append("evidence_artifacts must be a list")
         evidence_artifacts = []
 
-    evidence_by_id: dict[str, Mapping[str, object]] = {}
+    embedded_by_id: dict[str, Mapping[str, object]] = {}
     now = datetime.now(timezone.utc)
     for index, artifact in enumerate(evidence_artifacts):
         prefix = f"evidence_artifacts[{index}]"
         if not isinstance(artifact, Mapping):
             errors.append(f"{prefix} must be an object")
             continue
+        errors.extend(f"{prefix}.{error}" for error in validate_capability_evidence_artifact(artifact))
         artifact_id = artifact.get("artifact_id")
         if artifact.get("artifact_type") != "CAPABILITY_EVIDENCE":
             errors.append(f"{prefix}.artifact_type must be CAPABILITY_EVIDENCE")
         if not isinstance(artifact_id, str) or not artifact_id.strip():
             errors.append(f"{prefix}.artifact_id must be a non-empty string")
             artifact_id = None
-        elif artifact_id in evidence_by_id:
+        elif artifact_id in embedded_by_id:
             errors.append(f"duplicate evidence artifact id: {artifact_id}")
         if artifact.get("status") != "RESOLVED":
             errors.append(f"{prefix}.status must be RESOLVED")
@@ -168,6 +198,17 @@ def validate_capability_profile(profile: Mapping[str, object]) -> list[str]:
             unique=True,
             min_items=1,
         )
+        for field in ["produced_by_role", "observation_method", "created_from"]:
+            if not isinstance(artifact.get(field), str) or not str(artifact[field]).strip():
+                errors.append(f"{prefix}.{field} must be a non-empty string")
+        for field in ["provenance", "related_artifacts"]:
+            _string_list(artifact.get(field), f"{prefix}.{field}", errors, min_items=1)
+        for field in ["assignment_id", "input_state_ref"]:
+            value = artifact.get(field)
+            if field not in artifact:
+                errors.append(f"{prefix}.{field} is required")
+            elif value is not None and (not isinstance(value, str) or not value.strip()):
+                errors.append(f"{prefix}.{field} must be null or a non-empty string")
         evidence_observed = _timestamp(artifact.get("observed_at"), f"{prefix}.observed_at", errors)
         evidence_valid = _timestamp(artifact.get("valid_until"), f"{prefix}.valid_until", errors)
         if evidence_observed and evidence_observed > now:
@@ -181,7 +222,7 @@ def validate_capability_profile(profile: Mapping[str, object]) -> list[str]:
         if valid_until and evidence_valid and evidence_valid < valid_until:
             errors.append(f"{prefix} expires before the profile")
         if artifact_id:
-            evidence_by_id[artifact_id] = artifact
+            embedded_by_id[artifact_id] = artifact
 
     evidence_caps: list[str] = []
     for index, item in enumerate(evidence):
@@ -196,12 +237,51 @@ def validate_capability_profile(profile: Mapping[str, object]) -> list[str]:
         if not isinstance(evidence_ref, str) or not evidence_ref.strip():
             errors.append(f"capability_evidence[{index}].evidence_ref must be a non-empty string")
             continue
-        artifact = evidence_by_id.get(evidence_ref)
-        if artifact is None:
+        if evidence_resolver is None:
+            errors.append(f"capability_evidence[{index}].evidence_ref requires governed resolution: {evidence_ref!r}")
+            continue
+        try:
+            artifact = evidence_resolver(evidence_ref)
+        except Exception as exc:
+            errors.append(f"capability evidence resolver failed closed for {evidence_ref!r}: {type(exc).__name__}")
+            continue
+        if not isinstance(artifact, Mapping):
             errors.append(f"capability_evidence[{index}].evidence_ref is unresolved: {evidence_ref!r}")
             continue
-        capabilities = artifact.get("capabilities")
-        if not isinstance(capabilities, list) or capability.strip() not in _normalize(capabilities):
+        if artifact.get("artifact_id") != evidence_ref:
+            errors.append(f"resolved evidence artifact identity mismatch for {evidence_ref!r}")
+            continue
+        embedded = embedded_by_id.get(evidence_ref)
+        if embedded is not None and dict(embedded) != dict(artifact):
+            errors.append(f"embedded evidence disagrees with authoritative evidence {evidence_ref!r}")
+        errors.extend(f"resolved evidence {evidence_ref!r}.{error}" for error in validate_capability_evidence_artifact(artifact))
+        # Validate the authoritative object with the same structural surface.
+        for field in ["produced_by_role", "observation_method", "created_from"]:
+            if not isinstance(artifact.get(field), str) or not str(artifact[field]).strip():
+                errors.append(f"resolved evidence {evidence_ref!r}.{field} must be a non-empty string")
+        for field in ["provenance", "related_artifacts"]:
+            value = artifact.get(field)
+            if not isinstance(value, list) or not value or not all(isinstance(v, str) and v.strip() for v in value):
+                errors.append(f"resolved evidence {evidence_ref!r}.{field} must be a non-empty string list")
+        for field in ["assignment_id", "input_state_ref"]:
+            value = artifact.get(field)
+            if field not in artifact:
+                errors.append(f"resolved evidence {evidence_ref!r}.{field} is required")
+            elif value is not None and (not isinstance(value, str) or not value.strip()):
+                errors.append(f"resolved evidence {evidence_ref!r}.{field} must be null or a non-empty string")
+        if artifact.get("artifact_type") != "CAPABILITY_EVIDENCE" or artifact.get("status") != "RESOLVED":
+            errors.append(f"resolved evidence {evidence_ref!r} is not a RESOLVED CAPABILITY_EVIDENCE")
+        if artifact.get("runtime_identity") != runtime_identity:
+            errors.append(f"resolved evidence {evidence_ref!r}.runtime_identity mismatch")
+        resolved_observed = _timestamp(artifact.get("observed_at"), f"resolved evidence {evidence_ref!r}.observed_at", errors)
+        resolved_valid = _timestamp(artifact.get("valid_until"), f"resolved evidence {evidence_ref!r}.valid_until", errors)
+        if resolved_observed and resolved_observed > now: errors.append(f"resolved evidence {evidence_ref!r}.observed_at starts in the future")
+        if resolved_valid and resolved_valid <= now: errors.append(f"resolved evidence {evidence_ref!r}.valid_until is expired")
+        if resolved_observed and resolved_valid and resolved_observed > resolved_valid: errors.append(f"resolved evidence {evidence_ref!r}.observed_at is after valid_until")
+        if observed_at and resolved_observed and resolved_observed > observed_at: errors.append(f"resolved evidence {evidence_ref!r} begins after the profile freshness boundary")
+        if valid_until and resolved_valid and resolved_valid < valid_until: errors.append(f"resolved evidence {evidence_ref!r} expires before the profile")
+        capabilities = _string_list(artifact.get("capabilities"), f"resolved evidence {evidence_ref!r}.capabilities", errors, unique=True, min_items=1)
+        if capabilities is None or capability.strip() not in _normalize(capabilities):
             errors.append(f"evidence artifact {evidence_ref!r} does not prove {capability.strip()!r}")
         evidence_caps.append(capability.strip())
         if isinstance(related_artifacts, list) and evidence_ref not in related_artifacts:
@@ -237,6 +317,7 @@ def validate_admissibility_record(record: Mapping[str, object]) -> list[str]:
         "destination_id",
         "runtime_identity",
         "capability_profile_ref",
+        "route_ref",
         "execution_mode",
     ]:
         if not isinstance(record.get(field), str) or not str(record[field]).strip():
@@ -325,9 +406,10 @@ def validate_admissibility_record(record: Mapping[str, object]) -> list[str]:
 def validate_admissibility_against_profile(
     record: Mapping[str, object],
     profile: Mapping[str, object],
+    evidence_resolver: CapabilityEvidenceResolver | None = None,
 ) -> list[str]:
     """Bind an admissibility record to the exact capability profile it cites."""
-    errors = validate_capability_profile(profile) + validate_admissibility_record(record)
+    errors = validate_capability_profile(profile, evidence_resolver) + validate_admissibility_record(record)
 
     profile_id = profile.get("artifact_id")
     record_profile_ref = record.get("capability_profile_ref")
@@ -360,6 +442,114 @@ def validate_admissibility_against_profile(
                 f"record {_normalize(record_available)}, profile {_normalize(profile_available)}"
             )
 
+    return errors
+
+
+def validate_execution_route(
+    route: Mapping[str, object],
+    profiles: Mapping[str, Mapping[str, object]],
+    evidence_resolver: CapabilityEvidenceResolver | None,
+) -> list[str]:
+    """Prove every delivery/execution/durable-control segment and handoff."""
+    errors: list[str] = []
+    if route.get("artifact_type") != "EXECUTION_ROUTE" or route.get("status") != "ADMISSIBLE":
+        errors.append("execution route must be an ADMISSIBLE EXECUTION_ROUTE")
+    for field in ["artifact_id", "produced_by_role", "assignment_draft_id"]:
+        if not isinstance(route.get(field), str) or not str(route[field]).strip():
+            errors.append(f"execution_route.{field} must be a non-empty string")
+    for field in ["assignment_id", "input_state_ref"]:
+        value = route.get(field)
+        if field not in route: errors.append(f"execution_route.{field} is required")
+        elif value is not None and (not isinstance(value, str) or not value.strip()): errors.append(f"execution_route.{field} must be null or a non-empty string")
+    for field in ["provenance", "related_artifacts"]:
+        _string_list(route.get(field), f"execution_route.{field}", errors)
+    segments = route.get("segments")
+    if not isinstance(segments, list) or not segments:
+        return errors + ["execution_route.segments must be a non-empty list"]
+    roles: set[str] = set()
+    ids: set[str] = set()
+    segment_caps: dict[str, set[str]] = {}
+    segment_by_id: dict[str, Mapping[str, object]] = {}
+    for index, segment in enumerate(segments):
+        prefix = f"execution_route.segments[{index}]"
+        if not isinstance(segment, Mapping):
+            errors.append(f"{prefix} must be an object"); continue
+        sid, role = segment.get("segment_id"), segment.get("route_role")
+        for field in ["segment_id", "route_role", "destination_id", "runtime_identity", "capability_profile_ref", "execution_mode"]:
+            if not isinstance(segment.get(field), str) or not str(segment[field]).strip(): errors.append(f"{prefix}.{field} must be a non-empty string")
+        if role not in {"CANDIDATE_DELIVERY", "EXECUTION_VERIFICATION", "DURABLE_EVIDENCE_CONTROL"}: errors.append(f"{prefix}.route_role is invalid")
+        elif role in roles: errors.append(f"duplicate execution route role: {role}")
+        else: roles.add(str(role))
+        if isinstance(sid, str):
+            if sid in ids: errors.append(f"duplicate route segment id: {sid}")
+            ids.add(sid)
+        required = _string_list(segment.get("required_capabilities"), f"{prefix}.required_capabilities", errors, unique=True) or []
+        profile_ref = segment.get("capability_profile_ref")
+        profile = profiles.get(str(profile_ref))
+        if profile is None:
+            errors.append(f"{prefix}.capability_profile_ref is unresolved: {profile_ref!r}"); continue
+        errors.extend(validate_capability_profile(profile, evidence_resolver))
+        if profile.get("destination_id") != segment.get("destination_id"): errors.append(f"{prefix}.destination_id mismatch")
+        if profile.get("runtime_identity") != segment.get("runtime_identity"): errors.append(f"{prefix}.runtime_identity mismatch")
+        available = set(_normalize(profile.get("available_capabilities", [])))
+        missing = sorted(set(_normalize(required)) - available)
+        if missing: errors.append(f"{prefix} has unproven capabilities: {missing}")
+        if isinstance(sid, str):
+            segment_caps[sid] = available
+            segment_by_id[sid] = segment
+    expected_roles = {"CANDIDATE_DELIVERY", "EXECUTION_VERIFICATION", "DURABLE_EVIDENCE_CONTROL"}
+    if roles != expected_roles: errors.append(f"execution route roles incomplete: {sorted(expected_roles - roles)}")
+    edges = route.get("handoffs")
+    if not isinstance(edges, list) or len(edges) < 2: errors.append("execution_route.handoffs must prove both mandatory handoffs"); edges = []
+    seen_pairs: set[tuple[object, object]] = set()
+    for index, edge in enumerate(edges):
+        if not isinstance(edge, Mapping): errors.append(f"execution_route.handoffs[{index}] must be an object"); continue
+        source, target = edge.get("from_segment"), edge.get("to_segment")
+        same_surface = edge.get("same_surface")
+        if "same_surface" not in edge:
+            errors.append(f"execution_route.handoffs[{index}].same_surface is required")
+            continue
+        if not isinstance(same_surface, bool):
+            errors.append(f"execution_route.handoffs[{index}].same_surface must be a boolean")
+            continue
+        source_required = _string_list(edge.get("source_required_capabilities"), f"execution_route.handoffs[{index}].source_required_capabilities", errors, unique=True) or []
+        target_required = _string_list(edge.get("target_required_capabilities"), f"execution_route.handoffs[{index}].target_required_capabilities", errors, unique=True) or []
+        internal_required = _string_list(edge.get("internal_required_capabilities"), f"execution_route.handoffs[{index}].internal_required_capabilities", errors, unique=True) or []
+        if source not in ids or target not in ids: errors.append(f"execution_route.handoffs[{index}] cites an unknown segment")
+        seen_pairs.add((source, target))
+        source_available = segment_caps.get(str(source), set())
+        target_available = segment_caps.get(str(target), set())
+        if same_surface:
+            source_seg = segment_by_id.get(str(source), {})
+            target_seg = segment_by_id.get(str(target), {})
+            if (source_seg.get("destination_id"), source_seg.get("runtime_identity")) != (target_seg.get("destination_id"), target_seg.get("runtime_identity")):
+                errors.append(f"execution_route.handoffs[{index}] claims false same-surface equivalence")
+            if not internal_required:
+                errors.append(f"execution_route.handoffs[{index}] same-surface handoff requires internal capabilities")
+            missing = sorted(set(internal_required) - source_available)
+            if missing: errors.append(f"execution_route.handoffs[{index}] has unproven internal capabilities: {missing}")
+        else:
+            if not source_required or not target_required:
+                errors.append(f"execution_route.handoffs[{index}] cross-surface handoff requires source export and target receive capabilities")
+            source_missing = sorted(set(source_required) - source_available)
+            target_missing = sorted(set(target_required) - target_available)
+            if source_missing: errors.append(f"execution_route.handoffs[{index}] has unproven source capabilities: {source_missing}")
+            if target_missing: errors.append(f"execution_route.handoffs[{index}] has unproven target capabilities: {target_missing}")
+    ordered = [next((s.get("segment_id") for s in segments if isinstance(s, Mapping) and s.get("route_role") == r), None) for r in ["CANDIDATE_DELIVERY", "EXECUTION_VERIFICATION", "DURABLE_EVIDENCE_CONTROL"]]
+    if (ordered[0], ordered[1]) not in seen_pairs or (ordered[1], ordered[2]) not in seen_pairs: errors.append("execution route is missing a mandatory ordered handoff")
+    final_result = route.get("final_result")
+    if not isinstance(final_result, Mapping):
+        errors.append("execution_route.final_result must be an object")
+    else:
+        segment_ref = final_result.get("segment_ref")
+        destination_id = final_result.get("destination_id")
+        if not isinstance(segment_ref, str) or segment_ref not in segment_by_id:
+            errors.append("execution_route.final_result.segment_ref is unresolved")
+        else:
+            endpoint = segment_by_id[segment_ref]
+            if endpoint.get("route_role") != "DURABLE_EVIDENCE_CONTROL": errors.append("execution_route.final_result must reference the durable segment")
+            if destination_id != endpoint.get("destination_id"): errors.append("execution_route.final_result.destination_id does not match durable segment")
+        if not isinstance(destination_id, str) or not destination_id.strip(): errors.append("execution_route.final_result.destination_id must be a non-empty string")
     return errors
 
 
@@ -417,6 +607,7 @@ def validate_assignment_artifact(assignment: Mapping[str, object]) -> list[str]:
         "runtime_identity",
         "capability_profile_ref",
         "admissibility_ref",
+        "route_ref",
         "execution_mode",
     ]:
         if not isinstance(contract.get(field), str) or not str(contract[field]).strip():
@@ -452,10 +643,13 @@ def validate_assignment_execution_contract(
     assignment: Mapping[str, object],
     record: Mapping[str, object],
     profile: Mapping[str, object],
+    evidence_resolver: CapabilityEvidenceResolver | None = None,
+    route: Mapping[str, object] | None = None,
+    route_profiles: Mapping[str, Mapping[str, object]] | None = None,
 ) -> list[str]:
     """Validate the complete executable-assignment proof chain."""
     errors = (
-        validate_admissibility_against_profile(record, profile)
+        validate_admissibility_against_profile(record, profile, evidence_resolver)
         + validate_assignment_artifact(assignment)
     )
     contract = assignment.get("execution_contract")
@@ -539,6 +733,28 @@ def validate_assignment_execution_contract(
             f"assignment {contract.get('execution_mode')!r}, proof {record.get('execution_mode')!r}"
         )
 
+    if route is None:
+        errors.append("complete executable assignment requires an authoritative execution route")
+    else:
+        errors.extend(validate_execution_route(route, route_profiles or {str(profile.get("artifact_id")): profile}, evidence_resolver))
+        if contract.get("route_ref") != route.get("artifact_id"):
+            errors.append("assignment route_ref does not match execution route identity")
+        if record.get("route_ref") != route.get("artifact_id"):
+            errors.append("admissibility route_ref does not match execution route identity")
+        if route.get("assignment_draft_id") != record.get("assignment_draft_id"):
+            errors.append("execution route assignment_draft_id mismatch")
+        final_result = route.get("final_result")
+        if not isinstance(final_result, Mapping) or assignment.get("result_to") != final_result.get("destination_id"):
+            errors.append("assignment result_to does not match bound final durable route destination")
+        route_segments = route.get("segments")
+        execution_segment = next((segment for segment in route_segments if isinstance(segment, Mapping) and segment.get("route_role") == "EXECUTION_VERIFICATION"), None) if isinstance(route_segments, list) else None
+        if not isinstance(execution_segment, Mapping):
+            errors.append("execution route has no bound execution segment")
+        else:
+            for field in ["destination_id", "runtime_identity", "capability_profile_ref"]:
+                if execution_segment.get(field) != contract.get(field):
+                    errors.append(f"execution route execution segment {field} mismatch")
+
     return errors
 
 
@@ -549,12 +765,17 @@ def main() -> int:
     parser.add_argument("--record", help="Validate an ASSIGNMENT_ADMISSIBILITY JSON file")
     parser.add_argument("--profile", help="Validate against an exact CAPABILITY_PROFILE JSON file")
     parser.add_argument("--assignment", help="Validate the complete ASSIGNMENT proof chain")
+    parser.add_argument("--evidence-bundle", help="Governed offline CAPABILITY_EVIDENCE JSON array")
+    parser.add_argument("--route", help="Validate the cited EXECUTION_ROUTE JSON file")
+    parser.add_argument("--route-profiles", help="Offline JSON array of route CAPABILITY_PROFILE artifacts")
     args = parser.parse_args()
 
     if args.profile and not args.record:
         parser.error("--profile requires --record")
     if args.assignment and (not args.record or not args.profile):
         parser.error("--assignment requires --record and --profile")
+    if args.assignment and (not args.evidence_bundle or not args.route):
+        parser.error("--assignment requires --evidence-bundle and --route")
 
     if args.record:
         with open(args.record, "r", encoding="utf-8") as handle:
@@ -565,7 +786,17 @@ def main() -> int:
             if args.assignment:
                 with open(args.assignment, "r", encoding="utf-8") as handle:
                     assignment = json.load(handle)
-                errors = validate_assignment_execution_contract(assignment, record, profile)
+                with open(args.evidence_bundle, "r", encoding="utf-8") as handle:
+                    bundle = json.load(handle)
+                evidence_by_id = {item.get("artifact_id"): item for item in bundle if isinstance(item, Mapping)} if isinstance(bundle, list) else {}
+                with open(args.route, "r", encoding="utf-8") as handle:
+                    route = json.load(handle)
+                profiles = {str(profile.get("artifact_id")): profile}
+                if args.route_profiles:
+                    with open(args.route_profiles, "r", encoding="utf-8") as handle:
+                        for item in json.load(handle):
+                            if isinstance(item, Mapping): profiles[str(item.get("artifact_id"))] = item
+                errors = validate_assignment_execution_contract(assignment, record, profile, evidence_by_id.get, route, profiles)
             else:
                 errors = validate_admissibility_against_profile(record, profile)
         else:
