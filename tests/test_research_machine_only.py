@@ -292,8 +292,46 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                         units = _policy_units(wrapped)
                         propositions = [part for unit in units for part in _propositions(unit)]
                         decisions = [decision for number, proposition in enumerate(propositions) for decision in _action_dispositions(proposition, number)]
-                        self.assertGreaterEqual(len({decision.action.lower() for decision in decisions}), 2, decisions)
+                        self.assertEqual({decision.source_item_index for decision in decisions}, {0, 1}, decisions)
+                        for source_item_index in (0, 1):
+                            item_decisions = [decision for decision in decisions if decision.source_item_index == source_item_index]
+                            self.assertTrue(item_decisions, decisions)
+                            self.assertEqual(len({decision.source_item_text for decision in item_decisions}), 1, item_decisions)
+                            self.assertTrue(all(decision.disposition == "NON_ACTIVE" for decision in item_decisions), item_decisions)
                         self.assertTrue(all(decision.disposition == "NON_ACTIVE" for decision in decisions), decisions)
+
+    def test_source_action_identity_for_governed_ungoverned_and_wrapped_pairs(self) -> None:
+        cases = (
+            ("Prohibited: recruit human participants and survey respondents.", "NON_ACTIVE"),
+            ("recruit human participants and survey respondents.", "ACTIVE"),
+            ("Prohibited: recruit human participants\nand survey respondents.", "NON_ACTIVE"),
+            ("Prohibited: use human raters to score outputs\nand contact external experts.", "NON_ACTIVE"),
+        )
+        for text, disposition in cases:
+            units = _policy_units(text)
+            propositions = [part for unit in units for part in _propositions(unit)]
+            decisions = [decision for number, proposition in enumerate(propositions) for decision in _action_dispositions(proposition, number)]
+            with self.subTest(text=text):
+                self.assertEqual({decision.source_item_index for decision in decisions}, {0, 1}, decisions)
+                for source_item_index in (0, 1):
+                    item_decisions = [decision for decision in decisions if decision.source_item_index == source_item_index]
+                    self.assertTrue(item_decisions, decisions)
+                    self.assertEqual({decision.disposition for decision in item_decisions}, {disposition})
+                    self.assertEqual(len({decision.source_item_text for decision in item_decisions}), 1)
+
+    def test_overlapping_matches_preserve_source_action_identity(self) -> None:
+        text = "Prohibited: use human raters to score outputs and contact external experts."
+        proposition = _propositions(_policy_units(text)[0])[0]
+        decisions = _action_dispositions(proposition, 0)
+        first = [decision for decision in decisions if decision.source_item_index == 0]
+        second = [decision for decision in decisions if decision.source_item_index == 1]
+        self.assertGreater(len(first), 1, decisions)
+        self.assertTrue(second, decisions)
+        self.assertEqual({decision.source_item_index for decision in first}, {0})
+        self.assertEqual({decision.source_item_text for decision in first}, {"use human raters to score outputs"})
+        self.assertEqual({decision.source_item_index for decision in second}, {1})
+        self.assertEqual({decision.source_item_text for decision in second}, {"contact external experts."})
+        self.assertTrue(all(decision.disposition == "NON_ACTIVE" for decision in decisions))
 
     def test_generated_bidirectional_contrast_matrix(self) -> None:
         markers = ("but", "however", "yet", "nevertheless", "nonetheless")
@@ -400,6 +438,35 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
         self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes("- recruit human participants\n  and survey respondents"))
         stopped = "Prohibited:\n\n- recruit human participants\n- survey respondents\n\nRecruit external experts under the exception path."
         self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes(stopped))
+
+    def test_atx_headings_are_structural_policy_boundaries(self) -> None:
+        safe = (
+            "# Research transition policy\nThere is no ordinary transition to recruit human participants\nand survey respondents.",
+            "### Policy\nThere is no ordinary transition to\nrecruit human participants\nand survey respondents.",
+            "###### Policy\nProhibited: recruit human participants\nand survey respondents.",
+            "# Research policy\nProhibited:\n\n- recruit human participants\n- survey respondents",
+            "   ## Research policy\nProhibited:\n\n- recruit human participants\n- survey respondents",
+        )
+        for text in safe:
+            with self.subTest(safe=text):
+                classes = self.classification_classes(text)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+        active = "## Policy\nRecruit human participants\nand survey respondents."
+        self.assertIn("ACTIVE_DEPENDENCY", self.classification_classes(active))
+        terminated = "There is no ordinary transition to recruit human participants.\n## Alternate method\nRecruit external experts for the new study."
+        classes = self.classification_classes(terminated)
+        self.assertIn("EXPLICIT_PROHIBITION", classes)
+        self.assertIn("ACTIVE_DEPENDENCY", classes)
+        self.assertEqual(_policy_units("# Heading with recruit participants\nMachine-only prose."), ["Machine-only prose."])
+
+    def test_atx_heading_grammar_is_bounded(self) -> None:
+        self.assertEqual(_policy_units("# Heading\ntext"), ["text"])
+        self.assertEqual(_policy_units("   ###### Heading\ntext"), ["text"])
+        self.assertEqual(_policy_units("#not-a-heading\ntext"), ["#not-a-heading text"])
+        self.assertEqual(_policy_units("foo # bar\ntext"), ["foo # bar text"])
+        self.assertEqual(_policy_units("    # four-leading-spaces-is-not-an-ATX-heading\ntext"), ["# four-leading-spaces-is-not-an-ATX-heading text"])
+        self.assertEqual(_policy_units("####### not-a-heading\ntext"), ["####### not-a-heading text"])
 
     def test_metamorphic_scope_invariants(self) -> None:
         actions = ("recruit human participants", "survey respondents", "interview speakers")

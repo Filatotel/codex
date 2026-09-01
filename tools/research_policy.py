@@ -77,11 +77,14 @@ def _norm(text: str) -> str: return re.sub(r"\s+"," ",text.lower()).strip()
 POLICY_HEADING = re.compile(r"^\s*(?:[-*]\s+)?(?:\*\*)?(?:prohibited|forbidden|default[- ]deny(?:\s+controls?)?)(?:\*\*)?\s*:\s*(.*)$", re.I)
 CONTRAST = re.compile(r"\s*(?:,\s*|\b)(?:but|however|yet|nevertheless|nonetheless)\b[,\s]*", re.I)
 BULLET = re.compile(r"^\s*[-*]\s+(\S.*)$")
+ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?=\s|$)")
 
 @dataclass(frozen=True)
 class ActionDisposition:
     action: str
     proposition_id: int
+    source_item_index: int
+    source_item_text: str
     governor: str | None
     disposition: str
     reason: str
@@ -111,6 +114,10 @@ def _policy_units(text: str) -> list[str]:
     i = 0
     while i < len(lines):
         if not lines[i].strip():
+            flush_prose()
+            i += 1
+            continue
+        if ATX_HEADING.match(lines[i]):
             flush_prose()
             i += 1
             continue
@@ -157,7 +164,21 @@ def _shared_governor(proposition: str) -> str | None:
     if re.fullmatch(r"migration passes only when .+\b(?:dependencies|paths|gates) must be zero\.?", t): return "terminal zero predicate"
     return None
 
-def _action_matches(proposition: str) -> Iterator[tuple[str, re.Match[str]]]:
+def _source_item_text(item: str, source_item_index: int, governor: str | None) -> str:
+    if source_item_index != 0 or governor is None:
+        return item.strip()
+    heading = POLICY_HEADING.match(item)
+    if heading:
+        return heading.group(1).strip()
+    governed_prefix = re.compile(
+        r"^\s*(?:(?:never|do\s+not|does\s+not|must\s+not|should\s+not|may\s+not|cannot|can't)\b|"
+        r"(?:there\s+(?:is\s+no\s+ordinary\s+transition|are\s+no\s+ordinary\s+transitions|is\s+no\s+authority|is\s+no\s+permission)\s+to|"
+        r"no\s+(?:ordinary\s+transition|authority|permission)\s+to)\b)\s*",
+        re.I,
+    )
+    return governed_prefix.sub("", item, count=1).strip()
+
+def _action_matches(proposition: str) -> Iterator[tuple[int, str, re.Match[str]]]:
     """Decompose action items only after proposition scope is resolved.
 
     Coordination is a lexical item delimiter here, never evidence for or against
@@ -165,14 +186,16 @@ def _action_matches(proposition: str) -> Iterator[tuple[str, re.Match[str]]]:
     recognizers from consuming a separately disposable neighboring action.
     """
     items = re.split(r"\s*,\s*|\s+\b(?:and|or)\b\s+", proposition, flags=re.I)
-    for item in items:
+    governor = _shared_governor(proposition)
+    for source_item_index, item in enumerate(items):
+        source_item_text = _source_item_text(item, source_item_index, governor)
         seen: set[tuple[int, int]] = set()
         for pattern in ACTIVE_ACTION_PATTERNS:
-            for match in re.finditer(pattern, item, flags=re.I | re.S):
+            for match in re.finditer(pattern, source_item_text, flags=re.I | re.S):
                 key = (match.start(), match.end())
                 if key not in seen:
                     seen.add(key)
-                    yield item, match
+                    yield source_item_index, source_item_text, match
 
 def _local_non_active(proposition: str, match: re.Match[str]) -> str | None:
     before = proposition[:match.start()].lower()[-100:]
@@ -188,10 +211,10 @@ def _local_non_active(proposition: str, match: re.Match[str]) -> str | None:
 def _action_dispositions(proposition: str, proposition_id: int) -> list[ActionDisposition]:
     governor = _shared_governor(proposition)
     decisions = []
-    for item, match in _action_matches(proposition):
-        local = _local_non_active(item, match)
+    for source_item_index, source_item_text, match in _action_matches(proposition):
+        local = _local_non_active(source_item_text, match)
         reason = governor or local
-        decisions.append(ActionDisposition(match.group(0), proposition_id, governor, "NON_ACTIVE" if reason else "ACTIVE", reason or "no supported non-active scope"))
+        decisions.append(ActionDisposition(match.group(0), proposition_id, source_item_index, source_item_text, governor, "NON_ACTIVE" if reason else "ACTIVE", reason or "no supported non-active scope"))
     return decisions
 
 def _clause_has_static_source(clause: str) -> bool: return any(re.search(p,clause,flags=re.I) for p in STATIC_SOURCE_PATTERNS)
