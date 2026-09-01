@@ -76,6 +76,7 @@ class Finding:
 def _norm(text: str) -> str: return re.sub(r"\s+"," ",text.lower()).strip()
 POLICY_HEADING = re.compile(r"^\s*(?:[-*]\s+)?(?:\*\*)?(?:prohibited|forbidden|default[- ]deny(?:\s+controls?)?)(?:\*\*)?\s*:\s*(.*)$", re.I)
 CONTRAST = re.compile(r"\s*(?:,\s*|\b)(?:but|however|yet|nevertheless|nonetheless)\b[,\s]*", re.I)
+BULLET = re.compile(r"^\s*[-*]\s+(\S.*)$")
 
 @dataclass(frozen=True)
 class ActionDisposition:
@@ -86,25 +87,57 @@ class ActionDisposition:
     reason: str
 
 def _policy_units(text: str) -> list[str]:
-    """Preserve only recognized headings and their immediately attached bullets."""
+    """Assemble bounded Markdown structures without treating soft wraps as scope."""
     lines = str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
     units: list[str] = []
+    prose: list[str] = []
+
+    def flush_prose() -> None:
+        if prose:
+            units.append(" ".join(part.strip() for part in prose))
+            prose.clear()
+
+    def bullet_item(start: int) -> tuple[str, int]:
+        match = BULLET.match(lines[start])
+        parts = [match.group(1)] if match else []
+        cursor = start + 1
+        while cursor < len(lines) and lines[cursor].strip() and not BULLET.match(lines[cursor]):
+            if not lines[cursor][:1].isspace():
+                break
+            parts.append(lines[cursor].strip())
+            cursor += 1
+        return " ".join(parts), cursor
+
     i = 0
     while i < len(lines):
+        if not lines[i].strip():
+            flush_prose()
+            i += 1
+            continue
         heading = POLICY_HEADING.match(lines[i])
         if heading and not heading.group(1).strip():
-            bullets: list[str] = []
+            flush_prose()
+            items: list[str] = []
             j = i + 1
             while j < len(lines) and not lines[j].strip(): j += 1
-            while j < len(lines) and re.match(r"^\s*[-*]\s+\S", lines[j]):
-                bullets.append(re.sub(r"^\s*[-*]\s+", "", lines[j]).strip())
-                j += 1
-            if bullets:
-                units.append(f"{lines[i].strip()} " + ", ".join(bullets))
+            while j < len(lines) and BULLET.match(lines[j]):
+                item, j = bullet_item(j)
+                items.append(item)
+            if items:
+                units.append(f"{lines[i].strip()} " + ", ".join(items))
                 i = j
                 continue
-        if lines[i].strip(): units.append(lines[i].strip())
+            units.append(lines[i].strip())
+            i += 1
+            continue
+        if BULLET.match(lines[i]):
+            flush_prose()
+            item, i = bullet_item(i)
+            units.append(f"- {item}")
+            continue
+        prose.append(lines[i])
         i += 1
+    flush_prose()
     return units
 
 def _propositions(unit: str) -> list[str]:
