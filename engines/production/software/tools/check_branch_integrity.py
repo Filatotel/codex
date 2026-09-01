@@ -3,15 +3,30 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-import sys
 
 REQUIRED_LABELS = [
     "Current branch:",
     "Target branch:",
     "Base SHA:",
-    "Current HEAD SHA:",
     "Merge base SHA:",
+    "Working HEAD:",
+    "Intended HEAD:",
+    "PR HEAD:",
+    "Reviewed HEAD:",
+    "Tested HEAD:",
+    "Target HEAD at last integration check:",
     "Risk level:",
+]
+
+IDENTITY_LABELS = [
+    "Base SHA:",
+    "Merge base SHA:",
+    "Working HEAD:",
+    "Intended HEAD:",
+    "PR HEAD:",
+    "Reviewed HEAD:",
+    "Tested HEAD:",
+    "Target HEAD at last integration check:",
 ]
 
 
@@ -27,6 +42,26 @@ def find_branch_state_file(root: Path) -> Path | None:
     return None
 
 
+def _field_value(text: str, label: str) -> str | None:
+    match = re.search(rf"(?m)^\s*-?\s*{re.escape(label)}\s*(.*)$", text)
+    return None if match is None else match.group(1).strip()
+
+
+def validate_branch_state_text(text: str) -> list[str]:
+    errors: list[str] = []
+
+    for label in REQUIRED_LABELS:
+        if _field_value(text, label) is None:
+            errors.append(f"missing required label: {label}")
+
+    for label in IDENTITY_LABELS:
+        value = _field_value(text, label)
+        if value is not None and not value:
+            errors.append(f"blank required identity: {label}")
+
+    return errors
+
+
 def main() -> int:
     root = Path.cwd()
     path = find_branch_state_file(root)
@@ -34,23 +69,11 @@ def main() -> int:
         print("No BRANCH_STATE.md found in current directory or templates/.")
         return 1
 
-    text = path.read_text(encoding="utf-8")
-    missing: list[str] = []
-
-    for label in REQUIRED_LABELS:
-        if label not in text:
-            missing.append(label)
-
-    if missing:
-        print(f"Branch state file is missing required labels in {path}:")
-        for item in missing:
-            print(f"- {item}")
-        return 1
-
-    sha_fields = re.findall(r"SHA:\s*(.*)", text)
-    empty_sha = [value for value in sha_fields if not value.strip()]
-    if empty_sha:
-        print(f"Branch state file {path} contains empty SHA fields.")
+    errors = validate_branch_state_text(path.read_text(encoding="utf-8"))
+    if errors:
+        print(f"Branch state file failed integrity checks in {path}:")
+        for error in errors:
+            print(f"- {error}")
         return 1
 
     print(f"Branch state file {path} passed basic integrity checks.")
