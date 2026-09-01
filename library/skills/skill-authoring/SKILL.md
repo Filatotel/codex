@@ -6,7 +6,7 @@ Use this skill when creating or editing reusable Project Resolver skills inside 
 
 ## Goal
 
-Keep the reusable skill corpus useful, small, and operational. A skill should teach an agent how to do one recurring workflow with evidence, not dump generic advice.
+Keep the reusable skill corpus useful, small, operational, and safely routable across heterogeneous destination runtimes. A skill should teach an agent how to do one recurring workflow with evidence, not dump generic advice or assume execution surfaces that may not exist.
 
 ## When to use
 
@@ -31,16 +31,27 @@ Do not use this skill for one-off project notes, task evidence, or product-speci
 
 ## Required shape
 
-Every skill should include:
+Every new or substantively edited skill should include:
 
 - Purpose
 - Goal
 - When to use
 - Inputs
+- **Execution contract**
 - Required outputs
 - Procedure
 - Anti-patterns
 - Verification checklist or minimal verdict format
+
+The **Execution contract** must declare:
+
+- required execution capabilities for mandatory steps;
+- supported execution modes (for example remote-repository, local-worktree, interactive-browser, deployed-runtime);
+- conditional/optional capabilities;
+- mandatory evidence paths and any equivalent fallbacks;
+- unsupported-environment behavior.
+
+If a skill is pure reasoning and requires no external execution surface, state that explicitly rather than omitting the section.
 
 Optional sections:
 
@@ -49,6 +60,23 @@ Optional sections:
 - Escalation rules
 - Pair with other skills
 - Output template
+
+## Executability law
+
+A skill declaration does not prove that the current destination has its prerequisites. `contracts/EXECUTABILITY_CONTRACT.md` remains authoritative:
+
+```text
+REQUIRED_CAPABILITIES(skill/workflow/assignment mandatory steps)
+⊆ AVAILABLE_CAPABILITIES(exact destination)
+```
+
+The Control Director/router performs that comparison before assignment. Skill authors must make prerequisites explicit enough to derive the required set without guessing.
+
+For multiple execution modes, state the claim boundary of each mode. Do not label a fallback equivalent when it produces weaker evidence. Examples:
+
+- remote GitHub state cannot prove an unpushed local worktree;
+- Playwright still requires checkout + Node/package runtime + browser binaries;
+- static inspection cannot silently replace mandatory deployed/browser/runtime observation.
 
 ## Naming rules
 
@@ -95,11 +123,12 @@ Use the selected owning namespace rather than creating a separate global skill l
 2. Confirm the workflow does not already have an owner that can be tightened instead of duplicated.
 3. Decide whether the workflow is reusable enough to become a skill.
 4. Start from `library/templates/SKILL_TEMPLATE.md` when creating a new skill.
-5. Create or edit the skill under the selected owning namespace's existing or explicitly authorized skill location.
-6. Keep the skill focused on procedure, decisions, evidence, and failure modes.
-7. Add supporting templates only when they will actually be reused.
-8. Update only the owning namespace manifest, skill index, or registry required for bounded discovery.
-9. Verify the new or edited skill does not encourage unrelated rewrites, global discovery, or vague completion claims.
+5. Derive every mandatory external action/evidence step and declare its concrete execution prerequisites; separate supported modes and conditional capabilities.
+6. Create or edit the skill under the selected owning namespace's existing or explicitly authorized skill location.
+7. Keep the skill focused on procedure, decisions, evidence, failure modes, and execution prerequisites.
+8. Add supporting templates only when they will actually be reused.
+9. Update only the owning namespace manifest, skill index, or registry required for bounded discovery.
+10. Verify the new or edited skill does not encourage unrelated rewrites, global discovery, vague completion claims, or assignment into unsupported environments.
 
 ## Good skill properties
 
@@ -109,7 +138,8 @@ Use the selected owning namespace rather than creating a separate global skill l
 | Actionable | It tells the agent what to do, not just what to value |
 | Bounded | It does one workflow, not every workflow |
 | Evidence-based | It requires observable output or verification |
-| Portable | It can be reused across projects with minimal edits |
+| Executability-explicit | Mandatory steps declare concrete destination prerequisites and evidence modes |
+| Portable | It can be reused across projects/runtimes with explicit mode boundaries |
 | Short | It avoids becoming a giant prompt dump |
 
 ## Anti-patterns
@@ -117,7 +147,10 @@ Use the selected owning namespace rather than creating a separate global skill l
 Avoid:
 
 - copying large external skills verbatim
-- adding tool-specific instructions that will go stale quickly
+- hiding runtime/tool assumptions in procedure prose
+- declaring `machine executable` or `AI can do this` without concrete execution surfaces
+- treating a tool fallback as free of that tool's own runtime prerequisites
+- adding tool-specific instructions without supported-mode/failure boundaries
 - mixing product strategy, implementation, and QA in one skill
 - creating overlapping skills with different names
 - adding scripts or templates that no one will maintain
@@ -129,6 +162,10 @@ Avoid:
 - [ ] The skill has a clear trigger.
 - [ ] Its owning namespace and capability owner are identified.
 - [ ] It does not duplicate an existing skill or owner.
+- [ ] It has an Execution contract.
+- [ ] Every mandatory external action/evidence step has concrete required capabilities.
+- [ ] Supported execution modes and their claim/evidence boundaries are explicit.
+- [ ] Unsupported environments fail before assignment or return an explicit non-admissible mode; they do not rely on planned downstream blockage.
 - [ ] It has required outputs.
 - [ ] It has anti-patterns or failure modes.
 - [ ] It is concise enough for on-demand loading.
@@ -140,6 +177,8 @@ Avoid:
 - Status
 - Skill created or edited
 - Owning namespace
+- Required execution capabilities
+- Supported execution modes
 - Why it belongs in the reusable system
 - Files changed
 - Discovery updates
