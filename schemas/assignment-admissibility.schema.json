@@ -3,7 +3,7 @@
   "$id": "project-resolver/assignment-admissibility.schema.json",
   "title": "ASSIGNMENT_ADMISSIBILITY",
   "type": "object",
-  "required": ["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","assignment_draft_id","destination_id","capability_profile_ref","mandatory_actions","required_capabilities","available_capabilities","unsatisfied_required_capabilities","mandatory_evidence_paths","execution_mode"],
+  "required": ["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","assignment_draft_id","destination_id","runtime_identity","capability_profile_ref","mandatory_actions","required_capabilities","available_capabilities","unsatisfied_required_capabilities","mandatory_evidence_paths","execution_mode"],
   "properties": {
     "artifact_type": {"const":"ASSIGNMENT_ADMISSIBILITY"},
     "artifact_id": {"type":"string","minLength":1},
@@ -15,6 +15,7 @@
     "related_artifacts": {"type":"array","items":{"type":"string"}},
     "assignment_draft_id": {"type":"string","minLength":1},
     "destination_id": {"type":"string","minLength":1},
+    "runtime_identity": {"type":"string","minLength":1},
     "capability_profile_ref": {"type":"string","minLength":1},
     "required_capabilities": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
     "available_capabilities": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
