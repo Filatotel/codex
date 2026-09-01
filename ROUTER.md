@@ -61,6 +61,10 @@ A workflow/skill may expose multiple supported modes. The router may choose an a
 
 Remote repository state cannot silently substitute for local-worktree assertions. Playwright cannot silently substitute for a missing browser/runtime when Playwright itself requires checkout, Node/package execution, and browser binaries.
 
+### Migration-preserved skills and patterns
+
+An active skill/pattern migrated before the executability contract may not yet contain a dedicated execution-prerequisite section. Missing metadata means **UNKNOWN prerequisites, not zero prerequisites**. When such a legacy item is actually selected, inspect only that selected item's mandatory procedure/evidence steps and derive concrete required capabilities before assignment. If any mandatory prerequisite cannot be derived confidently, return `ASSIGNMENT_NOT_ADMISSIBLE` pending bounded clarification/annotation. Do not perform a repository-wide compatibility scan during ordinary routing.
+
 ## Research constitutional precedence
 
 For every Research Engine route, apply this order before executing project-specific instructions:
@@ -135,6 +139,7 @@ Relevant State Slice
 - no selection by fuzzy title similarity alone;
 - no use of the archived legacy global skill index as a runtime router;
 - no crossing engine authority boundaries because a nearby skill looks applicable;
+- no treating missing legacy execution metadata as proof of zero prerequisites;
 - no treating semantic engine capability as proof of destination runtime capability;
 - no issuing an assignment with an unproven or non-empty missing capability set;
 - no silently weakening a mandatory evidence claim because the destination lacks its execution surface;
