@@ -15,10 +15,15 @@ WP_REQUIRED_FALSE = DEFAULT_REQUIRED_FALSE | {"REQUIRES_EXTERNAL_REVIEWER","REQU
 QUESTION_REQUIRED_FIELDS = {"QUESTION_ID","QUESTION","TARGET_CONSTRUCT","MACHINE_EXECUTABLE","AVAILABLE_MACHINE_METHODS","AVAILABLE_EXTERNAL_PREEXISTING_EVIDENCE","REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RESEARCH","REQUIRES_EXTERNAL_HUMAN_REVIEW","REQUIRES_HUMAN_DATA_COLLECTION","DIRECT_MEASUREMENT_POSSIBLE","PROXY_MEASUREMENT_POSSIBLE","EXPECTED_LIMITATION","OWNER_DECISION_COMPONENT","CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS","OWNER_AUTHORITY_ONLY_FOR_PROJECT_DECISIONS","ADMISSION_STATUS"}
 WORK_PACKAGE_REQUIRED_FIELDS = {"WORK_PACKAGE_ID","QUESTION_ID","NAMESPACE","EXECUTOR_ROLE","VERIFIER_ROLE","MACHINE_EXECUTABLE","REQUIRES_THIRD_PARTY_HUMAN","REQUIRES_OWNER_MANUAL_RESEARCH","REQUIRES_EXTERNAL_REVIEWER","REQUIRES_EXTERNAL_HUMAN_REVIEW","REQUIRES_NEW_HUMAN_DATA","REQUIRES_HUMAN_DATA_COLLECTION","CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS","OWNER_AUTHORITY_ONLY_FOR_PROJECT_DECISIONS","EXECUTION_SURFACE","SOURCE_ACCESS_METHOD","COMPUTATION_METHOD","VERIFICATION_METHOD","LIMITATIONS","PROHIBITED_OVERCLAIMS","OWNER_GATE_IF_ANY"}
 AMBIGUOUS_OWNER_TERMS = ("human gate","human scope gate","human research pass","human pass","human review","human validation","human approval","human decision")
-HUMAN_TARGET = r"(?:participants?|respondents?|speakers?|listeners?|users?|people|humans?|experts?|subjects?|interviewees?)"
+THIRD_PARTY_RESEARCH_ACTOR = r"(?:participants?|respondents?|speakers?|listeners?|people|humans?|experts?|subjects?|interviewees?|(?:human\s+)?annotators?|(?:human\s+)?raters?|(?:human\s+)?coders?|(?:human\s+)?reviewers?|crowd\s*workers?|crowdworkers?|external\s+experts?|native[- ]speakers?)"
+OWNER_OR_USER_CONTROL_ACTOR = r"(?:owner(?:/k0)?|project\s+owner|the\s+user|user)"
+HUMAN_TARGET = THIRD_PARTY_RESEARCH_ACTOR
+RESEARCH_LABOR_NOUN = r"(?:human\s+annotation|human\s+rating|human\s+coding|human\s+review|crowd[- ]?sourcing|crowd\s+sourcing|crowd\s+labor)"
+RESEARCH_WORK_VERB = r"(?:annotate|label|rate|score|code|review|classify|assess|evaluate)"
+ASSIGNMENT_VERB = r"(?:assign|hire|recruit|use|employ|contract|have)"
 ACTIVE_ACTION_PATTERNS = (
     rf"\brecruit(?:ing|ed)?\b.{{0,60}}\b{HUMAN_TARGET}\b",
-    r"\b(?:participant|human|native[- ]speaker|speaker|respondent|user|expert)\s+recruitment\b",
+    r"\b(?:participant|human|native[- ]speaker|speaker|respondent|expert)\s+recruitment\b",
     rf"\brecruitment\s+(?:of|for)\s+.{{0,40}}\b{HUMAN_TARGET}\b",
     rf"\bsurvey\b.{{0,50}}\b{HUMAN_TARGET}\b",
     rf"\bsurvey(?:ing|ed)\b.{{0,50}}\b{HUMAN_TARGET}\b",
@@ -27,26 +32,35 @@ ACTIVE_ACTION_PATTERNS = (
     r"\b(?:conduct|run|deploy|administer|launch|start|resume|execute|perform)\b.{0,45}\b(?:survey|questionnaire|poll|interviews?|focus[ -]?groups?)\b",
     r"\b(?:survey|questionnaire|interview|focus[ -]?group)\s+(?:deployment|administration|collection)\b",
     r"\b(?:participant|respondent|human)\s+(?:data\s+)?collection\b",
-    r"\b(?:collect|gather|solicit|obtain)\b.{0,45}\b(?:human\s+data|human\s+evidence|responses?|participant\s+data|respondent\s+data|ratings?|feedback)\b",
+    r"\b(?:collect|gather|solicit|obtain)\b.{0,45}\b(?:human\s+data|human\s+evidence|responses?|participant\s+data|respondent\s+data|ratings?)\b",
     rf"\b(?:ask|contact|consult)\b.{{0,35}}\b{HUMAN_TARGET}\b",
     r"\b(?:send|give|administer)\b.{0,30}\b(?:survey|questionnaire)\b.{0,30}\b(?:participants?|respondents?|users?|speakers?|humans?)\b",
-    rf"\bhave\s+{HUMAN_TARGET}\s+(?:check|review|rate|validate|annotate|code|assess|evaluate)\b",
-    r"\b(?:external\s+reviewers?|human\s+reviewers?|experts?|native[- ]speakers?|participants?|respondents?)\b.{0,30}\b(?:review|validate|rate|annotate|check|assess|evaluate)\b",
-    r"\b(?:review|validation|rating|annotation|assessment|evaluation)\s+by\s+(?:external\s+)?(?:experts?|humans?|reviewers?|speakers?|participants?)\b",
-    r"\bget\s+(?:community|expert|speaker|listener|participant|respondent|user)\s+(?:feedback|review|validation|ratings?)\b",
+    rf"\bhave\s+{HUMAN_TARGET}\s+(?:check|review|rate|score|validate|annotate|label|code|classify|assess|evaluate)\b",
+    r"\b(?:external\s+reviewers?|human\s+reviewers?|experts?|native[- ]speakers?|participants?|respondents?)\b.{0,30}\b(?:review|validate|rate|score|annotate|label|check|code|classify|assess|evaluate)\b",
+    r"\b(?:review|validation|rating|annotation|assessment|evaluation|coding)\s+by\s+(?:external\s+)?(?:experts?|humans?|reviewers?|raters?|annotators?|coders?|speakers?|participants?)\b",
+    r"\bget\s+(?:community|expert|speaker|listener|participant|respondent)\s+(?:feedback|review|validation|ratings?)\b",
     rf"\btest\b.{{0,35}}\bwith\s+{HUMAN_TARGET}\b",
     rf"\bfind\s+.{{0,30}}\b{HUMAN_TARGET}\b",
-    r"\b(?:external|human|expert|community|stakeholder)\s+(?:human\s+)?(?:review|validation|consultation|rating|annotation|assessment|evaluation)\b",
+    r"\b(?:external|human|expert|community|stakeholder)\s+(?:human\s+)?(?:review|validation|consultation|rating|annotation|assessment|evaluation|coding)\b",
     r"\b(?:focus[ -]?group|user[ -]?testing|human[ -]?in[ -]?the[ -]?loop|collection[ -]?surface)\b",
     r"\b(?:new|project[- ]generated)\s+(?:human|participant|respondent|speaker|user).{0,35}\b(?:survey|interviews?|data|responses?|ratings?|evidence)\b",
     r"\b(?:route|send|hand\s+off)\b.{0,30}\b(?:to\s+)?(?:humans?|participants?|external\s+reviewers?|experts?)\b",
+    rf"\b{ASSIGNMENT_VERB}\b.{{0,60}}\b{THIRD_PARTY_RESEARCH_ACTOR}\b.{{0,50}}\b{RESEARCH_WORK_VERB}\b",
+    rf"\b{ASSIGNMENT_VERB}\b.{{0,60}}\b{RESEARCH_LABOR_NOUN}\b",
+    rf"\b(?:requires?|mandates?|needs?)\b.{{0,40}}\b{RESEARCH_LABOR_NOUN}\b",
+    rf"\b{RESEARCH_LABOR_NOUN}\b.{{0,30}}\b(?:remains?|is|are)\s+(?:strictly\s+)?mandatory\b",
     r"\bowner(?:/k0)?\b.{0,60}\b(?:manually\s+)?collect\b.{0,40}\b(?:urls?|sources?|data|responses?)\b",
     r"\bowner(?:/k0)?\b.{0,60}\bsearch\b.{0,40}\b(?:sources?|web|literature)\b",
     r"\bowner(?:/k0)?\b.{0,60}\b(?:annotate|code|rate)\b.{0,40}\b(?:dataset|items?|responses?|samples?)\b",
 )
-HUMAN_ACTION_MENTION_PATTERNS = ACTIVE_ACTION_PATTERNS + (r"\bhuman\s+recruitment\b",r"\bparticipant\s+recruitment\b",r"\bthird[- ]party\s+human\s+research\b")
+HUMAN_ACTION_MENTION_PATTERNS = ACTIVE_ACTION_PATTERNS + (
+    r"\bhuman\s+recruitment\b",
+    r"\bparticipant\s+recruitment\b",
+    r"\bthird[- ]party\s+human\s+research\b",
+    rf"\b{RESEARCH_LABOR_NOUN}\b",
+)
 STATIC_SOURCE_PATTERNS = (r"\bpublished\s+(?:study|paper|survey|interviews?|dataset|corpus)\b",r"\barchived\b.{0,25}\b(?:interviews?|survey|responses?|dataset|corpus|human\s+data)\b",r"\brecorded\s+speech\s+corpus\b",r"\bexisting\s+(?:survey|human\s+annotation|expert\s+judgment|dataset|interviews?|responses?)\b",r"\bexternally\s+conducted\s+survey\b",r"\bpublic\s+dataset\b",r"\bpre[- ]?existing\b",r"\bexternal[_ -]preexisting[_ -]human[_ -]data\b",r"\bhistorical\s+corpus\b")
-HISTORICAL_CUES = ("historical","legacy","archived","preserved lineage","retired compatibility")
+HISTORICAL_CUES = ("historical","legacy","archived","preserved lineage","retired compatibility","before retirement")
 PROHIBITION_CUES = ("prohibited","forbidden","must not","do not","don't","never","cannot","can't","not allowed","invalid","default deny","default-deny","there is no","no third-party","must be zero","are all zero","requirements are all zero")
 OWNER_CUES = ("owner/k0","owner ","owner_","owner chooses","owner accepts","owner rejects","owner adjudicat")
 OWNER_DECISION_CUES = ("choose","chooses","accept","reject","defer","decision","adjudicat","gate")
@@ -86,7 +100,7 @@ def _clause_has_human_prohibition(clause: str) -> bool:
     for p in HUMAN_ACTION_MENTION_PATTERNS:
         for m in re.finditer(p,clause,flags=re.I|re.S):
             if _action_is_negated(clause,m): return True
-    return bool(re.search(r"\b(?:human recruitment|recruitment|human research|participant collection)\s+(?:is|are)\s+(?:prohibited|forbidden|not allowed|invalid)\b",t))
+    return bool(re.search(r"\b(?:human recruitment|recruitment|human research|third[- ]party human research|participant collection|human annotation|human rating|human coding|human review|crowd[- ]?sourcing|crowd sourcing|crowd labor)\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not allowed|invalid)\b",t))
 
 def classify_text(text: str) -> list[Finding]:
     findings=[]
@@ -102,11 +116,11 @@ def classify_text(text: str) -> list[Finding]:
                 else: active_action=True
         if prohibited_action or _clause_has_human_prohibition(clause): findings.append(Finding("EXPLICIT_PROHIBITION","human action is explicitly negated/prohibited"))
         if active_action: findings.append(Finding("ACTIVE_DEPENDENCY",f"active prohibited human research action: {clause[:180]}"))
-        historical_only=any(c in t for c in HISTORICAL_CUES) and not active_action and not re.search(r"\b(?:run|execute|resume|deploy|start|recruit|collect)\b",t)
+        historical_only=any(c in t for c in HISTORICAL_CUES) and not active_action and not re.search(r"\b(?:run|execute|resume|deploy|start|recruit|collect|require|mandatory)\b",t)
         if historical_only and not _clause_has_static_source(clause): findings.append(Finding("HISTORICAL_REFERENCE","historical/legacy reference"))
         clause_prohibits=prohibited_action or _clause_has_human_prohibition(clause)
         for term in AMBIGUOUS_OWNER_TERMS:
-            if term in t and not clause_prohibits: findings.append(Finding("AMBIGUOUS_HUMAN_GATE_TERMINOLOGY",f"generic authority term: {term}"))
+            if term in t and not clause_prohibits and not historical_only and not _clause_has_static_source(clause): findings.append(Finding("AMBIGUOUS_HUMAN_GATE_TERMINOLOGY",f"generic authority term: {term}"))
         if not active_action and any(c in t for c in OWNER_CUES) and any(c in t for c in OWNER_DECISION_CUES): findings.append(Finding("OWNER_AUTHORITY","explicit Owner/K0 project authority"))
     unique=[]; seen=set()
     for f in findings:
@@ -199,7 +213,7 @@ def validate_human_research_authorization(auth:dict[str,Any],owner_decision_reso
     for n in ("AUTHORIZATION_ID","OWNER_DECISION_RECORD_REF","PROJECT_ID","QUESTION_ID","SCOPE"):
         if not auth.get(n): errors.append(f"{n} must be non-empty")
     if owner_decision_resolver is None: errors.append("OWNER_DECISION_RECORD_REF requires governed durable Owner-decision resolver"); return sorted(set(errors))
-    ref=str(auth.get("OWNER_DECISION_RECORD_REF",""))
+    ref=str(auth.get("OWNER_DECISION_RECORD_REF","") )
     try: record=owner_decision_resolver(ref)
     except Exception as exc: errors.append(f"Owner decision resolver failed closed: {type(exc).__name__}"); return sorted(set(errors))
     if record is None: errors.append("OWNER_DECISION_RECORD_REF does not resolve to a durable Owner decision record"); return sorted(set(errors))
@@ -300,6 +314,10 @@ def machine_only_regression_results()->dict[str,str]:
     check("T17",mismatch); human_wp={"PROJECT_ID":"P-1","QUESTION_ID":"Q-H1","NAMESPACE":"human-research/P-1/Q-H1"}; default_wp=_base_wp(); default_wp["NAMESPACE"]=human_wp["NAMESPACE"]; check("T18",not validate_human_research_authorization(auth,resolver) and not validate_separate_human_work_package(human_wp,auth,resolver) and bool(validate_work_package(default_wp)))
     s={"SOURCE_ID":"SRC-1","PROVENANCE_CLASS":"EXTERNAL_PREEXISTING_HUMAN_DATA","ORIGIN":"EXTERNAL_PREEXISTING","HUMAN_ORIGIN":True,"PROJECT_GENERATION_PROHIBITED":False,"DESCRIPTION":"Published survey dataset."}; check("T19",bool(validate_source(s))); s={"SOURCE_ID":"SRC-2","PROVENANCE_CLASS":"OTHER","ORIGIN":"PROJECT_MACHINE_GENERATED","HUMAN_ORIGIN":False,"PROJECT_GENERATION_PROHIBITED":False,"DESCRIPTION":"Recruit participants and collect new human responses."}; check("T20",bool(validate_source(s)))
     e=_base_experiment(); e["INPUT_DATASET"]="Recruit 20 participants and collect responses."; check("T21",bool(validate_experiment(e))); e=_base_experiment(); e["INPUT_DATASET"]={"metadata":{"collection_plan":{"participants":"Recruit 20 participants."}}}; check("T22",bool(validate_experiment(e))); e=_base_experiment(); e["INPUT_DATASET"]="Archived public interview corpus."; check("T23",not validate_experiment(e)); fr=_base_freeze(); fr["METHOD"]="Recruit 50 speakers and survey them."; check("T24",bool(validate_method_freeze(fr))); check("T25",not validate_method_freeze(_base_freeze())); wp=_base_wp(); wp["SOURCE_ACCESS_METHOD"]="No suitable public evidence is currently available."; wp["COMPUTATION_METHOD"]="Return UNKNOWN / INSUFFICIENT_PUBLIC_EVIDENCE."; check("T26",not validate_work_package(wp)); check("T27",any(x.classification=="ACTIVE_DEPENDENCY" for x in classify_text("Do not recruit native speakers; nevertheless recruit 20 participants."))); check("T28",any(x.classification=="ACTIVE_DEPENDENCY" for x in classify_text("Use a published survey; then recruit 20 respondents.")))
+    negative_cases=("Ask the user again if required project authority is missing.","Contact the user for the missing repository identifier.","Consult Owner/K0 before accepting the project decision.","Never recruit human participants.","This workflow never creates authority to recruit humans.","Human annotation is prohibited.","The legacy workflow used human annotation before retirement.")
+    for i,text in enumerate(negative_cases,29): check(f"T{i:02d}",not any(x.classification in FATAL_FINDINGS for x in classify_text(text)))
+    positive_cases=("Hire five human annotators to label the dataset.","Assign human annotators to label the dataset.","Use human raters to score the responses.","Employ human coders to code the samples.","Contract crowdworkers to classify the dataset.","The legacy pipeline requires human annotation for every new sample.","In the legacy pipeline, human annotation remains mandatory.")
+    for i,text in enumerate(positive_cases,36): check(f"T{i:02d}",any(x.classification=="ACTIVE_DEPENDENCY" for x in classify_text(text)))
     return r
 
 def run_machine_only_regressions()->list[str]: return [f"{c}: machine-only regression failed" for c,v in machine_only_regression_results().items() if v!="PASS"]
