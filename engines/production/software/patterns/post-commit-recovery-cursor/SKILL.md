@@ -61,9 +61,13 @@ step D cleanup
 
 A failure in C/D must not replay B.
 
-### 2. Record the smallest continuation cursor
+### 2. Choose recovery identity according to process-loss risk
 
-After B commits, retain enough state to answer:
+The recovery design must distinguish two cases.
+
+#### Case A — process loss does not matter
+
+If losing the current process cannot cause unsafe replay of B and cannot lose required continuation, an ephemeral cursor recorded after B may be sufficient. It can retain enough state to answer:
 
 ```text
 what authoritative work is already done?
@@ -71,7 +75,16 @@ what remaining step must resume?
 what resources/lease must still be released?
 ```
 
-Examples:
+#### Case B — process loss matters
+
+If the process can die between B and later cursor persistence, a separately persisted cursor written only after B is **not sufficient**. The system must establish a durable recovery identity using one of these mechanisms:
+
+1. persist the continuation/recovery marker atomically with authoritative commit B; or
+2. create a durable pre-commit operation/recovery record before B, then reconcile that operation identity against authoritative state after restart.
+
+The second mechanism does not require one database technology or a workflow engine. Its requirement is durable operation identity before the unsafe gap, plus restart reconciliation against authoritative truth.
+
+Examples of bounded recovery identity include:
 
 - committed step index;
 - operation ID;
@@ -120,13 +133,15 @@ It represents recovery as continuation from the true committed state rather than
 
 The cursor is small because it records only what remains, not a duplicate copy of the whole domain workflow.
 
+When process loss matters, durable recovery identity exists before the unsafe replay gap or is committed atomically with B, so restart can determine whether B already happened rather than guessing from a missing post-B cursor.
+
 ## Trade-offs
 
 - introduces another explicit recovery state;
 - continuation state must be cleaned up;
 - UI/operations need to distinguish failure classes;
-- durable continuation may require persistence if process loss matters;
-- too many continuation phases may signal the need for a workflow engine.
+- process-loss-safe continuation requires durable recovery identity;
+- too many continuation phases may signal the need for a workflow engine, but this pattern does not require one.
 
 ## Alternatives
 
@@ -143,6 +158,7 @@ Consider instead:
 
 - recovery blindly reruns the original domain command;
 - committed gate/payment/send occurs twice;
+- B commits, the process dies before a separately persisted recovery cursor, and restart replays B;
 - next operation starts while previous continuation still owns a lease/resource;
 - continuation cursor is persisted but never invalidated;
 - reset deletes recovery state while leaving stranded resources;
@@ -153,11 +169,13 @@ Consider instead:
 
 - forced failure immediately before commit uses pre-commit retry path;
 - forced failure immediately after commit resumes only continuation;
-- committed effect occurs exactly once across retries;
+- when process loss matters, kill the process after B but before any separately attempted post-B cursor write and prove B cannot be replayed because that cursor write was lost;
+- after restart, recovery identity plus authoritative-state reconciliation determines whether B already occurred;
+- where exactly-once authoritative effect is claimed, repeated restart/recovery proves B remains exactly once;
 - continuation can safely be attempted more than once where promised;
 - dependent next work is blocked until resource/frontier is released;
 - reset/reconciliation cannot resurrect or replay the committed action;
-- process-loss behavior matches whether the cursor is ephemeral or durable.
+- process-loss behavior matches whether the cursor is legitimately ephemeral or backed by durable recovery identity.
 
 ## Related Core Principles
 
