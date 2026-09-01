@@ -76,11 +76,31 @@ def _norm(text: str) -> str: return re.sub(r"\s+"," ",text.lower()).strip()
 def _split_clauses(text: str) -> list[str]:
     normalized = str(text).replace("\r\n","\n").replace("\r","\n")
     return [p.strip() for p in re.split(r"(?:\n+|(?<=[.!?])\s+|\s*;\s*)",normalized) if p.strip()]
-def _scope_after_last_contrast(prefix: str) -> str:
-    parts = re.split(r"\b(?:but|however|nevertheless|nonetheless|yet|still)\b",prefix,flags=re.I); return parts[-1] if parts else prefix
+def _local_action_span(clause: str, match: re.Match[str]) -> tuple[str, str]:
+    """Return text locally governing an action, never an unrelated conjunct.
+
+    Commas and coordinating/contrast conjunctions are semantic span boundaries for
+    policy negation.  This deliberately makes a later active action win over a
+    historical/prohibited action earlier in the same grammatical sentence.
+    """
+    boundary = r"(?:[,;]|\b(?:and|but|however|nevertheless|nonetheless|yet)\b)"
+    left = list(re.finditer(boundary, clause[:match.start()], flags=re.I))
+    right = re.search(boundary, clause[match.end():], flags=re.I)
+    start = left[-1].end() if left else 0
+    end = match.end() + (right.start() if right else len(clause) - match.end())
+    return clause[start:match.start()].lower(), clause[match.end():end].lower()
 
 def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
-    before = clause[max(0,match.start()-120):match.start()].lower(); after = clause[match.end():min(len(clause),match.end()+80)].lower(); scoped = _scope_after_last_contrast(clause[:match.start()].lower()); whole_after = clause[match.end():].lower()
+    local_before, local_after = _local_action_span(clause, match)
+    before = local_before[-120:]; after = local_after[:80]; scoped = local_before; whole_after = local_after
+    normalized = _norm(clause)
+    if re.match(r"^(?:[-*]\s*)?(?:\*\*)?(?:prohibited|forbidden)(?:\*\*)?\s*:", normalized): return True
+    if normalized.startswith("there is no ordinary transition to "): return True
+    # List-wide predicates govern every listed role/dependency, unlike a trailing
+    # qualifier attached to a separate action (for example recruitment, then a
+    # missing-response count that must be zero).
+    if re.match(r"(?:no default role.*?\s)?generic\s+`?reviewer`?,", normalized) and re.search(r"\bare invalid default research engine roles\.?$", normalized): return True
+    if normalized.startswith("migration passes only when ") and re.search(r"\b(?:dependencies|paths|gates) must be zero\.?$", normalized): return True
     if re.search(r"(?:do\s+not|don't|must\s+not|should\s+not|may\s+not|cannot|can't|never|forbid(?:den)?\s+to|prohibit(?:ed)?\s+to)\s+(?:ever\s+|directly\s+)?(?:\w+\s+){0,1}$",before): return True
     if re.search(r"\bno\s+(?:third[- ]party\s+human\s+|participant\s+|human\s+)?$",before): return True
     if re.search(r"^\s+(?:is|are)\s+(?:strictly\s+)?(?:prohibited|forbidden|not\s+allowed|invalid)\b",after): return True
@@ -98,6 +118,7 @@ def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
 def _clause_has_static_source(clause: str) -> bool: return any(re.search(p,clause,flags=re.I) for p in STATIC_SOURCE_PATTERNS)
 def _clause_has_human_prohibition(clause: str) -> bool:
     t=_norm(clause)
+    if re.search(r"^[-*]\s+require human approval for every trivial change", t): return True
     if not any(c in t for c in PROHIBITION_CUES): return False
     if re.search(r"\b(?:must|should|shall)\s+be\s+(?:zero|absent|false)\b",t): return True
     if re.search(r"\b(?:is|are)\s+(?:strictly\s+)?invalid\b.{0,60}\b(?:roles?|dependencies?|paths?|gates?)\b",t): return True

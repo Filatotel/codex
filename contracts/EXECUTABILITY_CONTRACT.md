@@ -41,10 +41,15 @@ A capability profile is evidence about a runtime, not authority to use that capa
 For deterministic admission, the profile freshness boundary contains timezone-aware
 `observed_at` and `valid_until` timestamps. `valid_until` must still be in the future.
 Every available capability cites a separately represented, `RESOLVED`
-`CAPABILITY_EVIDENCE` artifact embedded in `evidence_artifacts`; that artifact must
+`CAPABILITY_EVIDENCE` artifact. An embedded copy in `evidence_artifacts` is transport/cache data only and is never authoritative by existence or self-declared status. Complete-chain validation MUST resolve the reference through an explicitly supplied governed evidence source (an offline governed bundle is valid), fail closed when resolution is absent/fails, and reject material disagreement with an embedded copy. The resolved artifact must
 name the same exact `runtime_identity`, prove the cited capability, and remain valid
-for the whole profile freshness boundary. An arbitrary or unresolved string is not
-capability evidence.
+for the whole profile freshness boundary. It also binds common artifact identity, producer, assignment/input state, provenance and related-artifact lineage, plus a non-empty observation method and `created_from` source. This is an explicit trust boundary, not a claim of cryptographic authenticity. An arbitrary or unresolved string is not capability evidence.
+
+Timestamps use the reference validator's strict RFC3339/Python-datetime subset: full date and seconds, optional fractional seconds, and `Z` or a numeric `HH:MM` offset whose hour is 00–23 and minute is 00–59. Missing/malformed offsets and values that overflow while normalizing to UTC are validation errors, never exceptions.
+
+## End-to-end EXECUTION_ROUTE
+
+**NO EXECUTABLE ASSIGNMENT WITHOUT AN ADMISSIBLE END-TO-END EXECUTION ROUTE.** Destination proof alone is insufficient. A schema-backed `EXECUTION_ROUTE` binds the exact assignment draft and final `result_to`, and contains exactly identified `CANDIDATE_DELIVERY`, `EXECUTION_VERIFICATION`, and `DURABLE_EVIDENCE_CONTROL` roles. Every segment binds its destination, runtime, capability profile, requirements, mode, and every ordered handoff binds transfer requirements. All segment and edge requirements must be proven. Same-surface operation is allowed only through explicit same-runtime equivalence. Missing delivery, execution, publication/readback, or final durable reachability returns `ASSIGNMENT_NOT_ADMISSIBLE`; capability loss after valid admission remains `BLOCKED_RUNTIME_DRIFT`.
 
 ## ASSIGNMENT_ADMISSIBILITY
 
@@ -63,6 +68,7 @@ An executable assignment carries `execution_contract.assignment_draft_ref` equal
 to the cited admissibility record's `assignment_draft_id`, plus the same exact
 `runtime_identity`. Matching destination labels alone do not establish either
 binding.
+It also carries `execution_contract.route_ref` equal to the exact admitted route, and `ASSIGNMENT.result_to` must equal that route's `final_result_to`.
 
 ## Capability vocabulary
 

@@ -177,6 +177,30 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertTrue(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), msg=str(classify_text(text)))
 
+    def test_action_scoped_history_and_negation_adversarial_matrix(self) -> None:
+        active = (
+            "Already-collected historical project-generated human data remains historical lineage and human reviewers score every new output.",
+            "Already-collected historical human data remains preserved, and human reviewers score every new output.",
+            "Recruit 20 participants, and missing responses must be zero.",
+            "Retire the old participant collection without executing it and recruit 20 new participants.",
+            "Historical human review was retired but human rating remains mandatory for every new output.",
+            "Human annotation is prohibited; nevertheless hire human labelers to label the new dataset.",
+        )
+        inactive = (
+            "Already-collected historical human data remains historical lineage.",
+            "Retire the historical participant collection without executing it.",
+            "Never recruit human participants.",
+            "Human annotation is prohibited.",
+            "This workflow never creates authority to recruit humans.",
+            "Use a published survey as static external evidence.",
+        )
+        for text in active:
+            with self.subTest(active=text):
+                self.assertTrue(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), classify_text(text))
+        for text in inactive:
+            with self.subTest(inactive=text):
+                self.assertFalse(any(f.classification == "ACTIVE_DEPENDENCY" for f in classify_text(text)), classify_text(text))
+
     def test_question_recursively_checks_semantic_fields(self) -> None:
         q = base_question(); q["AVAILABLE_MACHINE_METHODS"] = ["deterministic pass", ["Recruit native speakers"]]
         self.assertTrue(validate_question(q))

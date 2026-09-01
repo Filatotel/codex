@@ -45,3 +45,6 @@ The Executor owns truthful reporting of performed work; the Verifier owns indepe
 ## Artifact versus evidence
 
 Artifacts can contain evidence references, but artifact existence is not proof. Evidence must be evaluated against the exact claim, state, method, and trust boundary described by the evidence contract. A capability profile is evidence about the runtime surface only; it is neither authorization nor proof of task completion.
+# Executability evidence and route trust boundary
+
+`CAPABILITY_EVIDENCE` is structurally valid only when its common artifact identity, runtime, proven capabilities, observation/validity timestamps, observation method, provenance, and created-from lineage are complete. Structural validity is distinct from authoritative resolution: an embedded object cannot resolve itself. `EXECUTION_ROUTE` is the durable assignment-draft-bound proof joining candidate delivery, execution/verification, and durable evidence/control through capability-proven segments and handoffs. Assignment and admissibility artifacts cite its exact identity, and the assignment result destination equals its final durable destination.

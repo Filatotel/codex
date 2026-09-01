@@ -14,6 +14,7 @@ from tools.executability import (
     validate_admissibility_record,
     validate_assignment_execution_contract,
     validate_capability_profile,
+    validate_execution_route,
 )
 
 
@@ -32,18 +33,27 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
         "related_artifacts": ["EVIDENCE-1"],
         "destination_id": "agent-1",
         "runtime_identity": "runtime-1",
-        "available_capabilities": ["shell", "python_runtime"],
+        "available_capabilities": ["shell", "python_runtime", "repository_remote_read", "durable_artifact_write"],
         "unavailable_capabilities": ["outbound_network"],
         "capability_evidence": [
             {"capability": "shell", "evidence_ref": "EVIDENCE-1"},
             {"capability": "python_runtime", "evidence_ref": "EVIDENCE-1"},
+            {"capability": "repository_remote_read", "evidence_ref": "EVIDENCE-1"},
+            {"capability": "durable_artifact_write", "evidence_ref": "EVIDENCE-1"},
         ],
         "evidence_artifacts": [{
             "artifact_type": "CAPABILITY_EVIDENCE",
+            "produced_by_role": "capability-probe",
+            "assignment_id": None,
+            "input_state_ref": "probe:local",
+            "provenance": ["deterministic local probe"],
+            "related_artifacts": ["runtime-1"],
+            "observation_method": "local runtime probe",
+            "created_from": "probe-run-1",
             "artifact_id": "EVIDENCE-1",
             "status": "RESOLVED",
             "runtime_identity": "runtime-1",
-            "capabilities": ["shell", "python_runtime"],
+            "capabilities": ["shell", "python_runtime", "repository_remote_read", "durable_artifact_write"],
             "observed_at": "2026-01-01T00:00:00Z",
             "valid_until": "2999-01-01T00:00:00Z",
         }],
@@ -66,13 +76,14 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
         "destination_id": "agent-1",
         "runtime_identity": "runtime-1",
         "capability_profile_ref": "CAP-1",
+        "route_ref": "ROUTE-1",
         "mandatory_actions": [{
             "action_id": "run_tests",
             "required_capabilities": ["shell", "python_runtime"],
             "evidence_path": "python -m unittest",
         }],
         "required_capabilities": ["shell", "python_runtime"],
-        "available_capabilities": ["shell", "python_runtime"],
+        "available_capabilities": ["shell", "python_runtime", "repository_remote_read", "durable_artifact_write"],
         "unsatisfied_required_capabilities": [],
         "mandatory_evidence_paths": ["python -m unittest"],
         "execution_mode": "local",
@@ -101,6 +112,7 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
             "runtime_identity": "runtime-1",
             "capability_profile_ref": "CAP-1",
             "admissibility_ref": "ADM-1",
+            "route_ref": "ROUTE-1",
             "proof_status": "PROVEN",
             "required_capabilities": ["shell", "python_runtime"],
             "unsatisfied_required_capabilities": [],
@@ -111,7 +123,85 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
     return assignment, record, profile
 
 
+def governed_chain(assignment, record, profile):
+    evidence = profile["evidence_artifacts"][0]
+    resolver = lambda ref: evidence if ref == evidence["artifact_id"] else None
+    route = {
+        "artifact_type":"EXECUTION_ROUTE", "artifact_id":"ROUTE-1", "produced_by_role":"control-director",
+        "assignment_id":None, "input_state_ref":"state-1", "status":"ADMISSIBLE", "provenance":["CAP-1"],
+        "related_artifacts":["CAP-1"], "assignment_draft_id":"DRAFT-1", "final_result_to":"control-layer",
+        "segments":[
+            {"segment_id":"delivery","route_role":"CANDIDATE_DELIVERY","destination_id":"agent-1","runtime_identity":"runtime-1","capability_profile_ref":"CAP-1","required_capabilities":["repository_remote_read"],"execution_mode":"local"},
+            {"segment_id":"execute","route_role":"EXECUTION_VERIFICATION","destination_id":"agent-1","runtime_identity":"runtime-1","capability_profile_ref":"CAP-1","required_capabilities":["shell","python_runtime"],"execution_mode":"local"},
+            {"segment_id":"durable","route_role":"DURABLE_EVIDENCE_CONTROL","destination_id":"agent-1","runtime_identity":"runtime-1","capability_profile_ref":"CAP-1","required_capabilities":["durable_artifact_write"],"execution_mode":"local"},
+        ],
+        "handoffs":[
+            {"from_segment":"delivery","to_segment":"execute","required_capabilities":["repository_remote_read"],"same_surface":True},
+            {"from_segment":"execute","to_segment":"durable","required_capabilities":["durable_artifact_write"],"same_surface":True},
+        ],
+    }
+    return resolver, route
+
+
+def validate_chain(assignment, record, profile):
+    resolver, route = governed_chain(assignment, record, profile)
+    return validate_assignment_execution_contract(assignment, record, profile, resolver, route)
+
+
 class ExecutabilityContractTest(unittest.TestCase):
+    def test_governed_evidence_resolution_boundary(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        resolver, route = governed_chain(assignment, record, profile)
+        self.assertTrue(validate_assignment_execution_contract(assignment, record, profile, None, route))
+        self.assertTrue(validate_assignment_execution_contract(assignment, record, profile, lambda ref: None, route))
+        def exploding(ref): raise RuntimeError("probe unavailable")
+        self.assertTrue(any("failed closed" in e for e in validate_assignment_execution_contract(assignment, record, profile, exploding, route)))
+        wrong = deepcopy(profile["evidence_artifacts"][0]); wrong["artifact_id"] = "WRONG"
+        self.assertTrue(any("identity mismatch" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: wrong, route)))
+        missing_provenance = deepcopy(profile["evidence_artifacts"][0]); del missing_provenance["observation_method"]
+        self.assertTrue(any("observation_method" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: missing_provenance, route)))
+        disagreement = deepcopy(profile["evidence_artifacts"][0]); disagreement["created_from"] = "different-run"
+        self.assertTrue(any("disagrees" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: disagreement, route)))
+        self.assertEqual(validate_assignment_execution_contract(assignment, record, profile, resolver, route), [])
+
+    def test_route_adversarial_matrix(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
+        profiles = {"CAP-1": profile}
+        self.assertEqual(validate_execution_route(route, profiles, resolver), [])
+        multi = deepcopy(route); multi_profiles = {}; evidence = {}
+        for index, (segment, suffix) in enumerate(zip(multi["segments"], ["D", "X", "C"])):
+            candidate = deepcopy(profile); candidate["artifact_id"] = f"CAP-{suffix}"; candidate["destination_id"] = f"agent-{suffix}"; candidate["runtime_identity"] = f"runtime-{suffix}"
+            artifact = candidate["evidence_artifacts"][0]; artifact["artifact_id"] = f"EVIDENCE-{suffix}"; artifact["runtime_identity"] = f"runtime-{suffix}"
+            candidate["related_artifacts"] = [artifact["artifact_id"]]
+            for claim in candidate["capability_evidence"]: claim["evidence_ref"] = artifact["artifact_id"]
+            segment["destination_id"] = candidate["destination_id"]; segment["runtime_identity"] = candidate["runtime_identity"]; segment["capability_profile_ref"] = candidate["artifact_id"]
+            multi_profiles[candidate["artifact_id"]] = candidate; evidence[artifact["artifact_id"]] = artifact
+        for edge in multi["handoffs"]: edge["same_surface"] = False
+        self.assertEqual(validate_execution_route(multi, multi_profiles, evidence.get), [])
+        cases = []
+        no_publish = deepcopy(route); no_publish["segments"][2]["required_capabilities"] = ["repository_remote_write"]; cases.append(no_publish)
+        no_delivery = deepcopy(route); no_delivery["segments"][0]["required_capabilities"] = ["connector:github"]; cases.append(no_delivery)
+        no_readback = deepcopy(route); no_readback["handoffs"][1]["required_capabilities"] = ["durable_artifact_read"]; cases.append(no_readback)
+        missing_edge = deepcopy(route); missing_edge["handoffs"] = missing_edge["handoffs"][:1]; cases.append(missing_edge)
+        runtime_mismatch = deepcopy(route); runtime_mismatch["segments"][1]["runtime_identity"] = "other"; cases.append(runtime_mismatch)
+        for bad in cases:
+            with self.subTest(route=bad): self.assertTrue(validate_execution_route(bad, profiles, resolver))
+        bad_assignment = deepcopy(assignment); bad_assignment["result_to"] = "elsewhere"
+        self.assertTrue(any("result_to" in e for e in validate_assignment_execution_contract(bad_assignment, record, profile, resolver, route)))
+        other_draft = deepcopy(route); other_draft["assignment_draft_id"] = "OTHER"
+        self.assertTrue(any("assignment_draft_id" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, other_draft)))
+
+    def test_timestamp_strict_offsets_and_overflow_fail_closed(self) -> None:
+        for valid in ["2026-01-01T00:00:00Z", "2026-01-01T00:00:00+05:30", "2026-01-01T00:00:00-05:00"]:
+            assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
+            profile["freshness_boundary"]["observed_at"] = valid
+            profile["evidence_artifacts"][0]["observed_at"] = valid
+            self.assertFalse(any("timestamp" in e or "offset" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, route)), valid)
+        for invalid in ["2026-01-01T00:00:00", "2026-01-01T00:00:00+14:99", "2026-01-01T00:00:00+24:00", "2026-01-01T00:00:00+99:99", "2026-01-01T00:60:00Z", "9999-12-31T23:59:59-23:59"]:
+            assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
+            profile["freshness_boundary"]["observed_at"] = invalid
+            errors = validate_assignment_execution_contract(assignment, record, profile, resolver, route)
+            self.assertTrue(errors, invalid)
     def test_required_subset_available_is_admissible(self) -> None:
         result = evaluate_assignment_admissibility(["shell"], ["shell", "python_runtime"])
         self.assertEqual(result["status"], "ADMISSIBLE")
@@ -129,7 +219,7 @@ class ExecutabilityContractTest(unittest.TestCase):
         )
 
     def test_complete_chain_passes(self) -> None:
-        self.assertEqual(validate_assignment_execution_contract(*valid_chain()), [])
+        self.assertEqual(validate_chain(*valid_chain()), [])
 
     def assert_contract_rejected(
         self,
@@ -138,7 +228,7 @@ class ExecutabilityContractTest(unittest.TestCase):
         profile: dict[str, object],
         fragment: str,
     ) -> None:
-        errors = validate_assignment_execution_contract(assignment, record, profile)
+        errors = validate_chain(assignment, record, profile)
         self.assertTrue(any(fragment in error for error in errors), msg=str(errors))
 
     def test_assignment_chain_mismatches_rejected(self) -> None:
@@ -222,7 +312,7 @@ class ExecutabilityContractTest(unittest.TestCase):
             with self.subTest(field=field):
                 assignment, record, profile = deepcopy(valid_chain())
                 del profile[field]
-                self.assertTrue(validate_assignment_execution_contract(assignment, record, profile))
+                self.assertTrue(validate_chain(assignment, record, profile))
 
     def test_expired_profile_rejected(self) -> None:
         assignment, record, profile = deepcopy(valid_chain())
@@ -324,10 +414,13 @@ class ExecutabilityContractTest(unittest.TestCase):
         assignment, record, profile = valid_chain()
         with tempfile.TemporaryDirectory() as directory:
             paths = []
+            resolver, route = governed_chain(assignment, record, profile)
             for name, value in [
                 ("assignment", assignment),
                 ("record", record),
                 ("profile", profile),
+                ("evidence", profile["evidence_artifacts"]),
+                ("route", route),
             ]:
                 path = Path(directory) / f"{name}.json"
                 path.write_text(json.dumps(value), encoding="utf-8")
@@ -341,6 +434,10 @@ class ExecutabilityContractTest(unittest.TestCase):
                 str(paths[1]),
                 "--profile",
                 str(paths[2]),
+                "--evidence-bundle",
+                str(paths[3]),
+                "--route",
+                str(paths[4]),
             ]
             valid = subprocess.run(
                 command,
