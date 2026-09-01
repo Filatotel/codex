@@ -11,6 +11,7 @@ from tools.research_policy_legacy import *  # noqa: F401,F403
 # annotation/rating/coding/crowd-labor coverage.
 
 _base_classify = _legacy.classify_text
+_base_action_is_negated = _legacy._action_is_negated
 
 # The R1 generic "ask/contact/consult ... human target" rule also matched normal
 # control text such as "ask the user again". Contact/consult remain prohibited
@@ -21,7 +22,7 @@ _base_active = tuple(
     if "(?:ask|contact|consult)" not in p
 )
 
-HUMAN_LABOR_TARGET = r"(?:human\s+)?(?:annotators?|raters?|coders?|reviewers?)|(?:external\s+)?(?:annotators?|raters?|coders?|reviewers?)|crowdworkers?"
+HUMAN_LABOR_TARGET = r"(?:(?:human\s+)?(?:annotators?|raters?|coders?|reviewers?)|(?:external\s+)?(?:annotators?|raters?|coders?|reviewers?)|crowdworkers?)"
 HUMAN_LABOR_VERB = r"(?:label|annotate|rate|score|code|classify|review|validate|assess|evaluate)"
 
 R2_ACTIVE_ACTION_PATTERNS = (
@@ -59,18 +60,54 @@ _legacy.HUMAN_ACTION_MENTION_PATTERNS = _legacy.ACTIVE_ACTION_PATTERNS + (
 _legacy.STATIC_SOURCE_PATTERNS = _legacy.STATIC_SOURCE_PATTERNS + R2_STATIC_SOURCE_PATTERNS
 
 
+def _action_is_negated(clause: str, match: re.Match[str]) -> bool:
+    if _base_action_is_negated(clause, match):
+        return True
+    before = clause[max(0, match.start() - 140):match.start()].lower()
+    return bool(
+        re.search(
+            r"\b(?:never|does\s+not|do\s+not|cannot|can't)\s+"
+            r"(?:creates?|grants?|provides?|confers?)\s+"
+            r"(?:any\s+|the\s+)?(?:authority|permission)\s+to\s*$",
+            before,
+        )
+    )
+
+
+_legacy._action_is_negated = _action_is_negated
+
+
+def _historical_reference_only(message: str) -> bool:
+    prefix = "active prohibited human research action: "
+    if not message.startswith(prefix):
+        return False
+    clause = message[len(prefix):].lower()
+    if not any(cue in clause for cue in _legacy.HISTORICAL_CUES):
+        return False
+    return not re.search(
+        r"\b(?:run|execute|resume|restart|deploy|start|recruit|collect|interview|survey|"
+        r"hire|use|have|employ|contract|send|route|outsource|crowdsource|ask|contact|consult)\b",
+        clause,
+    )
+
+
 def classify_text(text: str):
     findings = _base_classify(text)
-    # Static/historical references may mention past human labor, but the new R2
-    # action patterns intentionally require present assignment verbs. Preserve
-    # mixed-text failure: an explicit prohibition/static cue never erases a
-    # separate ACTIVE_DEPENDENCY emitted for another clause/action.
-    return findings
+    # Historical/retired mentions are references, not executable instructions.
+    # A separate active clause remains fatal and is not erased by this filter.
+    return [
+        finding
+        for finding in findings
+        if not (
+            finding.classification == "ACTIVE_DEPENDENCY"
+            and _historical_reference_only(finding.message)
+        )
+    ]
 
 
-# Legacy validators and repository lint resolve classify_text from their module
-# globals at call time. Patch that single semantic hook so all existing public
-# validators receive the R2 classifier without altering their contracts.
+# Legacy validators and repository lint resolve these semantic hooks from their
+# module globals at call time. Patch only those hooks; admission contracts stay
+# unchanged.
 _legacy.classify_text = classify_text
 
 
