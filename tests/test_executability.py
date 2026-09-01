@@ -80,7 +80,21 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
     assignment = {
         "artifact_type": "ASSIGNMENT",
         "artifact_id": "ASSIGN-1",
+        "produced_by_role": "control-director",
         "assignment_id": "ASSIGN-1",
+        "input_state_ref": "state-1",
+        "status": "ISSUED",
+        "provenance": ["ADM-1"],
+        "related_artifacts": ["ADM-1", "CAP-1"],
+        "objective": "Run the prescribed verification.",
+        "authority": ["OWNER/K0"],
+        "scope": {
+            "allowed": ["run prescribed verification"],
+            "forbidden": ["repair code"],
+        },
+        "acceptance": ["required verification evidence is produced"],
+        "stop_conditions": ["runtime drift invalidates the admitted execution route"],
+        "result_to": "control-layer",
         "execution_contract": {
             "assignment_draft_ref": "DRAFT-1",
             "destination_id": "agent-1",
@@ -109,12 +123,21 @@ class ExecutabilityContractTest(unittest.TestCase):
             ["repository_remote_read", "repository_remote_write", "connector:github"],
         )
         self.assertEqual(result["status"], "NOT_ADMISSIBLE")
-        self.assertEqual(result["unsatisfied_required_capabilities"], ["python_runtime", "repository_local_checkout", "shell"])
+        self.assertEqual(
+            result["unsatisfied_required_capabilities"],
+            ["python_runtime", "repository_local_checkout", "shell"],
+        )
 
     def test_complete_chain_passes(self) -> None:
         self.assertEqual(validate_assignment_execution_contract(*valid_chain()), [])
 
-    def assert_contract_rejected(self, assignment: dict[str, object], record: dict[str, object], profile: dict[str, object], fragment: str) -> None:
+    def assert_contract_rejected(
+        self,
+        assignment: dict[str, object],
+        record: dict[str, object],
+        profile: dict[str, object],
+        fragment: str,
+    ) -> None:
         errors = validate_assignment_execution_contract(assignment, record, profile)
         self.assertTrue(any(fragment in error for error in errors), msg=str(errors))
 
@@ -144,6 +167,26 @@ class ExecutabilityContractTest(unittest.TestCase):
                 assignment["execution_contract"]["assignment_draft_ref"] = value  # type: ignore[index]
             self.assert_contract_rejected(assignment, record, profile, "assignment_draft_ref")
 
+    def test_schema_required_assignment_surface_rejected_when_missing(self) -> None:
+        required_fields = [
+            "produced_by_role",
+            "input_state_ref",
+            "status",
+            "provenance",
+            "related_artifacts",
+            "objective",
+            "authority",
+            "scope",
+            "acceptance",
+            "stop_conditions",
+            "result_to",
+        ]
+        for field in required_fields:
+            with self.subTest(field=field):
+                assignment, record, profile = deepcopy(valid_chain())
+                del assignment[field]
+                self.assert_contract_rejected(assignment, record, profile, f"assignment.{field}")
+
     def test_non_admissible_and_nonempty_unsatisfied_rejected(self) -> None:
         assignment, record, profile = deepcopy(valid_chain())
         record["status"] = "NOT_ADMISSIBLE"
@@ -164,7 +207,18 @@ class ExecutabilityContractTest(unittest.TestCase):
         self.assert_contract_rejected(assignment, record, profile, "missing evidence")
 
     def test_incomplete_profile_rejected(self) -> None:
-        for field in ["artifact_type", "produced_by_role", "status", "provenance", "related_artifacts", "runtime_identity", "freshness_boundary", "limitations"]:
+        for field in [
+            "artifact_type",
+            "produced_by_role",
+            "assignment_id",
+            "input_state_ref",
+            "status",
+            "provenance",
+            "related_artifacts",
+            "runtime_identity",
+            "freshness_boundary",
+            "limitations",
+        ]:
             with self.subTest(field=field):
                 assignment, record, profile = deepcopy(valid_chain())
                 del profile[field]
@@ -175,11 +229,62 @@ class ExecutabilityContractTest(unittest.TestCase):
         profile["freshness_boundary"]["valid_until"] = "2000-01-01T00:00:00Z"  # type: ignore[index]
         self.assert_contract_rejected(assignment, record, profile, "expired")
 
+    def test_evidence_beginning_after_profile_rejected(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        profile["evidence_artifacts"][0]["observed_at"] = "2026-01-01T00:00:01Z"  # type: ignore[index]
+        self.assert_contract_rejected(
+            assignment,
+            record,
+            profile,
+            "begins after the profile freshness boundary",
+        )
+
+    def test_future_evidence_rejected(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        profile["evidence_artifacts"][0]["observed_at"] = "2998-01-01T00:00:00Z"  # type: ignore[index]
+        self.assert_contract_rejected(assignment, record, profile, "starts in the future")
+
     def test_unresolved_and_fake_evidence_rejected(self) -> None:
         for evidence_ref in ["UNKNOWN-EVIDENCE", "fabricated"]:
             assignment, record, profile = deepcopy(valid_chain())
             profile["capability_evidence"][0]["evidence_ref"] = evidence_ref  # type: ignore[index]
             self.assert_contract_rejected(assignment, record, profile, "unresolved")
+
+    def test_unreferenced_invalid_evidence_artifact_rejected(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        profile["evidence_artifacts"].append({"artifact_id": "BROKEN"})  # type: ignore[union-attr]
+        self.assert_contract_rejected(
+            assignment,
+            record,
+            profile,
+            "evidence_artifacts[1].artifact_type",
+        )
+
+    def test_schema_unique_capability_lists_rejected_when_duplicated(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        profile["available_capabilities"] = ["shell", "shell", "python_runtime"]
+        self.assert_contract_rejected(
+            assignment,
+            record,
+            profile,
+            "available_capabilities must not contain duplicates",
+        )
+        assignment, record, profile = deepcopy(valid_chain())
+        profile["evidence_artifacts"][0]["capabilities"] = ["shell", "shell", "python_runtime"]  # type: ignore[index]
+        self.assert_contract_rejected(
+            assignment,
+            record,
+            profile,
+            "evidence_artifacts[0].capabilities must not contain duplicates",
+        )
+        assignment, record, profile = deepcopy(valid_chain())
+        record["required_capabilities"] = ["shell", "shell", "python_runtime"]
+        self.assert_contract_rejected(
+            assignment,
+            record,
+            profile,
+            "required_capabilities must not contain duplicates",
+        )
 
     def test_profile_admissibility_runtime_and_available_mismatch_rejected(self) -> None:
         assignment, record, profile = deepcopy(valid_chain())
@@ -187,17 +292,30 @@ class ExecutabilityContractTest(unittest.TestCase):
         self.assert_contract_rejected(assignment, record, profile, "runtime identity mismatch")
         assignment, record, profile = deepcopy(valid_chain())
         record["available_capabilities"] = ["shell"]
-        self.assert_contract_rejected(assignment, record, profile, "do not match cited capability profile")
+        self.assert_contract_rejected(
+            assignment,
+            record,
+            profile,
+            "do not match cited capability profile",
+        )
 
     def test_record_requirement_derivation_rejected(self) -> None:
         assignment, record, profile = deepcopy(valid_chain())
         record["mandatory_actions"][0]["required_capabilities"] = ["shell"]  # type: ignore[index]
-        self.assert_contract_rejected(assignment, record, profile, "union of mandatory action requirements")
+        self.assert_contract_rejected(
+            assignment,
+            record,
+            profile,
+            "union of mandatory action requirements",
+        )
 
     def test_cli_requires_complete_arguments(self) -> None:
         result = subprocess.run(
             [sys.executable, "tools/executability.py", "--assignment", "a.json"],
-            cwd=ROOT, text=True, capture_output=True, check=False,
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("--assignment requires --record and --profile", result.stderr)
@@ -206,18 +324,57 @@ class ExecutabilityContractTest(unittest.TestCase):
         assignment, record, profile = valid_chain()
         with tempfile.TemporaryDirectory() as directory:
             paths = []
-            for name, value in [("assignment", assignment), ("record", record), ("profile", profile)]:
+            for name, value in [
+                ("assignment", assignment),
+                ("record", record),
+                ("profile", profile),
+            ]:
                 path = Path(directory) / f"{name}.json"
                 path.write_text(json.dumps(value), encoding="utf-8")
                 paths.append(path)
-            command = [sys.executable, "tools/executability.py", "--assignment", str(paths[0]), "--record", str(paths[1]), "--profile", str(paths[2])]
-            valid = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+            command = [
+                sys.executable,
+                "tools/executability.py",
+                "--assignment",
+                str(paths[0]),
+                "--record",
+                str(paths[1]),
+                "--profile",
+                str(paths[2]),
+            ]
+            valid = subprocess.run(
+                command,
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
             self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+
+            invalid_assignment = deepcopy(assignment)
+            del invalid_assignment["objective"]
+            paths[0].write_text(json.dumps(invalid_assignment), encoding="utf-8")
+            invalid_schema = subprocess.run(
+                command,
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(invalid_schema.returncode, 0)
+            self.assertIn("assignment.objective", invalid_schema.stdout)
+
             assignment["execution_contract"]["assignment_draft_ref"] = "UNRELATED"  # type: ignore[index]
             paths[0].write_text(json.dumps(assignment), encoding="utf-8")
-            invalid = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
-            self.assertNotEqual(invalid.returncode, 0)
-            self.assertIn("assignment_draft_ref mismatch", invalid.stdout)
+            invalid_binding = subprocess.run(
+                command,
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(invalid_binding.returncode, 0)
+            self.assertIn("assignment_draft_ref mismatch", invalid_binding.stdout)
 
 
 if __name__ == "__main__":
