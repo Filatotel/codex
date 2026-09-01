@@ -144,7 +144,7 @@ def _validate_default_flags(obj:dict[str,Any],false_fields:set[str])->list[str]:
         if obj.get(n) is not False: errors.append(f"{n} must be false")
     return errors
 
-def _iter_string_leaves(value:Any,path:str="$\")->Iterator[tuple[str,str]]:
+def _iter_string_leaves(value:Any,path:str="$ ")->Iterator[tuple[str,str]]:
     if isinstance(value,str): yield path,value
     elif isinstance(value,dict):
         for k,v in value.items(): yield from _iter_string_leaves(v,f"{path}.{k}")
@@ -261,7 +261,7 @@ def validate_source(obj:dict[str,Any])->list[str]:
 FORBIDDEN_HUMAN_KEYS={"participants","participant","participant_id","participant_age","participant_cohort","participant_plan","consent","recruitment","sample_recruitment","participant_compensation","human_subject_privacy","respondents","respondent","reviewers","human_reviewers","human_raters","human_annotators","interviewees","survey_respondents"}
 MACHINE_EXPERIMENT_REQUIRED={"EXPERIMENT_ID","RUN_ID","METHOD_VERSION","METHOD_STATUS","FREEZE_ID","INPUT_DATASET","INPUT_VERSION","INPUT_HASH","MODEL_OR_TOOL","MODEL_OR_TOOL_VERSION","PROMPT_OR_RULESET_VERSION","RANDOM_SEED","N_RUNS","BENCHMARK_SET","HOLDOUT_SET","PERTURBATION_SET","ADVERSARIAL_CASES","ERROR_METRIC","AGGREGATION_METHOD","UNCERTAINTY_METHOD","CROSS_METHOD_AGREEMENT","CROSS_MODEL_DISAGREEMENT","OUTPUT_HASH","REPRODUCTION_POINTER","LIMITATIONS","PROHIBITED_OVERCLAIMS"}
 def _normalize_key(key:Any)->str: return re.sub(r"[^a-z0-9]+","_",str(key).lower()).strip("_")
-def _forbidden_key_errors(value:Any,path:str="$\")->list[str]:
+def _forbidden_key_errors(value:Any,path:str="$ ")->list[str]:
     errors=[]
     if isinstance(value,dict):
         for k,v in value.items():
