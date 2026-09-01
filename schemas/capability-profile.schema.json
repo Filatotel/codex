@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project-resolver/capability-profile.schema.json",
+  "title": "CAPABILITY_PROFILE",
+  "type": "object",
+  "required": ["artifact_type","artifact_id","produced_by_role","status","provenance","related_artifacts","destination_id","runtime_identity","available_capabilities","unavailable_capabilities","freshness_boundary","limitations"],
+  "properties": {
+    "artifact_type": {"const":"CAPABILITY_PROFILE"},
+    "artifact_id": {"type":"string","minLength":1},
+    "produced_by_role": {"type":"string","minLength":1},
+    "status": {"type":"string","minLength":1},
+    "provenance": {"type":"array","items":{"type":"string"}},
+    "related_artifacts": {"type":"array","items":{"type":"string"}},
+    "destination_id": {"type":"string","minLength":1},
+    "runtime_identity": {"type":"string","minLength":1},
+    "available_capabilities": {
+      "type":"array",
+      "uniqueItems": true,
+      "items": {"type":"string","minLength":1}
+    },
+    "unavailable_capabilities": {
+      "type":"array",
+      "uniqueItems": true,
+      "items": {"type":"string","minLength":1}
+    },
+    "capability_evidence": {
+      "type":"array",
+      "items": {
+        "type":"object",
+        "required":["capability","evidence_ref"],
+        "properties": {
+          "capability":{"type":"string","minLength":1},
+          "evidence_ref":{"type":"string","minLength":1}
+        },
+        "additionalProperties": true
+      }
+    },
+    "freshness_boundary": {"type":"string","minLength":1},
+    "limitations": {"type":"array","items":{"type":"string"}}
+  },
+  "additionalProperties": true
+}
