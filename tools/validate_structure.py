@@ -15,6 +15,8 @@ ROOT_REQUIRED = [
     "ROUTER.md",
     "ARCHITECTURE_MIGRATION_MAP.md",
     "kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md",
+    "contracts/EXECUTABILITY_CONTRACT.md",
+    "tools/executability.py",
 ]
 
 ROLE_REQUIRED_SECTIONS = [
@@ -66,6 +68,21 @@ RESEARCH_ENFORCEMENT_SURFACES = [
     "tests/test_structure.py",
 ]
 
+EXECUTABILITY_ENFORCEMENT_SURFACES = [
+    "contracts/EXECUTABILITY_CONTRACT.md",
+    "schemas/capability-profile.schema.json",
+    "schemas/assignment-admissibility.schema.json",
+    "schemas/assignment.schema.json",
+    "tools/executability.py",
+    "tests/test_executability.py",
+    "tests/test_executability_structure.py",
+    "roles/control-director/ROLE.md",
+    "roles/executor/ROLE.md",
+    "roles/control-verifier/ROLE.md",
+    "library/skills/skill-authoring/SKILL.md",
+    "library/templates/SKILL_TEMPLATE.md",
+]
+
 
 def fail(errors: list[str], message: str) -> None:
     errors.append(message)
@@ -99,6 +116,106 @@ def validate_research_machine_only_gate(
             fail(errors, f"research machine-only regression: {err}")
     except Exception as exc:
         fail(errors, f"research machine-only policy/regression validator unavailable: {exc}")
+    return errors
+
+
+def validate_executability_gate(root: Path = ROOT) -> list[str]:
+    """Structural and deterministic gate for destination executability admission."""
+    errors: list[str] = []
+
+    for rel in EXECUTABILITY_ENFORCEMENT_SURFACES:
+        if not (root / rel).is_file():
+            fail(errors, f"missing executability enforcement surface: {rel}")
+
+    try:
+        assignment = _load_schema(root, "schemas/assignment.schema.json")
+        if "execution_contract" not in assignment.get("required", []):
+            fail(errors, "ASSIGNMENT schema does not require execution_contract")
+        execution_contract = assignment.get("properties", {}).get("execution_contract", {})
+        required = set(execution_contract.get("required", []))
+        for field in {
+            "destination_id",
+            "capability_profile_ref",
+            "admissibility_ref",
+            "proof_status",
+            "required_capabilities",
+            "unsatisfied_required_capabilities",
+            "mandatory_evidence_paths",
+            "execution_mode",
+        }:
+            if field not in required:
+                fail(errors, f"ASSIGNMENT execution_contract missing required field: {field}")
+        props = execution_contract.get("properties", {})
+        if props.get("proof_status", {}).get("const") != "PROVEN":
+            fail(errors, "ASSIGNMENT execution_contract does not require proof_status=PROVEN")
+        if props.get("unsatisfied_required_capabilities", {}).get("maxItems") != 0:
+            fail(errors, "ASSIGNMENT may contain unsatisfied required capabilities")
+
+        admissibility = _load_schema(root, "schemas/assignment-admissibility.schema.json")
+        status_values = admissibility.get("properties", {}).get("status", {}).get("enum", [])
+        if status_values != ["ADMISSIBLE", "NOT_ADMISSIBLE"]:
+            fail(errors, "ASSIGNMENT_ADMISSIBILITY status contract drifted")
+    except Exception as exc:
+        fail(errors, f"executability schema validation unavailable: {exc}")
+
+    agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+    router = (root / "ROUTER.md").read_text(encoding="utf-8")
+    director = (root / "roles/control-director/ROLE.md").read_text(encoding="utf-8")
+    for label, text in [("AGENTS", agents), ("Router", router), ("Control Director", director)]:
+        if "ASSIGNMENT_NOT_ADMISSIBLE" not in text:
+            fail(errors, f"{label} does not fail closed on non-admissible destination")
+        if "REQUIRED_CAPABILITIES" not in text:
+            fail(errors, f"{label} does not derive/compare required capabilities")
+    if "NO ASSIGNMENT WITHOUT EXECUTABILITY PROOF" not in agents:
+        fail(errors, "root agent rules are missing the executability kernel law")
+    if "CAPABILITY_PROFILE" not in director or "ASSIGNMENT_ADMISSIBILITY" not in director:
+        fail(errors, "Control Director does not materialize destination capability/admissibility control")
+
+    system_manifest = (root / "SYSTEM_MANIFEST.yaml").read_text(encoding="utf-8")
+    if "destination_executability: contracts/EXECUTABILITY_CONTRACT.md" not in system_manifest:
+        fail(errors, "system manifest does not register destination executability contract")
+
+    software_manifest = (root / "engines/production/software/MANIFEST.yaml").read_text(encoding="utf-8")
+    verification_manifest = (root / "engines/verification/MANIFEST.yaml").read_text(encoding="utf-8")
+    research_manifest = (root / "engines/research/MANIFEST.yaml").read_text(encoding="utf-8")
+    if "destination_executability_preflight_passes" not in software_manifest:
+        fail(errors, "Software Engine does not require destination executability preflight")
+    if "destination_executability_preflight_passes_for_mandatory_evidence" not in verification_manifest:
+        fail(errors, "Verification Engine does not preflight mandatory evidence capabilities")
+    if "method_level_machine_only_admission_not_destination_proof" not in research_manifest:
+        fail(errors, "Research Engine still conflates machine-only admission with destination proof")
+
+    authoring = (root / "library/skills/skill-authoring/SKILL.md").read_text(encoding="utf-8")
+    skill_template = (root / "library/templates/SKILL_TEMPLATE.md").read_text(encoding="utf-8")
+    if "Execution contract" not in authoring:
+        fail(errors, "skill-authoring does not require an Execution contract")
+    for marker in ["Required execution capabilities", "Supported execution modes", "ASSIGNMENT_NOT_ADMISSIBLE"]:
+        if marker not in skill_template:
+            fail(errors, f"skill template missing executability marker: {marker}")
+
+    try:
+        import sys
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from tools.executability import evaluate_assignment_admissibility
+
+        admissible = evaluate_assignment_admissibility(
+            ["repository_remote_read"],
+            ["repository_remote_read", "connector:github"],
+        )
+        if admissible["status"] != "ADMISSIBLE" or admissible["unsatisfied_required_capabilities"]:
+            fail(errors, "executability evaluator rejects a valid subset")
+        impossible = evaluate_assignment_admissibility(
+            ["repository_remote_read", "repository_local_checkout", "shell"],
+            ["repository_remote_read", "connector:github"],
+        )
+        if impossible["status"] != "NOT_ADMISSIBLE":
+            fail(errors, "executability evaluator accepts missing mandatory capabilities")
+        if impossible["unsatisfied_required_capabilities"] != ["repository_local_checkout", "shell"]:
+            fail(errors, "executability evaluator missing-set result drifted")
+    except Exception as exc:
+        fail(errors, f"executability evaluator unavailable: {exc}")
+
     return errors
 
 
@@ -278,6 +395,7 @@ def validate() -> list[str]:
     if not legacy_factory.is_file():
         fail(errors, "legacy LOCALFLOW_FACTORY.md was not preserved in archive")
 
+    errors.extend(validate_executability_gate(ROOT))
     errors.extend(validate_research_machine_only_gate(ROOT))
     return errors
 
