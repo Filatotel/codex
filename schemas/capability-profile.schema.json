@@ -3,7 +3,7 @@
   "$id": "project-resolver/capability-profile.schema.json",
   "title": "CAPABILITY_PROFILE",
   "type": "object",
-  "required": ["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","destination_id","runtime_identity","available_capabilities","unavailable_capabilities","freshness_boundary","limitations"],
+  "required": ["artifact_type","artifact_id","produced_by_role","assignment_id","input_state_ref","status","provenance","related_artifacts","destination_id","runtime_identity","available_capabilities","unavailable_capabilities","capability_evidence","freshness_boundary","limitations"],
   "properties": {
     "artifact_type": {"const":"CAPABILITY_PROFILE"},
     "artifact_id": {"type":"string","minLength":1},
