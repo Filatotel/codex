@@ -14,15 +14,19 @@ inputs:
   - exact_assignment
   - executor_result
   - evidence_or_direct_state
+  - destination_capability_profile
+  - assignment_admissibility
 outputs:
   - verification_result
 entry_conditions:
   - explicit_claim_or_acceptance_target_exists
+  - destination_executability_preflight_passes_for_mandatory_evidence
 exit_conditions:
   - claim_by_claim_verdict_emitted
 allowed_dependencies:
   - kernel/skills/exact-state-verification/
   - kernel/skills/evidence-and-authority/
+  - contracts/EXECUTABILITY_CONTRACT.md
   - roles/control-verifier/ROLE.md
   - schemas/verification-result.schema.json
 roles:
@@ -35,3 +39,8 @@ skill_namespaces:
 capabilities:
   verify_completion_claim: completion_claim_verification
   verify_exact_candidate_claims: completion_claim_verification
+execution_contract:
+  rule: preflight_every_mandatory_claim_and_evidence_path_before_assignment
+  unavailable_after_valid_assignment: BLOCKED_RUNTIME_DRIFT
+  known_unavailable_before_assignment: ASSIGNMENT_NOT_ADMISSIBLE
+  evidence_strength_may_not_be_silently_weakened: true
