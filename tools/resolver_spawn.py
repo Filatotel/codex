@@ -30,11 +30,23 @@ def _out(control_state: str, reason: str, **details: object) -> dict[str, object
 
 
 def _artifact_resolver(artifacts: object):
-    by_id = {
-        item["artifact_id"]: item for item in artifacts if isinstance(item, Mapping)
-        and isinstance(item.get("artifact_id"), str)
-    } if isinstance(artifacts, list) else {}
-    return by_id.get, by_id
+    if not isinstance(artifacts, list):
+        return None, {}, ["artifacts must be a list"]
+    by_id: dict[str, Mapping[str, object]] = {}
+    errors: list[str] = []
+    for index, item in enumerate(artifacts):
+        if not isinstance(item, Mapping):
+            errors.append(f"artifacts[{index}] must be an object")
+            continue
+        artifact_id = item.get("artifact_id")
+        if not isinstance(artifact_id, str) or not artifact_id.strip():
+            errors.append(f"artifacts[{index}].artifact_id must be a non-empty string")
+            continue
+        if artifact_id in by_id:
+            errors.append(f"duplicate artifact_id: {artifact_id}")
+            continue
+        by_id[artifact_id] = item
+    return by_id.get, by_id, errors
 
 
 def _profile_is_only_stale(errors: list[str]) -> bool:
@@ -84,7 +96,10 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if "additional_required_capabilities" in control_bundle or "final_required_capabilities" in control_bundle:
         return _out("ESCALATE", "UNACCOUNTED_CAPABILITY_EXPANSION")
 
-    resolver, artifacts = _artifact_resolver(control_bundle.get("artifacts", []))
+    resolver, artifacts, artifact_errors = _artifact_resolver(control_bundle.get("artifacts", []))
+    if artifact_errors:
+        reason = "CONTRADICTORY_CONTROL_ARTIFACTS" if any(error.startswith("duplicate artifact_id:") for error in artifact_errors) else "MALFORMED_CONTROL_ARTIFACT"
+        return _out("ESCALATE", reason, errors=artifact_errors)
     draft = control_bundle.get("assignment_compilation_draft")
     semantics = control_bundle.get("assignment_draft_semantics")
     if not isinstance(draft, Mapping) or not isinstance(semantics, Mapping):
@@ -93,7 +108,7 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if missing_semantics:
         return _out("ESCALATE", "MISSING_ASSIGNMENT_SEMANTICS", errors=missing_semantics)
     envelope_ref = control_bundle.get("execution_envelope_ref")
-    compiled = compile_assignment(draft, envelope_ref, resolver, resolver) if isinstance(envelope_ref, str) else None
+    compiled = compile_assignment(draft, envelope_ref, resolver, resolver) if isinstance(envelope_ref, str) and envelope_ref.strip() else None
     if compiled is None:
         return _out("ESCALATE", "MALFORMED_CONTROL_ARTIFACT", errors=["execution_envelope_ref is required"])
     if compiled.get("compilation_status") != "COMPILED":
@@ -115,6 +130,12 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     paths = sorted({path for action in final_actions if isinstance((path := action.get("evidence_path")), str) and path.strip()})
 
     profile_ref, route_ref = control_bundle.get("capability_profile_ref"), control_bundle.get("route_ref")
+    invalid_refs = [
+        field for field, value in (("capability_profile_ref", profile_ref), ("route_ref", route_ref))
+        if not isinstance(value, str) or not value.strip()
+    ]
+    if invalid_refs:
+        return _out("ESCALATE", "MALFORMED_CONTROL_ARTIFACT", errors=[f"{field} must be a non-empty string" for field in invalid_refs])
     profile, route = artifacts.get(profile_ref), artifacts.get(route_ref)
     if not isinstance(profile, Mapping) or not isinstance(route, Mapping):
         return _out("ESCALATE", "REFERENCE_IDENTITY_MISMATCH")
