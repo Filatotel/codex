@@ -84,7 +84,9 @@ def _supported_envelope(resolver: EnvelopeResolver | None, ref: object) -> tuple
 
 def _claim_authorizes(
     obligation: Mapping[str, object], claim: Mapping[str, object] | None,
-    facts: Mapping[str, Mapping[str, object]], acceptance_refs: set[str],
+    facts: Mapping[str, Mapping[str, object]],
+    invariants: Mapping[str, list[Mapping[str, object]]],
+    acceptance_refs: set[str],
 ) -> tuple[bool, str | None]:
     if claim is None:
         return False, "claim_ref is unresolved"
@@ -92,6 +94,16 @@ def _claim_authorizes(
         return False, "claim and obligation responsibilities differ"
     target_ref = claim.get("target_ref")
     kind = claim.get("claim_kind")
+    if kind == "IMMUTABLE_INVARIANT":
+        matches = invariants.get(str(target_ref), [])
+        if len(matches) != 1:
+            return False, "immutable claim target does not resolve to exactly one invariant"
+        invariant = matches[0]
+        if (claim.get("classification") != "immutable"
+                or invariant.get("classification") != "immutable"
+                or claim.get("classification") != invariant.get("classification")
+                or claim.get("responsibility") != invariant.get("responsibility")):
+            return False, "immutable claim authority does not match its invariant"
     if kind == "TASK_OUTCOME" and (claim.get("authority_source") != "RESOLVER_BOUND" or target_ref not in acceptance_refs):
         return False, "task-outcome claim is not bound to an acceptance requirement"
     if kind in {"RUNTIME_FACT", "CONTEXT_FACT"} and target_ref not in facts:
@@ -159,6 +171,7 @@ def compile_assignment(
 
     immutable: list[object] = []
     runtime: list[object] = []
+    invariant_by_target: dict[str, list[Mapping[str, object]]] = {}
     for index, invariant in enumerate(invariants):
         if (not isinstance(invariant, Mapping) or invariant.get("classification") not in INVARIANT_CLASSES
                 or invariant.get("responsibility") not in RESPONSIBILITIES
@@ -173,6 +186,7 @@ def compile_assignment(
             errors.append(_error(INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,
                                  f"{authority_class} exact identity requires resolved authority for this target and candidate"))
         (immutable if invariant.get("classification") in {"immutable", "platform_provided"} else runtime).append(invariant)
+        invariant_by_target.setdefault(str(invariant.get("target_ref")), []).append(invariant)
 
     for index, condition in enumerate(stops):
         if not isinstance(condition, Mapping) or condition.get("classification") not in INVARIANT_CLASSES or condition.get("responsibility") not in RESPONSIBILITIES:
@@ -195,7 +209,7 @@ def compile_assignment(
             if not isinstance(obligation, Mapping) or obligation.get("responsibility") not in RESPONSIBILITIES:
                 errors.append(_error(RESPONSIBILITY_MISMATCH, f"{kind}[{index}] is invalid")); continue
             claim = claim_by_id.get(str(obligation.get("claim_ref", "")))
-            authorized, reason = _claim_authorizes(obligation, claim, fact_by_id, acceptance_refs)
+            authorized, reason = _claim_authorizes(obligation, claim, fact_by_id, invariant_by_target, acceptance_refs)
             if not authorized:
                 code = PLATFORM_FACT_REAUTHENTICATION if reason == PLATFORM_FACT_REAUTHENTICATION else OBLIGATION_NOT_AUTHORIZED
                 errors.append(_error(code, f"{kind}[{index}] is not authorized: {reason}"))
@@ -243,6 +257,10 @@ def validate_compiled_assignment(
     if not isinstance(compilation_errors, list) or (status == "COMPILED" and compilation_errors) or (status == "REJECTED" and not compilation_errors): errors.append("compilation_errors do not match status")
     facts = compiled.get("context_facts")
     fact_by_id = {str(f.get("fact_id")):f for f in facts if isinstance(f, Mapping) and isinstance(f.get("fact_id"), str)} if isinstance(facts, list) else {}
+    compiled_invariants = [item for field in ("immutable_invariants", "runtime_resolved_invariants") for item in compiled.get(field, []) if isinstance(item, Mapping)]
+    invariant_by_target: dict[str, list[Mapping[str, object]]] = {}
+    for invariant in compiled_invariants:
+        invariant_by_target.setdefault(str(invariant.get("target_ref")), []).append(invariant)
     claims = compiled.get("authorized_claims")
     claim_by_id = {str(c.get("claim_id")):c for c in claims if isinstance(c, Mapping) and isinstance(c.get("claim_id"), str)} if isinstance(claims, list) else {}
     acceptance = compiled.get("acceptance_requirements")
@@ -252,7 +270,7 @@ def validate_compiled_assignment(
         if not isinstance(obligations, list): errors.append("authorized obligations must be lists"); continue
         for obligation in obligations:
             if not isinstance(obligation, Mapping): errors.append(OBLIGATION_NOT_AUTHORIZED); continue
-            authorized, _ = _claim_authorizes(obligation, claim_by_id.get(str(obligation.get("claim_ref", ""))), fact_by_id, acceptance_refs)
+            authorized, _ = _claim_authorizes(obligation, claim_by_id.get(str(obligation.get("claim_ref", ""))), fact_by_id, invariant_by_target, acceptance_refs)
             if not authorized: errors.append(OBLIGATION_NOT_AUTHORIZED)
     if status == "COMPILED" and isinstance(actions, list) and isinstance(evidence, list):
         expected_executor = [item for group in (actions, evidence) for item in group if isinstance(item, Mapping) and item.get("responsibility") == "EXECUTOR"]

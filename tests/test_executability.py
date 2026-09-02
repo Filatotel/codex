@@ -125,8 +125,8 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
     return assignment, record, profile
 
 
-def compiled_for(record):
-    capabilities = list(record["required_capabilities"])
+def compiled_for(record, capabilities=None):
+    capabilities = list(record["required_capabilities"] if capabilities is None else capabilities)
     action = {"action_id":"run_tests", "claim_ref":"claim-tests", "responsibility":"EXECUTOR", "operation":"RUN_TESTS", "obligation_class":"local_execution", "context_fact_ref":None, "required_capabilities":capabilities, "evidence_path":"python -m unittest"}
     return {
         "artifact_type":"COMPILED_ASSIGNMENT", "artifact_id":record["compiled_assignment_ref"],
@@ -273,6 +273,45 @@ class ExecutabilityContractTest(unittest.TestCase):
             assignment, record, profile, resolver, route, compiled_assignment=compiled
         )
         self.assertTrue(any("compiled_assignment_ref mismatch" in error for error in errors), errors)
+
+    def test_compiled_capabilities_may_be_strict_subset_of_final_requirements(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        resolver, route = governed_chain(assignment, record, profile)
+        compiled = compiled_for(record, ["shell"])
+        errors = validate_assignment_execution_contract(
+            assignment, record, profile, resolver, route,
+            compiled_assignment=compiled, execution_envelope_resolver=envelope_resolver,
+        )
+        self.assertEqual(errors, [])
+
+    def test_compiled_capability_cannot_disappear_downstream(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        record["mandatory_actions"][0]["required_capabilities"] = ["shell"]
+        record["required_capabilities"] = ["shell"]
+        assignment["execution_contract"]["required_capabilities"] = ["shell"]
+        resolver, route = governed_chain(assignment, record, profile)
+        route["segments"][1]["required_capabilities"] = ["shell"]
+        errors = validate_assignment_execution_contract(
+            assignment, record, profile, resolver, route,
+            compiled_assignment=compiled_for(record, ["shell", "python_runtime"]),
+            execution_envelope_resolver=envelope_resolver,
+        )
+        self.assertTrue(any("drops compiled assignment capabilities" in error for error in errors), errors)
+
+    def test_unaccounted_final_capability_remains_rejected(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        record["required_capabilities"].append("repository_local_checkout")
+        errors = validate_chain(assignment, record, profile)
+        self.assertTrue(any("union of mandatory action requirements" in error for error in errors), errors)
+
+    def test_accounted_but_unavailable_final_capability_remains_rejected(self) -> None:
+        assignment, record, profile = deepcopy(valid_chain())
+        record["mandatory_actions"][0]["required_capabilities"].append("repository_local_checkout")
+        record["required_capabilities"].append("repository_local_checkout")
+        record["unsatisfied_required_capabilities"] = ["repository_local_checkout"]
+        record["status"] = "NOT_ADMISSIBLE"
+        errors = validate_chain(assignment, record, profile)
+        self.assertTrue(any("non-ADMISSIBLE" in error or "unsatisfied" in error for error in errors), errors)
 
     def assert_contract_rejected(
         self,

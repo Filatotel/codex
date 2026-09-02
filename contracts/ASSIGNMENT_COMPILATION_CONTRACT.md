@@ -38,6 +38,9 @@ capabilities. Every obligation cites an authorized structured claim; a supported
 operation class or requested capability is never authority by itself. A
 platform-provided fact authorizes reliance, not Executor reauthentication,
 unless a distinct Resolver-bound independent-verification claim requires it.
+An `IMMUTABLE_INVARIANT` claim resolves by `target_ref` to exactly one compiled
+invariant, and its classification and responsibility must match that invariant;
+a typed but unbacked claim grants no authority.
 Before exact-destination admission, each realization/evidence
 obligation must belong to the bounded supported Surface Portfolio. Portfolio
 `UNSUPPORTED` is a compilation rejection; it is not destination
@@ -62,3 +65,7 @@ a caller-supplied capability or obligation set cannot broaden it.
 artifact and a new admissibility decision. The downstream executability layer
 continues to validate capability evidence, freshness, destination/runtime,
 subset, route, and proof-chain parity; it does not parse assignment prose.
+Final admissibility requirements must contain every compiled authorized
+capability. They may additionally contain selected mandatory workflow/skill
+realization prerequisites only when those additions remain fully accounted for
+by the admissibility record's mandatory-action union.

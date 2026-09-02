@@ -54,6 +54,22 @@ class AssignmentCompilerTest(unittest.TestCase):
         value=draft(); value["authorized_claims"].append(claim("workspace-use",kind="CONTEXT_FACT",source="PLATFORM_PROVIDED",target="workspace",responsibility="EXECUTOR",classification="platform_provided")); value["mandatory_actions"].append(action("generic-remote",claim_ref="workspace-use",operation="VERIFY_REMOTE_PR_HEAD",obligation_class="remote_observation",fact_ref="workspace",capabilities=["repository_remote_read","outbound_network"]))
         result=compile_ok(value); self.assertIn(PLATFORM_FACT_REAUTHENTICATION,codes(result)); self.assertEqual(result["authorized_required_capabilities"],[])
 
+    def test_unbacked_immutable_claim_cannot_bypass_platform_authority(self):
+        value=draft(); value["authorized_claims"].append(claim("forged",kind="IMMUTABLE_INVARIANT",target="workspace-identity",classification="immutable")); value["mandatory_actions"].append(action("generic-remote",claim_ref="forged",operation="VERIFY_REMOTE_PR_HEAD",obligation_class="remote_observation",capabilities=["repository_remote_read","outbound_network"]))
+        result=compile_ok(value); self.assertIn(OBLIGATION_NOT_AUTHORIZED,codes(result)); self.assertEqual(result["authorized_required_capabilities"],[])
+
+    def test_immutable_claim_requires_exact_invariant_semantics(self):
+        base=draft("FROZEN_CANDIDATE"); base["invariants"]=[{"invariant_id":"candidate","identity_kind":"CANDIDATE_HEAD","classification":"immutable","responsibility":"EXECUTOR","target_ref":"candidate:release","value_or_ref":"sha:abc"}]
+        base["authorized_claims"]=[claim("candidate-claim",kind="IMMUTABLE_INVARIANT",target="missing",classification="immutable")]; base["mandatory_actions"]=[action("verify",claim_ref="candidate-claim",operation="VERIFY_CANDIDATE",fact_ref=None)]
+        self.assertIn(OBLIGATION_NOT_AUTHORIZED,codes(compile_ok(base)))
+        classification=deepcopy(base); classification["authorized_claims"][0].update(target_ref="candidate:release",classification="runtime_resolved"); self.assertIn(OBLIGATION_NOT_AUTHORIZED,codes(compile_ok(classification)))
+        responsibility=deepcopy(base); responsibility["authorized_claims"][0].update(target_ref="candidate:release",responsibility="CONTROL"); responsibility["mandatory_actions"][0]["responsibility"]="CONTROL"; self.assertIn(OBLIGATION_NOT_AUTHORIZED,codes(compile_ok(responsibility)))
+        valid=deepcopy(base); valid["authorized_claims"][0]["target_ref"]="candidate:release"; result=compile_ok(valid); self.assertEqual(result["status"],"COMPILED"); self.assertEqual(validate_compiled_assignment(result,resolver_for(envelope())),[])
+
+    def test_resolver_bound_independent_platform_verification_remains_valid(self):
+        value=draft(); value["authorized_claims"].append(claim("independent",kind="INDEPENDENT_VERIFICATION",source="RESOLVER_BOUND",target="workspace",responsibility="EXECUTOR",verification=True,classification="platform_provided")); value["mandatory_actions"].append(action("independent-check",claim_ref="independent",operation="VERIFY_CONTEXT",obligation_class="remote_observation",fact_ref="workspace",capabilities=["repository_remote_read"]))
+        result=compile_ok(value); self.assertEqual(result["status"],"COMPILED"); self.assertIn("repository_remote_read",result["authorized_required_capabilities"])
+
     def test_live_remote_authorized_claim_compiles(self):
         value=draft("LIVE_REMOTE_STATE"); value["context_facts"].append({"fact_id":"remote-release","fact_kind":"published_release","authority_source":"REMOTE_LIVE","value_or_ref":"remote:current","mutable":True,"required_for":["objective"]}); value["authorized_claims"]=[claim("remote-state",kind="RUNTIME_FACT",source="REMOTE_LIVE",target="remote-release",classification="remote_live")]; value["mandatory_actions"]=[action("read-remote",claim_ref="remote-state",operation="READ_REMOTE_STATE",obligation_class="remote_observation",fact_ref="remote-release",capabilities=["repository_remote_read","outbound_network"])]
         result=compile_ok(value); self.assertEqual(result["status"],"COMPILED"); self.assertEqual(result["authorized_required_capabilities"],["outbound_network","repository_remote_read"])

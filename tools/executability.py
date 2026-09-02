@@ -680,8 +680,11 @@ def validate_assignment_execution_contract(
             errors.append("admissibility compiled_assignment_ref mismatch")
         if compiled_assignment.get("assignment_draft_ref") != record.get("assignment_draft_id"):
             errors.append("compiled assignment draft binding mismatch")
-        if _normalize(compiled_assignment.get("authorized_required_capabilities", [])) != _normalize(record.get("required_capabilities", [])):
-            errors.append("admissibility requirements differ from compiled assignment authority")
+        compiled_required = set(_normalize(compiled_assignment.get("authorized_required_capabilities", [])))
+        final_required = set(_normalize(record.get("required_capabilities", [])))
+        missing_compiled = sorted(compiled_required - final_required)
+        if missing_compiled:
+            errors.append(f"admissibility drops compiled assignment capabilities: {missing_compiled}")
 
     if record.get("status") != "ADMISSIBLE":
         errors.append("executable assignment cites a non-ADMISSIBLE record")
