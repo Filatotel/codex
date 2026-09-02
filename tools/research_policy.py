@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator
 
@@ -22,7 +22,7 @@ RESEARCH_LABOR_NOUN = r"(?:human\s+annotation|human\s+rating|human\s+coding|huma
 RESEARCH_WORK_VERB = r"(?:annotate|label|rate|score|code|review|classify|assess|evaluate)"
 ASSIGNMENT_VERB = r"(?:assign|hire|recruit|use|employ|contract|have)"
 ACTIVE_ACTION_PATTERNS = (
-    rf"\brecruit(?:ing|ed)?\b.{{0,60}}\b{HUMAN_TARGET}\b",
+    rf"\brecruit(?:ing|ed)?\b.{{0,60}}?\b{HUMAN_TARGET}\b",
     r"\b(?:participant|human|native[- ]speaker|speaker|respondent|expert)\s+recruitment\b",
     rf"\brecruitment\s+(?:of|for)\s+.{{0,40}}\b{HUMAN_TARGET}\b",
     rf"\bsurvey\b.{{0,50}}\b{HUMAN_TARGET}\b",
@@ -85,9 +85,47 @@ class ActionDisposition:
     proposition_id: int
     source_item_index: int
     source_item_text: str
+    source_item_start: int
+    source_item_end: int
+    action_start: int
+    action_end: int
+    semantic_action_index: int
+    semantic_action_start: int
+    semantic_action_end: int
+    governor_scope_id: int | None
     governor: str | None
     disposition: str
     reason: str
+
+@dataclass(frozen=True)
+class SourceActionItem:
+    source_item_index: int
+    source_item_text: str
+    source_item_start: int
+    source_item_end: int
+
+@dataclass(frozen=True)
+class ActionOccurrence:
+    source_item_index: int
+    source_item_text: str
+    source_item_start: int
+    source_item_end: int
+    semantic_action_index: int
+    action: str
+    action_start: int
+    action_end: int
+    lexical_matches: tuple[re.Match[str], ...]
+    governor_scope_id: int | None = None
+
+@dataclass(frozen=True)
+class GovernorScope:
+    scope_id: int
+    governor_kind: str
+    governor_text: str
+    governor_start: int
+    governor_end: int
+    governed_start: int
+    governed_end: int
 
 def _policy_units(text: str) -> list[str]:
     """Assemble bounded Markdown structures without treating soft wraps as scope."""
@@ -150,52 +188,144 @@ def _policy_units(text: str) -> list[str]:
 def _propositions(unit: str) -> list[str]:
     return [p.strip() for p in re.split(r"(?<=[.!?])\s+|\s*;\s*", unit) if p.strip() for p in CONTRAST.split(p) if p.strip()]
 
+AUTHORITY_DENIAL = re.compile(
+    r"\b(?:never|does not|do not|cannot|can't)\s+"
+    r"(?:create|creates|grant|grants|provide|provides|confer|confers)\s+"
+    r"(?:any\s+|the\s+)?(?:authority|permission)\s+to\b",
+    re.I,
+)
+ITEM_SEPARATOR = re.compile(r"\s*(?:,\s*(?:(?:and|or)\b\s*)?|\b(?:and|or)\b\s+)", re.I)
+LEADING_GOVERNOR = re.compile(r"^(?:[-*]\s*)?(?:never|do not|does not|must not|should not|may not|cannot|can't)\b\s*", re.I)
+NO_TRANSITION_GOVERNOR = re.compile(r"^(?:there (?:is no ordinary transition|are no ordinary transitions|is no authority|is no permission) to|no (?:ordinary transition|authority|permission) to)\b\s*", re.I)
+BARE_HUMAN_ACTION_MENTION = re.compile(
+    r"^(?:surveys?|interviews?|focus[ -]?groups?|(?:external\s+)?reviewer\s+approval|"
+    r"expert\s+panels?|human\s+validation)\.?$",
+    re.I,
+)
+
+def _source_action_items(proposition: str) -> list[SourceActionItem]:
+    items: list[SourceActionItem] = []
+    start = 0
+    for separator in ITEM_SEPARATOR.finditer(proposition):
+        raw_start, raw_end = start, separator.start()
+        start = separator.end()
+        left = len(proposition[raw_start:raw_end]) - len(proposition[raw_start:raw_end].lstrip())
+        right = len(proposition[raw_start:raw_end].rstrip())
+        if right > left:
+            item_start, item_end = raw_start + left, raw_start + right
+            items.append(SourceActionItem(len(items), proposition[item_start:item_end], item_start, item_end))
+    raw = proposition[start:]
+    left, right = len(raw) - len(raw.lstrip()), len(raw.rstrip())
+    if right > left:
+        item_start, item_end = start + left, start + right
+        items.append(SourceActionItem(len(items), proposition[item_start:item_end], item_start, item_end))
+    return items
+
+def _item_action_occurrences(item: SourceActionItem) -> list[ActionOccurrence]:
+    """Group overlapping raw matches into deterministic semantic occurrences."""
+    raw_matches: list[re.Match[str]] = []
+    seen: set[tuple[int, int]] = set()
+    for pattern in ACTIVE_ACTION_PATTERNS:
+        for match in re.finditer(pattern, item.source_item_text, flags=re.I | re.S):
+            key = (match.start(), match.end())
+            if key in seen:
+                continue
+            seen.add(key)
+            raw_matches.append(match)
+    raw_matches.sort(key=lambda match: (match.start(), match.end()))
+    groups: list[list[re.Match[str]]] = []
+    for match in raw_matches:
+        if groups and match.start() == groups[-1][0].start():
+            groups[-1].append(match)
+        else:
+            groups.append([match])
+    occurrences: list[ActionOccurrence] = []
+    for semantic_action_index, matches in enumerate(groups):
+        if semantic_action_index + 1 < len(groups):
+            next_start = groups[semantic_action_index + 1][0].start()
+            matches = [match for match in matches if match.end() <= next_start]
+        if not matches:
+            continue
+        start = min(match.start() for match in matches)
+        end = max(match.end() for match in matches)
+        occurrences.append(ActionOccurrence(
+            item.source_item_index, item.source_item_text, item.source_item_start, item.source_item_end,
+            semantic_action_index, item.source_item_text[start:end], item.source_item_start + start,
+            item.source_item_start + end, tuple(matches),
+        ))
+    return occurrences
+
+def _governor_anchor(item: SourceActionItem) -> tuple[str, re.Match[str]] | None:
+    candidates: list[tuple[str, re.Match[str]]] = []
+    for kind, pattern in (("leading_negation", LEADING_GOVERNOR), ("no_transition", NO_TRANSITION_GOVERNOR)):
+        match = pattern.search(item.source_item_text)
+        if match:
+            candidates.append((kind, match))
+    heading = POLICY_HEADING.match(item.source_item_text)
+    if heading:
+        anchor_end = heading.end() - len(heading.group(1))
+        candidates.append(("policy_heading", re.match(rf"^.{{{anchor_end}}}", item.source_item_text, re.S)))
+    authority = AUTHORITY_DENIAL.search(item.source_item_text)
+    if authority:
+        candidates.append(("authority_denial", authority))
+    return min(candidates, key=lambda candidate: candidate[1].start()) if candidates else None
+
+def _resolve_governor_scopes(proposition: str) -> tuple[list[SourceActionItem], list[ActionOccurrence], list[GovernorScope], dict[tuple[int, int], int]]:
+    """Resolve finite, contiguous scope before assigning lexical dispositions."""
+    items = _source_action_items(proposition)
+    by_item = {item.source_item_index: _item_action_occurrences(item) for item in items}
+    scopes: list[GovernorScope] = []
+    membership: dict[tuple[int, int], int] = {}
+    active_scope: int | None = None
+    for item in items:
+        occurrences = by_item[item.source_item_index]
+        anchor = _governor_anchor(item)
+        if anchor is not None:
+            kind, match = anchor
+            governed_start = item.source_item_start + match.end()
+            governed_occurrences = [occurrence for occurrence in occurrences if occurrence.action_start >= governed_start]
+            active_scope = None
+            if governed_occurrences:
+                scope_id = len(scopes)
+                governed_occurrence = governed_occurrences[0]
+                scopes.append(GovernorScope(scope_id, kind, match.group(0).strip(),
+                    item.source_item_start + match.start(), item.source_item_start + match.end(),
+                    governed_start, governed_occurrence.action_end))
+                membership[(item.source_item_index, governed_occurrence.semantic_action_index)] = scope_id
+                active_scope = scope_id if len(governed_occurrences) == 1 else None
+            continue
+        if active_scope is not None and occurrences and occurrences[0].action_start == item.source_item_start:
+            occurrence = occurrences[0]
+            membership[(item.source_item_index, occurrence.semantic_action_index)] = active_scope
+            scope = scopes[active_scope]
+            scopes[active_scope] = GovernorScope(scope.scope_id, scope.governor_kind, scope.governor_text,
+                scope.governor_start, scope.governor_end, scope.governed_start, occurrence.action_end)
+            if len(occurrences) > 1:
+                active_scope = None
+        elif active_scope is not None and BARE_HUMAN_ACTION_MENTION.fullmatch(item.source_item_text):
+            # Some bounded list nouns are governed human-action mentions but
+            # deliberately do not create an ACTIVE action disposition alone.
+            continue
+        else:
+            active_scope = None
+    occurrences = [occurrence for item in items for occurrence in by_item[item.source_item_index]]
+    occurrences = [replace(occurrence, governor_scope_id=membership.get(
+        (occurrence.source_item_index, occurrence.semantic_action_index))) for occurrence in occurrences]
+    return items, occurrences, scopes, membership
+
 def _shared_governor(proposition: str) -> str | None:
+    """Compatibility signal only; disposition authority lives in GovernorScope."""
+    items, _, scopes, _ = _resolve_governor_scopes(proposition)
+    if scopes:
+        return scopes[0].governor_text
+    for item in items:
+        anchor = _governor_anchor(item)
+        if anchor:
+            return anchor[1].group(0).strip()
     t = _norm(proposition)
-    leading = re.match(r"^(?:[-*]\s*)?(never|do not|does not|must not|should not|may not|cannot|can't)\b", t)
-    if leading: return leading.group(1)
-    heading = POLICY_HEADING.match(proposition)
-    if heading: return _norm(proposition[:heading.end() - len(heading.group(1))])
-    denial = re.match(r"^(?:there (?:is no ordinary transition|are no ordinary transitions|is no authority|is no permission) to|no (?:ordinary transition|authority|permission) to)\b", t)
-    if denial: return denial.group(0)
-    authority_denial = re.search(r"\b(?:never|does not|do not|cannot|can't)\s+(?:create|creates|grant|grants|provide|provides|confer|confers)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\b", t)
-    if authority_denial: return authority_denial.group(0)
     if re.fullmatch(r"(?:no default role may be instantiated as an arbitrary external person\.\s*)?generic\s+`?reviewer`?,.*\bare invalid default research engine roles\.?", t): return "terminal invalid-role predicate"
     if re.fullmatch(r"migration passes only when .+\b(?:dependencies|paths|gates) must be zero\.?", t): return "terminal zero predicate"
     return None
-
-def _source_item_text(item: str, source_item_index: int, governor: str | None) -> str:
-    if source_item_index != 0 or governor is None:
-        return item.strip()
-    heading = POLICY_HEADING.match(item)
-    if heading:
-        return heading.group(1).strip()
-    governed_prefix = re.compile(
-        r"^\s*(?:(?:never|do\s+not|does\s+not|must\s+not|should\s+not|may\s+not|cannot|can't)\b|"
-        r"(?:there\s+(?:is\s+no\s+ordinary\s+transition|are\s+no\s+ordinary\s+transitions|is\s+no\s+authority|is\s+no\s+permission)\s+to|"
-        r"no\s+(?:ordinary\s+transition|authority|permission)\s+to)\b)\s*",
-        re.I,
-    )
-    return governed_prefix.sub("", item, count=1).strip()
-
-def _action_matches(proposition: str) -> Iterator[tuple[int, str, re.Match[str]]]:
-    """Decompose action items only after proposition scope is resolved.
-
-    Coordination is a lexical item delimiter here, never evidence for or against
-    shared scope.  Returning the item alongside its match keeps broad legacy
-    recognizers from consuming a separately disposable neighboring action.
-    """
-    items = re.split(r"\s*,\s*|\s+\b(?:and|or)\b\s+", proposition, flags=re.I)
-    governor = _shared_governor(proposition)
-    for source_item_index, item in enumerate(items):
-        source_item_text = _source_item_text(item, source_item_index, governor)
-        seen: set[tuple[int, int]] = set()
-        for pattern in ACTIVE_ACTION_PATTERNS:
-            for match in re.finditer(pattern, source_item_text, flags=re.I | re.S):
-                key = (match.start(), match.end())
-                if key not in seen:
-                    seen.add(key)
-                    yield source_item_index, source_item_text, match
 
 def _local_non_active(proposition: str, match: re.Match[str]) -> str | None:
     before = proposition[:match.start()].lower()[-100:]
@@ -209,12 +339,28 @@ def _local_non_active(proposition: str, match: re.Match[str]) -> str | None:
     return None
 
 def _action_dispositions(proposition: str, proposition_id: int) -> list[ActionDisposition]:
-    governor = _shared_governor(proposition)
+    t = _norm(proposition)
+    if re.fullmatch(r"(?:no default role may be instantiated as an arbitrary external person\.\s*)?generic\s+`?reviewer`?,.*\bare invalid default research engine roles\.?", t) or re.fullmatch(r"migration passes only when .+\b(?:dependencies|paths|gates) must be zero\.?", t):
+        return []
+    _, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
     decisions = []
-    for source_item_index, source_item_text, match in _action_matches(proposition):
-        local = _local_non_active(source_item_text, match)
-        reason = governor or local
-        decisions.append(ActionDisposition(match.group(0), proposition_id, source_item_index, source_item_text, governor, "NON_ACTIVE" if reason else "ACTIVE", reason or "no supported non-active scope"))
+    for occurrence in occurrences:
+        occurrence_key = (occurrence.source_item_index, occurrence.semantic_action_index)
+        scope_id = membership.get(occurrence_key)
+        scope = scopes[scope_id] if scope_id is not None else None
+        item = SourceActionItem(occurrence.source_item_index, occurrence.source_item_text,
+            occurrence.source_item_start, occurrence.source_item_end)
+        for match in occurrence.lexical_matches:
+            local = None if _governor_anchor(item) else _local_non_active(occurrence.source_item_text, match)
+            reason = scope.governor_text if scope else local
+            decisions.append(ActionDisposition(
+                match.group(0), proposition_id, occurrence.source_item_index, occurrence.source_item_text,
+                occurrence.source_item_start, occurrence.source_item_end,
+                occurrence.source_item_start + match.start(), occurrence.source_item_start + match.end(),
+                occurrence.semantic_action_index, occurrence.action_start, occurrence.action_end,
+                scope_id, scope.governor_text if scope else None, "NON_ACTIVE" if reason else "ACTIVE",
+                reason or "no supported non-active scope",
+            ))
     return decisions
 
 def _clause_has_static_source(clause: str) -> bool: return any(re.search(p,clause,flags=re.I) for p in STATIC_SOURCE_PATTERNS)

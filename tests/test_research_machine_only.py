@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 from tools.research_policy import (
     FATAL_FINDINGS,
     _action_dispositions,
+    _resolve_governor_scopes,
     _policy_units,
     _propositions,
     classify_text,
@@ -272,6 +273,236 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                         self.assertIn("EXPLICIT_PROHIBITION", classes)
                         self.assertNotIn("ACTIVE_DEPENDENCY", classes)
 
+    def test_trailing_authority_denial_direct_mixed_cases(self) -> None:
+        cases = (
+            "Recruit human participants and this workflow never creates authority to recruit humans.",
+            "Survey respondents and this process does not grant permission to recruit human participants.",
+            "Interview speakers and the method cannot provide authority to recruit participants.",
+            "Hire human annotators and this workflow can't confer permission to recruit respondents.",
+            "Use human raters to score outputs and this workflow never creates authority to recruit humans.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                decisions = _action_dispositions(_propositions(_policy_units(text)[0])[0], 0)
+                classes = self.classification_classes(text)
+                self.assertIn("ACTIVE_DEPENDENCY", classes)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 0}, {"ACTIVE"})
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 1}, {"NON_ACTIVE"})
+
+    def test_subject_led_prefix_authority_denials_remain_safe(self) -> None:
+        cases = (
+            "This workflow never creates authority to recruit humans.",
+            "Unavailable direct measurement never creates authority to recruit humans.",
+            "This process does not grant permission to survey respondents.",
+            "The method cannot provide authority to interview speakers.",
+            "This workflow can't confer permission to contact external experts.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                classes = self.classification_classes(text)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+
+    def test_generated_trailing_authority_denial_matrix(self) -> None:
+        actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")
+        denials = (
+            "this workflow never creates authority to {}",
+            "this process does not grant permission to {}",
+            "the method cannot provide authority to {}",
+            "this workflow can't confer permission to {}",
+        )
+        layouts = (" and ", ", and ", "\nand ")
+        for index, action_a in enumerate(actions):
+            action_b = actions[(index + 1) % len(actions)]
+            for denial in denials:
+                for layout in layouts:
+                    text = action_a + layout + denial.format(action_b) + "."
+                    with self.subTest(text=text):
+                        proposition = _propositions(_policy_units(text)[0])[0]
+                        decisions = _action_dispositions(proposition, 0)
+                        classes = self.classification_classes(text)
+                        left = [d for d in decisions if d.source_item_index == 0]
+                        trailing = [d for d in decisions if d.source_item_index == 1]
+                        self.assertTrue(left, decisions)
+                        self.assertTrue(trailing, decisions)
+                        self.assertEqual({d.source_item_text for d in left}, {action_a})
+                        self.assertEqual({d.disposition for d in left}, {"ACTIVE"})
+                        self.assertEqual({d.disposition for d in trailing}, {"NON_ACTIVE"})
+                        self.assertIn("ACTIVE_DEPENDENCY", classes)
+                        self.assertIn("EXPLICIT_PROHIBITION", classes)
+
+    def test_trailing_denial_after_multiple_actions_and_prefix_control(self) -> None:
+        trailing = "Recruit human participants, survey respondents, and this workflow never creates authority to interview speakers."
+        decisions = _action_dispositions(_propositions(_policy_units(trailing)[0])[0], 0)
+        self.assertEqual({d.disposition for d in decisions if d.source_item_index in (0, 1)}, {"ACTIVE"})
+        self.assertEqual({d.disposition for d in decisions if d.source_item_index == 2}, {"NON_ACTIVE"})
+        self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(trailing)))
+
+        prefix = "This workflow never creates authority to recruit human participants or survey respondents."
+        decisions = _action_dispositions(_propositions(_policy_units(prefix)[0])[0], 0)
+        self.assertEqual({d.source_item_index for d in decisions}, {0, 1})
+        self.assertEqual({d.disposition for d in decisions}, {"NON_ACTIVE"})
+        self.assertNotIn("ACTIVE_DEPENDENCY", self.classification_classes(prefix))
+
+    def test_bounded_governor_scope_required_cases_and_provenance(self) -> None:
+        cases = (
+            ("Never recruit human participants or survey respondents.", {0: 0, 1: 0}, set()),
+            ("There is no ordinary transition to recruit human participants, survey respondents, or interview speakers.", {0: 0, 1: 0, 2: 0}, set()),
+            ("This workflow never creates authority to recruit human participants or survey respondents.", {0: 0, 1: 0}, set()),
+            ("Prohibited: recruit human participants and survey respondents.", {0: 0, 1: 0}, set()),
+            ("Recruit human participants and this workflow never creates authority to recruit humans.", {1: 0}, {0}),
+            ("This workflow never creates authority to recruit humans and under the alternate path recruit human participants.", {0: 0}, {1}),
+            ("Never recruit human participants and under the alternate path survey respondents.", {0: 0}, {1}),
+            ("There is no ordinary transition to recruit human participants and under the exception interview speakers.", {0: 0}, {1}),
+            ("Prohibited: recruit human participants and under the alternate method interview speakers.", {0: 0}, {1}),
+            ("Recruit human participants and this workflow never creates authority to survey respondents or interview speakers.", {1: 0, 2: 0}, {0}),
+        )
+        for text, expected_membership, active_items in cases:
+            with self.subTest(text=text):
+                proposition = _propositions(_policy_units(text)[0])[0]
+                items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
+                decisions = _action_dispositions(proposition, 0)
+                self.assertEqual(membership, {(index, 0): scope for index, scope in expected_membership.items()})
+                self.assertEqual({d.source_item_index for d in decisions if d.disposition == "ACTIVE"}, active_items)
+                for item in items:
+                    self.assertEqual(proposition[item.source_item_start:item.source_item_end], item.source_item_text)
+                for occurrence in occurrences:
+                    self.assertEqual(proposition[occurrence.action_start:occurrence.action_end], occurrence.action)
+                for scope in scopes:
+                    self.assertEqual(proposition[scope.governor_start:scope.governor_end].strip(), scope.governor_text)
+                    self.assertLessEqual(scope.governor_end, scope.governed_start)
+                    self.assertLess(scope.governed_start, scope.governed_end)
+                for decision in decisions:
+                    self.assertEqual(decision.governor_scope_id, membership.get((decision.source_item_index, decision.semantic_action_index)))
+                    if decision.disposition == "NON_ACTIVE" and decision.governor is not None:
+                        self.assertIsNotNone(decision.governor_scope_id)
+
+    def test_scope_no_reentry_and_multiple_governor_non_overlap(self) -> None:
+        no_reentry = "Never recruit human participants and under the alternate path survey respondents or interview speakers."
+        proposition = _propositions(_policy_units(no_reentry)[0])[0]
+        _, _, scopes, membership = _resolve_governor_scopes(proposition)
+        self.assertEqual(membership, {(0, 0): 0})
+        self.assertEqual(len(scopes), 1)
+        decisions = _action_dispositions(proposition, 0)
+        self.assertEqual({d.source_item_index for d in decisions if d.disposition == "ACTIVE"}, {1, 2})
+
+        multiple = "Never recruit human participants and do not survey respondents or interview speakers."
+        proposition = _propositions(_policy_units(multiple)[0])[0]
+        _, _, scopes, membership = _resolve_governor_scopes(proposition)
+        self.assertEqual(membership, {(0, 0): 0, (1, 0): 1, (2, 0): 1})
+        self.assertEqual(len(scopes), 2)
+        self.assertLessEqual(scopes[0].governed_end, scopes[1].governor_start)
+        self.assertNotIn("ACTIVE_DEPENDENCY", self.classification_classes(multiple))
+
+    def test_unsupported_continuation_prefixes_fail_active(self) -> None:
+        for prefix, action in (("under the alternate path ", "recruit participants"), ("separately ", "survey respondents"), ("instead ", "interview speakers")):
+            text = f"Never recruit human participants and {prefix}{action}."
+            with self.subTest(text=text):
+                proposition = _propositions(_policy_units(text)[0])[0]
+                _, _, _, membership = _resolve_governor_scopes(proposition)
+                decisions = _action_dispositions(proposition, 0)
+                self.assertEqual(membership, {(0, 0): 0})
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 1}, {"ACTIVE"})
+                self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(text)))
+
+    def test_same_item_distinct_occurrence_scope(self) -> None:
+        cases = (
+            ("Recruit human participants while this workflow never creates authority to recruit humans.", {0: None, 1: 0}),
+            ("This workflow never creates authority to recruit humans while recruit human participants.", {0: 0, 1: None}),
+        )
+        for text, expected_scope in cases:
+            with self.subTest(text=text):
+                proposition = _propositions(_policy_units(text)[0])[0]
+                items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
+                decisions = _action_dispositions(proposition, 0)
+                self.assertEqual(len(items), 1)
+                self.assertGreaterEqual(len(occurrences), 2)
+                self.assertEqual({occurrence.semantic_action_index for occurrence in occurrences}, {0, 1})
+                self.assertEqual({occurrence.semantic_action_index: occurrence.governor_scope_id for occurrence in occurrences}, expected_scope)
+                self.assertEqual({occurrence.semantic_action_index: membership.get((0, occurrence.semantic_action_index)) for occurrence in occurrences}, expected_scope)
+                self.assertEqual({d.semantic_action_index: d.disposition for d in decisions}, {index: "NON_ACTIVE" if scope_id is not None else "ACTIVE" for index, scope_id in expected_scope.items()})
+                self.assertLess(occurrences[0].action_end, occurrences[1].action_start)
+                self.assertEqual(len(scopes), 1)
+                self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(text)))
+
+    def test_non_action_gap_terminates_governor_scope(self) -> None:
+        cases = (
+            "Never recruit human participants and retain existing documentation or survey respondents.",
+            "There is no ordinary transition to recruit human participants and preserve the existing files or interview speakers.",
+            "Prohibited: recruit human participants and retain the existing dataset or survey respondents.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                proposition = _propositions(_policy_units(text)[0])[0]
+                items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
+                decisions = _action_dispositions(proposition, 0)
+                self.assertEqual(len(items), 3)
+                self.assertFalse([occurrence for occurrence in occurrences if occurrence.source_item_index == 1])
+                self.assertEqual(membership, {(0, 0): 0})
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 0}, {"NON_ACTIVE"})
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 2}, {"ACTIVE"})
+                self.assertEqual(len(scopes), 1)
+                self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(text)))
+
+    def test_governor_scope_soft_wrap_semantic_equivalence(self) -> None:
+        pairs = (
+            ("Never recruit human participants or survey respondents.", "Never recruit human participants\nor survey respondents."),
+            ("This workflow never creates authority to recruit humans and under the alternate path recruit participants.", "This workflow never creates authority to recruit humans\nand under the alternate path recruit participants."),
+            ("Recruit participants and this workflow never creates authority to survey respondents or interview speakers.", "Recruit participants\nand this workflow never creates authority to survey respondents\nor interview speakers."),
+            ("Never recruit participants and do not survey respondents or interview speakers.", "Never recruit participants\nand do not survey respondents\nor interview speakers."),
+        )
+        for single, wrapped in pairs:
+            with self.subTest(wrapped=wrapped):
+                def signature(text: str) -> tuple[list[tuple[int, int | None]], list[str]]:
+                    proposition = _propositions(_policy_units(text)[0])[0]
+                    _, _, _, membership = _resolve_governor_scopes(proposition)
+                    decisions = _action_dispositions(proposition, 0)
+                    return ([(d.source_item_index, membership.get((d.source_item_index, d.semantic_action_index))) for d in decisions], sorted(self.classification_classes(text)))
+                self.assertEqual(signature(single), signature(wrapped))
+
+    def test_generated_bounded_governor_scope_matrix(self) -> None:
+        actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")
+        governors = (
+            lambda action: f"Never {action}",
+            lambda action: f"There is no ordinary transition to {action}",
+            lambda action: f"This workflow never creates authority to {action}",
+            lambda action: f"Prohibited: {action}",
+        )
+        separators = ((" and ", "\nand "), (" or ", "\nor "), (", and ", ",\nand "))
+        for governor_index, governor in enumerate(governors):
+            for action_index, action_a in enumerate(actions):
+                action_b = actions[(action_index + 1) % len(actions)]
+                action_c = actions[(action_index + 2) % len(actions)]
+                separator_pair = separators[(governor_index + action_index) % len(separators)]
+                for wrapped, separator in enumerate(separator_pair):
+                    forward = "\nor " if wrapped else " or "
+                    shapes = (
+                        (governor(action_a) + separator + action_b + ".", {0: 0, 1: 0}, set()),
+                        (governor(action_a) + separator + "under an alternate path " + action_b + ".", {0: 0}, {1}),
+                        (action_a + separator + governor(action_b) + ".", {1: 0}, {0}),
+                        (action_a + separator + governor(action_b) + forward + action_c + ".", {1: 0, 2: 0}, {0}),
+                    )
+                    for text, expected_membership, active_items in shapes:
+                        with self.subTest(text=text):
+                            proposition = _propositions(_policy_units(text)[0])[0]
+                            items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
+                            decisions = _action_dispositions(proposition, 0)
+                            self.assertEqual(membership, {(index, 0): scope for index, scope in expected_membership.items()})
+                            self.assertEqual({d.source_item_index for d in decisions if d.disposition == "ACTIVE"}, active_items)
+                            self.assertEqual({d.source_item_index for d in decisions}, set(range(len(items))))
+                            self.assertTrue(scopes)
+                            for occurrence_key, scope_id in membership.items():
+                                item_index, semantic_action_index = occurrence_key
+                                item_decisions = [d for d in decisions if d.source_item_index == item_index and d.semantic_action_index == semantic_action_index]
+                                self.assertEqual({d.governor_scope_id for d in item_decisions}, {scope_id})
+                            classes = self.classification_classes(text)
+                            self.assertIn("EXPLICIT_PROHIBITION", classes)
+                            if active_items:
+                                self.assertIn("ACTIVE_DEPENDENCY", classes)
+                            else:
+                                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+
     def test_generated_soft_wrap_matrix_and_action_observability(self) -> None:
         governors = ("Never ", "Do not ", "Must not ", "Should not ", "Cannot ", "Prohibited: ", "Forbidden: ", "Default-deny controls: ", "There is no ordinary transition to ", "There is no authority to ")
         actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")
@@ -328,10 +559,28 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
         self.assertGreater(len(first), 1, decisions)
         self.assertTrue(second, decisions)
         self.assertEqual({decision.source_item_index for decision in first}, {0})
-        self.assertEqual({decision.source_item_text for decision in first}, {"use human raters to score outputs"})
+        self.assertEqual({decision.source_item_text for decision in first}, {"Prohibited: use human raters to score outputs"})
+        self.assertEqual({(decision.source_item_start, decision.source_item_end) for decision in first}, {(0, len("Prohibited: use human raters to score outputs"))})
+        self.assertEqual({decision.semantic_action_index for decision in first}, {0})
+        self.assertEqual(len({(decision.semantic_action_start, decision.semantic_action_end) for decision in first}), 1)
+        self.assertEqual({decision.governor_scope_id for decision in first}, {0})
         self.assertEqual({decision.source_item_index for decision in second}, {1})
         self.assertEqual({decision.source_item_text for decision in second}, {"contact external experts."})
         self.assertTrue(all(decision.disposition == "NON_ACTIVE" for decision in decisions))
+
+        cases = (
+            ("use human raters to score outputs and Never recruit participants.", 0, None, "ACTIVE"),
+            ("Never recruit participants or use human raters to score outputs.", 1, 0, "NON_ACTIVE"),
+        )
+        for text, item_index, scope_id, disposition in cases:
+            with self.subTest(text=text):
+                proposition = _propositions(_policy_units(text)[0])[0]
+                item_decisions = [d for d in _action_dispositions(proposition, 0) if d.source_item_index == item_index]
+                self.assertGreater(len(item_decisions), 1)
+                self.assertEqual(len({d.semantic_action_index for d in item_decisions}), 1)
+                self.assertEqual(len({(d.source_item_start, d.source_item_end) for d in item_decisions}), 1)
+                self.assertEqual({d.governor_scope_id for d in item_decisions}, {scope_id})
+                self.assertEqual({d.disposition for d in item_decisions}, {disposition})
 
     def test_generated_bidirectional_contrast_matrix(self) -> None:
         markers = ("but", "however", "yet", "nevertheless", "nonetheless")
