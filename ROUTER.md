@@ -8,8 +8,13 @@
 KERNEL
 → select ENGINE by semantic capability and authority boundary
 → ENGINE selects a declared WORKFLOW
-→ derive mandatory actions + mandatory evidence gates
-→ derive REQUIRED_CAPABILITIES
+→ classify target authority/movability
+→ classify execution-context fact authority
+→ compile structured assignment semantics under `contracts/ASSIGNMENT_COMPILATION_CONTRACT.md`
+→ reject unauthorized identity/responsibility/evidence obligations
+→ prove requested obligations are in the supported execution envelope
+→ derive authorized mandatory actions + mandatory evidence gates from `COMPILED_ASSIGNMENT`
+→ derive REQUIRED_CAPABILITIES only from compiled authority plus selected mandatory workflow/skill prerequisites
 → bind exact destination CAPABILITY_PROFILE
 → prove REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES
 → materialize ASSIGNMENT_ADMISSIBILITY
@@ -19,6 +24,11 @@ KERNEL
 ```
 
 Selection is based on the transformation and authority required, not filename similarity. Semantic engine capability is necessary but never sufficient for assignment.
+
+Compilation is a mandatory upstream semantic gate. `REJECTED` compilation does
+not proceed to route, capability-profile selection, assignment admissibility, or
+executable assignment. The router consumes compiler output; it does not replace
+the deterministic compiler with prose judgment.
 
 The universal executability contract is `contracts/EXECUTABILITY_CONTRACT.md`.
 

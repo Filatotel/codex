@@ -11,6 +11,7 @@ There is no universal Artifact Agent. Artifact production is role-native.
 ## Required common artifact types
 
 - `CAPABILITY_PROFILE` — freshness-bounded evidence of concrete execution surfaces available to one exact destination/runtime instance; it carries no authority by itself.
+- `COMPILED_ASSIGNMENT` — normalized authority/movability, context-fact authority, responsibility, evidence, envelope, mandatory-action, and capability semantics authorized by deterministic Control-layer compilation.
 - `ASSIGNMENT_ADMISSIBILITY` — pre-assignment control proof comparing mandatory required capabilities/evidence paths with one exact destination capability profile.
 - `ASSIGNMENT` — bounded instruction for current work; executable only when its destination-bound execution contract cites an `ADMISSIBLE` proof and contains no unsatisfied required capability.
 - `EXECUTOR_RESULT` — what the Executor actually did, resulting state, evidence refs, limitations/deferred findings.
@@ -26,7 +27,7 @@ Every artifact has a stable `artifact_id`, `artifact_type`, `produced_by_role`, 
 
 Derived artifacts must not erase source identity. A summary cannot silently replace a primary result when the downstream decision requires the primary result.
 
-`CAPABILITY_PROFILE` must identify the exact destination/runtime and freshness boundary. `ASSIGNMENT_ADMISSIBILITY` must bind the assignment draft, destination, and exact capability profile used in the subset decision. An `ASSIGNMENT` must preserve those refs in its execution contract.
+`CAPABILITY_PROFILE` must identify the exact destination/runtime and freshness boundary. `ASSIGNMENT_ADMISSIBILITY` must bind the assignment draft, exact compiled assignment, destination, and exact capability profile used in the subset decision. An `ASSIGNMENT` must preserve those refs in its execution contract.
 
 ## Pre-assignment executability separation
 

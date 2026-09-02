@@ -14,6 +14,11 @@ REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES
 
 The comparison covers every mandatory action and every mandatory acceptance/evidence gate, not only the engine's semantic capability.
 
+The requirements entering this comparison MUST come from a `COMPILED`
+`COMPILED_ASSIGNMENT` under `contracts/ASSIGNMENT_COMPILATION_CONTRACT.md`,
+plus mandatory prerequisites of workflows/skills selected within that authority.
+Arbitrary uncompiled prompt obligations are not a required-capability source.
+
 If the subset relation is not proven, the work is **not an executable assignment for that destination**. Return `ASSIGNMENT_NOT_ADMISSIBLE`, choose another already-authorized executable destination/mode, or escalate. Do not intentionally issue the assignment and wait for the Executor/Verifier to discover the missing runtime later.
 
 ## Three separate questions

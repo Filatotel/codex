@@ -13,6 +13,7 @@ kernel_constitutions:
 
 kernel_contracts:
   core: contracts/CORE_CONTRACTS.md
+  assignment_compilation: contracts/ASSIGNMENT_COMPILATION_CONTRACT.md
   destination_executability: contracts/EXECUTABILITY_CONTRACT.md
 
 shared_namespaces:

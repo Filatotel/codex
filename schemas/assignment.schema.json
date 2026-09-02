@@ -117,6 +117,7 @@
       "type": "object",
       "required": [
         "assignment_draft_ref",
+        "compiled_assignment_ref",
         "destination_id",
         "runtime_identity",
         "capability_profile_ref",
@@ -186,6 +187,10 @@
           ]
         },
         "route_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compiled_assignment_ref": {
           "type": "string",
           "minLength": 1
         }
