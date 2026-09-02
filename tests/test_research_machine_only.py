@@ -363,7 +363,7 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                 proposition = _propositions(_policy_units(text)[0])[0]
                 items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
                 decisions = _action_dispositions(proposition, 0)
-                self.assertEqual(membership, expected_membership)
+                self.assertEqual(membership, {(index, 0): scope for index, scope in expected_membership.items()})
                 self.assertEqual({d.source_item_index for d in decisions if d.disposition == "ACTIVE"}, active_items)
                 for item in items:
                     self.assertEqual(proposition[item.source_item_start:item.source_item_end], item.source_item_text)
@@ -374,7 +374,7 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                     self.assertLessEqual(scope.governor_end, scope.governed_start)
                     self.assertLess(scope.governed_start, scope.governed_end)
                 for decision in decisions:
-                    self.assertEqual(decision.governor_scope_id, membership.get(decision.source_item_index))
+                    self.assertEqual(decision.governor_scope_id, membership.get((decision.source_item_index, decision.semantic_action_index)))
                     if decision.disposition == "NON_ACTIVE" and decision.governor is not None:
                         self.assertIsNotNone(decision.governor_scope_id)
 
@@ -382,7 +382,7 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
         no_reentry = "Never recruit human participants and under the alternate path survey respondents or interview speakers."
         proposition = _propositions(_policy_units(no_reentry)[0])[0]
         _, _, scopes, membership = _resolve_governor_scopes(proposition)
-        self.assertEqual(membership, {0: 0})
+        self.assertEqual(membership, {(0, 0): 0})
         self.assertEqual(len(scopes), 1)
         decisions = _action_dispositions(proposition, 0)
         self.assertEqual({d.source_item_index for d in decisions if d.disposition == "ACTIVE"}, {1, 2})
@@ -390,7 +390,7 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
         multiple = "Never recruit human participants and do not survey respondents or interview speakers."
         proposition = _propositions(_policy_units(multiple)[0])[0]
         _, _, scopes, membership = _resolve_governor_scopes(proposition)
-        self.assertEqual(membership, {0: 0, 1: 1, 2: 1})
+        self.assertEqual(membership, {(0, 0): 0, (1, 0): 1, (2, 0): 1})
         self.assertEqual(len(scopes), 2)
         self.assertLessEqual(scopes[0].governed_end, scopes[1].governor_start)
         self.assertNotIn("ACTIVE_DEPENDENCY", self.classification_classes(multiple))
@@ -402,8 +402,47 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                 proposition = _propositions(_policy_units(text)[0])[0]
                 _, _, _, membership = _resolve_governor_scopes(proposition)
                 decisions = _action_dispositions(proposition, 0)
-                self.assertEqual(membership, {0: 0})
+                self.assertEqual(membership, {(0, 0): 0})
                 self.assertEqual({d.disposition for d in decisions if d.source_item_index == 1}, {"ACTIVE"})
+                self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(text)))
+
+    def test_same_item_distinct_occurrence_scope(self) -> None:
+        cases = (
+            ("Recruit human participants while this workflow never creates authority to recruit humans.", {0: None, 1: 0}),
+            ("This workflow never creates authority to recruit humans while recruit human participants.", {0: 0, 1: None}),
+        )
+        for text, expected_scope in cases:
+            with self.subTest(text=text):
+                proposition = _propositions(_policy_units(text)[0])[0]
+                items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
+                decisions = _action_dispositions(proposition, 0)
+                self.assertEqual(len(items), 1)
+                self.assertGreaterEqual(len(occurrences), 2)
+                self.assertEqual({occurrence.semantic_action_index for occurrence in occurrences}, {0, 1})
+                self.assertEqual({occurrence.semantic_action_index: occurrence.governor_scope_id for occurrence in occurrences}, expected_scope)
+                self.assertEqual({occurrence.semantic_action_index: membership.get((0, occurrence.semantic_action_index)) for occurrence in occurrences}, expected_scope)
+                self.assertEqual({d.semantic_action_index: d.disposition for d in decisions}, {index: "NON_ACTIVE" if scope_id is not None else "ACTIVE" for index, scope_id in expected_scope.items()})
+                self.assertLess(occurrences[0].action_end, occurrences[1].action_start)
+                self.assertEqual(len(scopes), 1)
+                self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(text)))
+
+    def test_non_action_gap_terminates_governor_scope(self) -> None:
+        cases = (
+            "Never recruit human participants and retain existing documentation or survey respondents.",
+            "There is no ordinary transition to recruit human participants and preserve the existing files or interview speakers.",
+            "Prohibited: recruit human participants and retain the existing dataset or survey respondents.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                proposition = _propositions(_policy_units(text)[0])[0]
+                items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
+                decisions = _action_dispositions(proposition, 0)
+                self.assertEqual(len(items), 3)
+                self.assertFalse([occurrence for occurrence in occurrences if occurrence.source_item_index == 1])
+                self.assertEqual(membership, {(0, 0): 0})
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 0}, {"NON_ACTIVE"})
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 2}, {"ACTIVE"})
+                self.assertEqual(len(scopes), 1)
                 self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(text)))
 
     def test_governor_scope_soft_wrap_semantic_equivalence(self) -> None:
@@ -419,7 +458,7 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                     proposition = _propositions(_policy_units(text)[0])[0]
                     _, _, _, membership = _resolve_governor_scopes(proposition)
                     decisions = _action_dispositions(proposition, 0)
-                    return ([(d.source_item_index, membership.get(d.source_item_index)) for d in decisions], sorted(self.classification_classes(text)))
+                    return ([(d.source_item_index, membership.get((d.source_item_index, d.semantic_action_index))) for d in decisions], sorted(self.classification_classes(text)))
                 self.assertEqual(signature(single), signature(wrapped))
 
     def test_generated_bounded_governor_scope_matrix(self) -> None:
@@ -449,13 +488,14 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                             proposition = _propositions(_policy_units(text)[0])[0]
                             items, occurrences, scopes, membership = _resolve_governor_scopes(proposition)
                             decisions = _action_dispositions(proposition, 0)
-                            self.assertEqual(membership, expected_membership)
+                            self.assertEqual(membership, {(index, 0): scope for index, scope in expected_membership.items()})
                             self.assertEqual({d.source_item_index for d in decisions if d.disposition == "ACTIVE"}, active_items)
                             self.assertEqual({d.source_item_index for d in decisions}, set(range(len(items))))
                             self.assertTrue(scopes)
-                            for index in membership:
-                                item_decisions = [d for d in decisions if d.source_item_index == index]
-                                self.assertEqual({d.governor_scope_id for d in item_decisions}, {membership[index]})
+                            for occurrence_key, scope_id in membership.items():
+                                item_index, semantic_action_index = occurrence_key
+                                item_decisions = [d for d in decisions if d.source_item_index == item_index and d.semantic_action_index == semantic_action_index]
+                                self.assertEqual({d.governor_scope_id for d in item_decisions}, {scope_id})
                             classes = self.classification_classes(text)
                             self.assertIn("EXPLICIT_PROHIBITION", classes)
                             if active_items:
@@ -521,6 +561,8 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
         self.assertEqual({decision.source_item_index for decision in first}, {0})
         self.assertEqual({decision.source_item_text for decision in first}, {"Prohibited: use human raters to score outputs"})
         self.assertEqual({(decision.source_item_start, decision.source_item_end) for decision in first}, {(0, len("Prohibited: use human raters to score outputs"))})
+        self.assertEqual({decision.semantic_action_index for decision in first}, {0})
+        self.assertEqual(len({(decision.semantic_action_start, decision.semantic_action_end) for decision in first}), 1)
         self.assertEqual({decision.governor_scope_id for decision in first}, {0})
         self.assertEqual({decision.source_item_index for decision in second}, {1})
         self.assertEqual({decision.source_item_text for decision in second}, {"contact external experts."})
@@ -535,6 +577,7 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                 proposition = _propositions(_policy_units(text)[0])[0]
                 item_decisions = [d for d in _action_dispositions(proposition, 0) if d.source_item_index == item_index]
                 self.assertGreater(len(item_decisions), 1)
+                self.assertEqual(len({d.semantic_action_index for d in item_decisions}), 1)
                 self.assertEqual(len({(d.source_item_start, d.source_item_end) for d in item_decisions}), 1)
                 self.assertEqual({d.governor_scope_id for d in item_decisions}, {scope_id})
                 self.assertEqual({d.disposition for d in item_decisions}, {disposition})
