@@ -272,6 +272,78 @@ class ResearchMachineOnlyPolicyTest(unittest.TestCase):
                         self.assertIn("EXPLICIT_PROHIBITION", classes)
                         self.assertNotIn("ACTIVE_DEPENDENCY", classes)
 
+    def test_trailing_authority_denial_direct_mixed_cases(self) -> None:
+        cases = (
+            "Recruit human participants and this workflow never creates authority to recruit humans.",
+            "Survey respondents and this process does not grant permission to recruit human participants.",
+            "Interview speakers and the method cannot provide authority to recruit participants.",
+            "Hire human annotators and this workflow can't confer permission to recruit respondents.",
+            "Use human raters to score outputs and this workflow never creates authority to recruit humans.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                decisions = _action_dispositions(_propositions(_policy_units(text)[0])[0], 0)
+                classes = self.classification_classes(text)
+                self.assertIn("ACTIVE_DEPENDENCY", classes)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 0}, {"ACTIVE"})
+                self.assertEqual({d.disposition for d in decisions if d.source_item_index == 1}, {"NON_ACTIVE"})
+
+    def test_subject_led_prefix_authority_denials_remain_safe(self) -> None:
+        cases = (
+            "This workflow never creates authority to recruit humans.",
+            "Unavailable direct measurement never creates authority to recruit humans.",
+            "This process does not grant permission to survey respondents.",
+            "The method cannot provide authority to interview speakers.",
+            "This workflow can't confer permission to contact external experts.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                classes = self.classification_classes(text)
+                self.assertIn("EXPLICIT_PROHIBITION", classes)
+                self.assertNotIn("ACTIVE_DEPENDENCY", classes)
+
+    def test_generated_trailing_authority_denial_matrix(self) -> None:
+        actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")
+        denials = (
+            "this workflow never creates authority to {}",
+            "this process does not grant permission to {}",
+            "the method cannot provide authority to {}",
+            "this workflow can't confer permission to {}",
+        )
+        layouts = (" and ", ", and ", "\nand ")
+        for index, action_a in enumerate(actions):
+            action_b = actions[(index + 1) % len(actions)]
+            for denial in denials:
+                for layout in layouts:
+                    text = action_a + layout + denial.format(action_b) + "."
+                    with self.subTest(text=text):
+                        proposition = _propositions(_policy_units(text)[0])[0]
+                        decisions = _action_dispositions(proposition, 0)
+                        classes = self.classification_classes(text)
+                        left = [d for d in decisions if d.source_item_index == 0]
+                        trailing = [d for d in decisions if d.source_item_index == 1]
+                        self.assertTrue(left, decisions)
+                        self.assertTrue(trailing, decisions)
+                        self.assertEqual({d.source_item_text for d in left}, {action_a})
+                        self.assertEqual({d.disposition for d in left}, {"ACTIVE"})
+                        self.assertEqual({d.disposition for d in trailing}, {"NON_ACTIVE"})
+                        self.assertIn("ACTIVE_DEPENDENCY", classes)
+                        self.assertIn("EXPLICIT_PROHIBITION", classes)
+
+    def test_trailing_denial_after_multiple_actions_and_prefix_control(self) -> None:
+        trailing = "Recruit human participants, survey respondents, and this workflow never creates authority to interview speakers."
+        decisions = _action_dispositions(_propositions(_policy_units(trailing)[0])[0], 0)
+        self.assertEqual({d.disposition for d in decisions if d.source_item_index in (0, 1)}, {"ACTIVE"})
+        self.assertEqual({d.disposition for d in decisions if d.source_item_index == 2}, {"NON_ACTIVE"})
+        self.assertTrue({"ACTIVE_DEPENDENCY", "EXPLICIT_PROHIBITION"}.issubset(self.classification_classes(trailing)))
+
+        prefix = "This workflow never creates authority to recruit human participants or survey respondents."
+        decisions = _action_dispositions(_propositions(_policy_units(prefix)[0])[0], 0)
+        self.assertEqual({d.source_item_index for d in decisions}, {0, 1})
+        self.assertEqual({d.disposition for d in decisions}, {"NON_ACTIVE"})
+        self.assertNotIn("ACTIVE_DEPENDENCY", self.classification_classes(prefix))
+
     def test_generated_soft_wrap_matrix_and_action_observability(self) -> None:
         governors = ("Never ", "Do not ", "Must not ", "Should not ", "Cannot ", "Prohibited: ", "Forbidden: ", "Default-deny controls: ", "There is no ordinary transition to ", "There is no authority to ")
         actions = ("recruit human participants", "survey respondents", "interview speakers", "hire human annotators", "use human raters to score outputs", "contact external experts")

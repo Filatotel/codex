@@ -150,6 +150,18 @@ def _policy_units(text: str) -> list[str]:
 def _propositions(unit: str) -> list[str]:
     return [p.strip() for p in re.split(r"(?<=[.!?])\s+|\s*;\s*", unit) if p.strip() for p in CONTRAST.split(p) if p.strip()]
 
+AUTHORITY_DENIAL = re.compile(
+    r"\b(?:never|does not|do not|cannot|can't)\s+"
+    r"(?:create|creates|grant|grants|provide|provides|confer|confers)\s+"
+    r"(?:any\s+|the\s+)?(?:authority|permission)\s+to\b",
+    re.I,
+)
+
+def _has_action_before(proposition: str, end: int) -> bool:
+    """Return whether an independently recognizable action precedes ``end``."""
+    prefix = proposition[:end]
+    return any(re.search(pattern, prefix, flags=re.I | re.S) for pattern in ACTIVE_ACTION_PATTERNS)
+
 def _shared_governor(proposition: str) -> str | None:
     t = _norm(proposition)
     leading = re.match(r"^(?:[-*]\s*)?(never|do not|does not|must not|should not|may not|cannot|can't)\b", t)
@@ -158,8 +170,9 @@ def _shared_governor(proposition: str) -> str | None:
     if heading: return _norm(proposition[:heading.end() - len(heading.group(1))])
     denial = re.match(r"^(?:there (?:is no ordinary transition|are no ordinary transitions|is no authority|is no permission) to|no (?:ordinary transition|authority|permission) to)\b", t)
     if denial: return denial.group(0)
-    authority_denial = re.search(r"\b(?:never|does not|do not|cannot|can't)\s+(?:create|creates|grant|grants|provide|provides|confer|confers)\s+(?:any\s+|the\s+)?(?:authority|permission)\s+to\b", t)
-    if authority_denial: return authority_denial.group(0)
+    authority_denial = AUTHORITY_DENIAL.search(proposition)
+    if authority_denial and not _has_action_before(proposition, authority_denial.start()):
+        return _norm(authority_denial.group(0))
     if re.fullmatch(r"(?:no default role may be instantiated as an arbitrary external person\.\s*)?generic\s+`?reviewer`?,.*\bare invalid default research engine roles\.?", t): return "terminal invalid-role predicate"
     if re.fullmatch(r"migration passes only when .+\b(?:dependencies|paths|gates) must be zero\.?", t): return "terminal zero predicate"
     return None
