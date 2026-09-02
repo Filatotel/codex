@@ -127,18 +127,23 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
 
 def compiled_for(record):
     capabilities = list(record["required_capabilities"])
-    action = {"action_id":"run_tests", "responsibility":"EXECUTOR", "operation":"RUN_TESTS", "obligation_class":"local_execution", "context_fact_ref":None, "required_capabilities":capabilities, "evidence_path":"python -m unittest"}
+    action = {"action_id":"run_tests", "claim_ref":"claim-tests", "responsibility":"EXECUTOR", "operation":"RUN_TESTS", "obligation_class":"local_execution", "context_fact_ref":None, "required_capabilities":capabilities, "evidence_path":"python -m unittest"}
     return {
         "artifact_type":"COMPILED_ASSIGNMENT", "artifact_id":record["compiled_assignment_ref"],
         "produced_by_role":"control-director", "assignment_id":None, "input_state_ref":"state-1",
         "status":"COMPILED", "provenance":["DRAFT-1"], "related_artifacts":["DRAFT-1"],
         "assignment_draft_ref":record["assignment_draft_id"], "authority_class":"FROZEN_CANDIDATE",
+        "authorized_claims":[{"claim_id":"claim-tests","claim_kind":"TASK_OUTCOME","authority_source":"RESOLVER_BOUND","target_ref":"acceptance:tests","responsibility":"EXECUTOR","independent_verification_required":False,"classification":"runtime_resolved"}],
         "immutable_invariants":[], "runtime_resolved_invariants":[], "context_facts":[],
         "executor_responsibilities":[action], "control_responsibilities":[], "platform_responsibilities":[],
-        "acceptance_requirements":[], "evidence_requirements":[], "stop_conditions":[],
-        "supported_execution_envelope_status":"SUPPORTED", "authorized_mandatory_actions":[action],
+        "acceptance_requirements":[{"requirement_id":"tests"}], "evidence_requirements":[], "stop_conditions":[],
+        "supported_execution_envelope_ref":"ENVELOPE-1", "supported_execution_envelope_status":"SUPPORTED", "authorized_mandatory_actions":[action], "authorized_evidence_requirements":[],
         "authorized_required_capabilities":capabilities, "compilation_status":"COMPILED", "compilation_errors":[],
     }
+
+def envelope_resolver(ref):
+    if ref != "ENVELOPE-1": return None
+    return {"artifact_type":"EXECUTION_ENVELOPE","artifact_id":"ENVELOPE-1","produced_by_role":"control-director","assignment_id":None,"input_state_ref":"state-1","status":"CURRENT","provenance":["portfolio"],"related_artifacts":[],"supported_obligation_classes":["local_execution"]}
 
 
 def governed_chain(assignment, record, profile):
@@ -163,24 +168,24 @@ def governed_chain(assignment, record, profile):
 
 def validate_chain(assignment, record, profile):
     resolver, route = governed_chain(assignment, record, profile)
-    return validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record))
+    return validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)
 
 
 class ExecutabilityContractTest(unittest.TestCase):
     def test_governed_evidence_resolution_boundary(self) -> None:
         assignment, record, profile = deepcopy(valid_chain())
         resolver, route = governed_chain(assignment, record, profile)
-        self.assertTrue(validate_assignment_execution_contract(assignment, record, profile, None, route, compiled_assignment=compiled_for(record)))
-        self.assertTrue(validate_assignment_execution_contract(assignment, record, profile, lambda ref: None, route, compiled_assignment=compiled_for(record)))
+        self.assertTrue(validate_assignment_execution_contract(assignment, record, profile, None, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver))
+        self.assertTrue(validate_assignment_execution_contract(assignment, record, profile, lambda ref: None, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver))
         def exploding(ref): raise RuntimeError("probe unavailable")
-        self.assertTrue(any("failed closed" in e for e in validate_assignment_execution_contract(assignment, record, profile, exploding, route, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("failed closed" in e for e in validate_assignment_execution_contract(assignment, record, profile, exploding, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
         wrong = deepcopy(profile["evidence_artifacts"][0]); wrong["artifact_id"] = "WRONG"
-        self.assertTrue(any("identity mismatch" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: wrong, route, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("identity mismatch" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: wrong, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
         missing_provenance = deepcopy(profile["evidence_artifacts"][0]); del missing_provenance["observation_method"]
-        self.assertTrue(any("observation_method" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: missing_provenance, route, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("observation_method" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: missing_provenance, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
         disagreement = deepcopy(profile["evidence_artifacts"][0]); disagreement["created_from"] = "different-run"
-        self.assertTrue(any("disagrees" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: disagreement, route, compiled_assignment=compiled_for(record))))
-        self.assertEqual(validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record)), [])
+        self.assertTrue(any("disagrees" in e for e in validate_assignment_execution_contract(assignment, record, profile, lambda ref: disagreement, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
+        self.assertEqual(validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver), [])
 
     def test_route_adversarial_matrix(self) -> None:
         assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
@@ -212,21 +217,21 @@ class ExecutabilityContractTest(unittest.TestCase):
             bad, case_profiles, case_resolver = case if isinstance(case, tuple) else (case, profiles, resolver)
             with self.subTest(route=bad): self.assertTrue(validate_execution_route(bad, case_profiles, case_resolver))
         bad_assignment = deepcopy(assignment); bad_assignment["result_to"] = "elsewhere"
-        self.assertTrue(any("result_to" in e for e in validate_assignment_execution_contract(bad_assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("result_to" in e for e in validate_assignment_execution_contract(bad_assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
         other_draft = deepcopy(route); other_draft["assignment_draft_id"] = "OTHER"
-        self.assertTrue(any("assignment_draft_id" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, other_draft, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("assignment_draft_id" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, other_draft, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
         fake_endpoint = deepcopy(route); fake_endpoint["final_result"]["destination_id"] = "control-layer"
-        self.assertTrue(any("durable segment" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, fake_endpoint, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("durable segment" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, fake_endpoint, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
         wrong_segment = deepcopy(route); wrong_segment["final_result"]["segment_ref"] = "execute"
-        self.assertTrue(any("durable segment" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, wrong_segment, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("durable segment" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, wrong_segment, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
         unresolved = deepcopy(route); unresolved["final_result"]["segment_ref"] = "missing"
-        self.assertTrue(any("unresolved" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, unresolved, compiled_assignment=compiled_for(record))))
+        self.assertTrue(any("unresolved" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, unresolved, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)))
 
     def test_execution_segment_exact_assignment_binding(self) -> None:
         for field, value in [("destination_id","other"),("runtime_identity","other"),("capability_profile_ref","other")]:
             assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
             route["segments"][1][field] = value
-            errors = validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record))
+            errors = validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)
             self.assertTrue(any(f"execution segment {field} mismatch" in error for error in errors), errors)
 
     def test_timestamp_strict_offsets_and_overflow_fail_closed(self) -> None:
@@ -234,11 +239,11 @@ class ExecutabilityContractTest(unittest.TestCase):
             assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
             profile["freshness_boundary"]["observed_at"] = valid
             profile["evidence_artifacts"][0]["observed_at"] = valid
-            self.assertFalse(any("timestamp" in e or "offset" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record))), valid)
+            self.assertFalse(any("timestamp" in e or "offset" in e for e in validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)), valid)
         for invalid in ["2026-01-01T00:00:00", "2026-01-01T00:00:00+14:99", "2026-01-01T00:00:00+24:00", "2026-01-01T00:00:00+99:99", "2026-01-01T00:60:00Z", "9999-12-31T23:59:59-23:59"]:
             assignment, record, profile = deepcopy(valid_chain()); resolver, route = governed_chain(assignment, record, profile)
             profile["freshness_boundary"]["observed_at"] = invalid
-            errors = validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record))
+            errors = validate_assignment_execution_contract(assignment, record, profile, resolver, route, compiled_assignment=compiled_for(record), execution_envelope_resolver=envelope_resolver)
             self.assertTrue(errors, invalid)
     def test_required_subset_available_is_admissible(self) -> None:
         result = evaluate_assignment_admissibility(["shell"], ["shell", "python_runtime"])
@@ -470,6 +475,7 @@ class ExecutabilityContractTest(unittest.TestCase):
                 ("evidence", profile["evidence_artifacts"]),
                 ("route", route),
                 ("compiled", compiled_for(record)),
+                ("envelope", envelope_resolver("ENVELOPE-1")),
             ]:
                 path = Path(directory) / f"{name}.json"
                 path.write_text(json.dumps(value), encoding="utf-8")
@@ -489,6 +495,8 @@ class ExecutabilityContractTest(unittest.TestCase):
                 str(paths[4]),
                 "--compiled-assignment",
                 str(paths[5]),
+                "--execution-envelope",
+                str(paths[6]),
             ]
             valid = subprocess.run(
                 command,

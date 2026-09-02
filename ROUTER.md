@@ -10,6 +10,7 @@ KERNEL
 → ENGINE selects a declared WORKFLOW
 → classify target authority/movability
 → classify execution-context fact authority
+→ bind structured authorized claims and the exact supported execution envelope
 → compile structured assignment semantics under `contracts/ASSIGNMENT_COMPILATION_CONTRACT.md`
 → reject unauthorized identity/responsibility/evidence obligations
 → prove requested obligations are in the supported execution envelope

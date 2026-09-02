@@ -86,6 +86,10 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertEqual(schema["properties"]["authority_class"]["enum"], list(AUTHORITY_CLASSES))
         context = schema["properties"]["context_facts"]["items"]["properties"]["authority_source"]["enum"]
         self.assertEqual(context, list(CONTEXT_AUTHORITIES))
+        for field in ["authorized_claims", "authorized_evidence_requirements", "supported_execution_envelope_ref"]:
+            self.assertIn(field, schema["required"])
+        envelope = json.loads((ROOT / "schemas/execution-envelope.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(envelope["properties"]["artifact_type"]["const"], "EXECUTION_ENVELOPE")
         serialized = json.dumps(schema)
         for forbidden in ["CODEX_CLOUD", "ChatGPT", "Cloudflare", "Google Drive"]:
             self.assertNotIn(forbidden, serialized)

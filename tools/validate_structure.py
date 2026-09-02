@@ -18,6 +18,7 @@ ROOT_REQUIRED = [
     "contracts/EXECUTABILITY_CONTRACT.md",
     "contracts/ASSIGNMENT_COMPILATION_CONTRACT.md",
     "schemas/compiled-assignment.schema.json",
+    "schemas/execution-envelope.schema.json",
     "tools/assignment_compiler.py",
     "tools/executability.py",
 ]
@@ -75,6 +76,7 @@ EXECUTABILITY_ENFORCEMENT_SURFACES = [
     "contracts/ASSIGNMENT_COMPILATION_CONTRACT.md",
     "contracts/EXECUTABILITY_CONTRACT.md",
     "schemas/compiled-assignment.schema.json",
+    "schemas/execution-envelope.schema.json",
     "schemas/capability-profile.schema.json",
     "schemas/assignment-admissibility.schema.json",
     "schemas/assignment.schema.json",
@@ -166,6 +168,13 @@ def validate_executability_gate(root: Path = ROOT) -> list[str]:
         if status_values != ["ADMISSIBLE", "NOT_ADMISSIBLE"]:
             fail(errors, "ASSIGNMENT_ADMISSIBILITY status contract drifted")
         compiled = _load_schema(root, "schemas/compiled-assignment.schema.json")
+        if "authorized_claims" not in compiled.get("required", []) or "supported_execution_envelope_ref" not in compiled.get("required", []):
+            fail(errors, "COMPILED_ASSIGNMENT lacks claim or execution-envelope authority binding")
+        if "authorized_evidence_requirements" not in compiled.get("required", []):
+            fail(errors, "COMPILED_ASSIGNMENT lacks first-class authorized evidence closure")
+        envelope_schema = _load_schema(root, "schemas/execution-envelope.schema.json")
+        if envelope_schema.get("properties", {}).get("artifact_type", {}).get("const") != "EXECUTION_ENVELOPE":
+            fail(errors, "EXECUTION_ENVELOPE schema is not registered correctly")
         if compiled.get("properties", {}).get("authority_class", {}).get("enum") != [
             "FROZEN_CANDIDATE", "MOVING_PR", "MOVING_BRANCH", "POST_MERGE_STATE", "LIVE_REMOTE_STATE"
         ]:

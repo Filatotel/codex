@@ -38,7 +38,7 @@ Global skill library, unrelated engines, verifier narrative used as a substitute
 4. Reconcile claims, blockers, stale evidence, dependencies, and gates.
 5. Select one semantically and authoritatively admissible next transition/workflow.
 6. Classify its `ASSIGNMENT_AUTHORITY_CLASS` and the authority source of every execution-context fact used for admission or stopping.
-7. Invoke the deterministic assignment compiler under `contracts/ASSIGNMENT_COMPILATION_CONTRACT.md`; materialize `COMPILED_ASSIGNMENT`, including responsibility partition and supported-execution-envelope result. Director judgment may supply structured inputs but may not bypass compiler validation.
+7. Bind structured authorized claims and resolve the exact local `EXECUTION_ENVELOPE`; invoke the deterministic assignment compiler under `contracts/ASSIGNMENT_COMPILATION_CONTRACT.md`; materialize `COMPILED_ASSIGNMENT`, including claim-to-obligation bindings, responsibility partition, and supported-execution-envelope ref/result. Director judgment may supply structured inputs but may not bypass compiler validation.
 8. If compilation is `REJECTED`, do not select an assignment execution profile, admit a route, materialize `ASSIGNMENT_ADMISSIBILITY`, or issue executable work. `WAIT` or `ESCALATE` with exact compilation errors.
 9. **Only after `COMPILED`, perform destination executability preflight:**
    - derive mandatory actions and mandatory acceptance/evidence gates from authorized compiled semantics plus selected mandatory workflow/skill steps;

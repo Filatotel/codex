@@ -6,7 +6,7 @@ Every schema includes the common envelope: `artifact_type`, `artifact_id`, `prod
 
 Assignment compilation and destination executability use four linked artifacts:
 
-1. `COMPILED_ASSIGNMENT` — authority/movability, context authority, responsibility partition, supported-envelope result, and authorized mandatory capabilities;
+1. `COMPILED_ASSIGNMENT` — authority/movability, authorized claim bindings, context authority, responsibility partition, exact execution-envelope ref/result, and authorized action-plus-evidence capability closure;
 2. `CAPABILITY_PROFILE` — evidence-bearing, freshness-bounded capabilities for one exact destination/runtime;
 3. `ASSIGNMENT_ADMISSIBILITY` — exact compiled-assignment binding, mandatory-action accounting, and deterministic required-vs-available comparison;
 4. `ASSIGNMENT.execution_contract` — binds the same compiled assignment and is materialized as executable work only when the cited admissibility proof is `ADMISSIBLE` and no required capability is unsatisfied.
@@ -26,3 +26,4 @@ The schemas constrain shape; `tools/executability.py` validates cross-field and 
 
 The shared timestamp structure is the documented Python-datetime-compatible RFC3339 subset: complete seconds, optional non-empty fractional seconds, `Z` or an offset with hour `00`–`23` and minute `00`–`59`, and ordinary clock minutes/seconds `00`–`59`. Calendar validity and UTC-normalization overflow remain deterministic reference/runtime-domain checks rather than standalone schema claims. The bounded parity runner executes `pattern` but does not claim general JSON-Schema `format` support.
 | `COMPILED_ASSIGNMENT` | exact authority class, context-authority enum, responsibility partition, supported envelope, authorized action/capability closure, and explicit rejection errors |
+| `EXECUTION_ENVELOPE` | stable local control-state identity and the bounded obligation classes supported by the current Resolver surface portfolio |

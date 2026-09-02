@@ -12,7 +12,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tools.assignment_compiler import validate_compiled_assignment
+from tools.assignment_compiler import EnvelopeResolver, validate_compiled_assignment
 
 CapabilityEvidenceResolver = Callable[[str], Mapping[str, object] | None]
 
@@ -656,6 +656,7 @@ def validate_assignment_execution_contract(
     route: Mapping[str, object] | None = None,
     route_profiles: Mapping[str, Mapping[str, object]] | None = None,
     compiled_assignment: Mapping[str, object] | None = None,
+    execution_envelope_resolver: EnvelopeResolver | None = None,
 ) -> list[str]:
     """Validate the complete executable-assignment proof chain."""
     errors = (
@@ -669,7 +670,7 @@ def validate_assignment_execution_contract(
     if compiled_assignment is None:
         errors.append("complete executable assignment requires an exact COMPILED_ASSIGNMENT")
     else:
-        errors.extend(f"compiled assignment: {error}" for error in validate_compiled_assignment(compiled_assignment))
+        errors.extend(f"compiled assignment: {error}" for error in validate_compiled_assignment(compiled_assignment, execution_envelope_resolver))
         compiled_id = compiled_assignment.get("artifact_id")
         if compiled_assignment.get("compilation_status") != "COMPILED":
             errors.append("executable assignment cites a non-COMPILED artifact")
@@ -795,14 +796,15 @@ def main() -> int:
     parser.add_argument("--route", help="Validate the cited EXECUTION_ROUTE JSON file")
     parser.add_argument("--route-profiles", help="Offline JSON array of route CAPABILITY_PROFILE artifacts")
     parser.add_argument("--compiled-assignment", help="Exact authorized COMPILED_ASSIGNMENT JSON file")
+    parser.add_argument("--execution-envelope", help="Governed EXECUTION_ENVELOPE JSON artifact")
     args = parser.parse_args()
 
     if args.profile and not args.record:
         parser.error("--profile requires --record")
     if args.assignment and (not args.record or not args.profile):
         parser.error("--assignment requires --record and --profile")
-    if args.assignment and (not args.evidence_bundle or not args.route or not args.compiled_assignment):
-        parser.error("--assignment requires --evidence-bundle, --route, and --compiled-assignment")
+    if args.assignment and (not args.evidence_bundle or not args.route or not args.compiled_assignment or not args.execution_envelope):
+        parser.error("--assignment requires --evidence-bundle, --route, --compiled-assignment, and --execution-envelope")
 
     if args.record:
         with open(args.record, "r", encoding="utf-8") as handle:
@@ -820,12 +822,15 @@ def main() -> int:
                     route = json.load(handle)
                 with open(args.compiled_assignment, "r", encoding="utf-8") as handle:
                     compiled_assignment = json.load(handle)
+                with open(args.execution_envelope, "r", encoding="utf-8") as handle:
+                    execution_envelope = json.load(handle)
                 profiles = {str(profile.get("artifact_id")): profile}
                 if args.route_profiles:
                     with open(args.route_profiles, "r", encoding="utf-8") as handle:
                         for item in json.load(handle):
                             if isinstance(item, Mapping): profiles[str(item.get("artifact_id"))] = item
-                errors = validate_assignment_execution_contract(assignment, record, profile, evidence_by_id.get, route, profiles, compiled_assignment)
+                envelope_resolver = lambda ref: execution_envelope if execution_envelope.get("artifact_id") == ref else None
+                errors = validate_assignment_execution_contract(assignment, record, profile, evidence_by_id.get, route, profiles, compiled_assignment, envelope_resolver)
             else:
                 errors = validate_admissibility_against_profile(record, profile)
         else:

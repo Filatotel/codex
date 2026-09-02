@@ -1,101 +1,111 @@
 from __future__ import annotations
-
 from copy import deepcopy
 import unittest
 
 from tools.assignment_compiler import (
-    AUTHORITY_CLASSES, CONTEXT_AUTHORITIES,
-    COMPILED_CAPABILITY_MISMATCH, INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,
-    PLATFORM_FACT_REAUTHENTICATION, RESPONSIBILITY_MISMATCH,
-    UNSUPPORTED_EXECUTION_ENVELOPE, compile_assignment, validate_compiled_assignment,
+    AUTHORITY_CLASSES, CONTEXT_AUTHORITIES, COMPILED_CAPABILITY_MISMATCH,
+    INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET, OBLIGATION_NOT_AUTHORIZED,
+    PLATFORM_FACT_REAUTHENTICATION, UNSUPPORTED_EXECUTION_ENVELOPE,
+    compile_assignment, validate_compiled_assignment,
 )
 from tools.executability import evaluate_assignment_admissibility
 
-SUPPORTED = {"local_execution", "local_observation", "remote_observation", "provided_context", "control_adjudication"}
+
+def envelope(classes=None, artifact_id="ENVELOPE-1"):
+    return {"artifact_type":"EXECUTION_ENVELOPE","artifact_id":artifact_id,"produced_by_role":"control-director","assignment_id":None,"input_state_ref":"state-1","status":"CURRENT","provenance":["portfolio"],"related_artifacts":[],"supported_obligation_classes":classes or ["local_execution","local_evidence","remote_observation","provided_context","control_adjudication"]}
+
+
+def resolver_for(*artifacts):
+    by_id={item["artifact_id"]:item for item in artifacts}
+    return by_id.get
+
+
+def claim(claim_id="local-outcome", *, kind="TASK_OUTCOME", source="RESOLVER_BOUND", target="acceptance:tests-pass", responsibility="EXECUTOR", verification=False, classification="runtime_resolved"):
+    return {"claim_id":claim_id,"claim_kind":kind,"authority_source":source,"target_ref":target,"responsibility":responsibility,"independent_verification_required":verification,"classification":classification}
+
+
+def action(action_id="test", *, claim_ref="local-outcome", responsibility="EXECUTOR", operation="RUN_TESTS", obligation_class="local_execution", fact_ref=None, capabilities=None):
+    return {"action_id":action_id,"claim_ref":claim_ref,"responsibility":responsibility,"operation":operation,"obligation_class":obligation_class,"context_fact_ref":fact_ref,"required_capabilities":capabilities or ["shell"],"evidence_path":None}
 
 
 def draft(authority_class="MOVING_PR"):
     return {
-        "compiled_artifact_id":"COMPILED-1", "assignment_draft_ref":"DRAFT-1", "input_state_ref":"state-1",
-        "provenance":["OWNER-1"], "related_artifacts":["DRAFT-1"], "authority_class":authority_class,
-        "context_facts":[
-            {"fact_id":"workspace", "fact_kind":"repository_checkout", "authority_source":"PLATFORM_PROVIDED", "value_or_ref":"provided:workspace", "mutable":True, "required_for":["execution"]},
-            {"fact_id":"local_result", "fact_kind":"test_result", "authority_source":"EXECUTOR_RESOLVED", "value_or_ref":"runtime", "mutable":True, "required_for":["acceptance"]},
-        ],
-        "invariants":[],
-        "mandatory_actions":[{"action_id":"test", "responsibility":"EXECUTOR", "operation":"RUN_TESTS", "obligation_class":"local_execution", "context_fact_ref":"local_result", "required_capabilities":["shell","python_runtime"], "evidence_path":"python -m unittest"}],
-        "evidence_requirements":[], "acceptance_requirements":[{"requirement_id":"tests-pass"}], "stop_conditions":[],
-    }
+      "compiled_artifact_id":"COMPILED-1","assignment_draft_ref":"DRAFT-1","input_state_ref":"state-1","provenance":["OWNER-1"],"related_artifacts":["DRAFT-1"],"authority_class":authority_class,
+      "context_facts":[{"fact_id":"workspace","fact_kind":"repository_checkout","authority_source":"PLATFORM_PROVIDED","value_or_ref":"provided:workspace","mutable":True,"required_for":["execution"]},{"fact_id":"local-result","fact_kind":"test_result","authority_source":"EXECUTOR_RESOLVED","value_or_ref":"runtime","mutable":True,"required_for":["acceptance"]}],
+      "authorized_claims":[claim()],"invariants":[],"mandatory_actions":[action()],"evidence_requirements":[],"acceptance_requirements":[{"requirement_id":"tests-pass"}],"stop_conditions":[]}
 
+
+def compile_ok(value, env=None, authority_resolver=None):
+    env=env or envelope(); return compile_assignment(value,env["artifact_id"],resolver_for(env),authority_resolver)
 
 def codes(result): return {error["code"] for error in result["compilation_errors"]}
 
 
 class AssignmentCompilerTest(unittest.TestCase):
     def test_enum_contract(self):
-        self.assertEqual(AUTHORITY_CLASSES, ("FROZEN_CANDIDATE","MOVING_PR","MOVING_BRANCH","POST_MERGE_STATE","LIVE_REMOTE_STATE"))
-        self.assertEqual(CONTEXT_AUTHORITIES, ("PLATFORM_PROVIDED","RESOLVER_BOUND","EXECUTOR_RESOLVED","REMOTE_LIVE"))
+        self.assertEqual(AUTHORITY_CLASSES,("FROZEN_CANDIDATE","MOVING_PR","MOVING_BRANCH","POST_MERGE_STATE","LIVE_REMOTE_STATE")); self.assertEqual(CONTEXT_AUTHORITIES,("PLATFORM_PROVIDED","RESOLVER_BOUND","EXECUTOR_RESOLVED","REMOTE_LIVE"))
 
-    def test_frozen_candidate_exact_sha_compiles(self):
-        value=draft("FROZEN_CANDIDATE")
-        value["invariants"]=[{"invariant_id":"candidate", "identity_kind":"CANDIDATE_HEAD", "classification":"immutable", "responsibility":"CONTROL", "value_or_ref":"sha:abc123", "independent_freeze_authority_ref":"OWNER-1"}]
-        result=compile_assignment(value,SUPPORTED)
-        self.assertEqual(result["status"],"COMPILED"); self.assertEqual(validate_compiled_assignment(result),[])
+    def test_every_obligation_requires_authorized_claim(self):
+        value=draft(); value["mandatory_actions"].append(action("generic-remote",claim_ref="missing",operation="VERIFY_REMOTE_PR_HEAD",obligation_class="remote_observation",capabilities=["repository_remote_read","outbound_network"]))
+        result=compile_ok(value)
+        self.assertEqual(result["status"],"REJECTED"); self.assertIn(OBLIGATION_NOT_AUTHORIZED,codes(result)); self.assertNotIn("repository_remote_read",result["authorized_required_capabilities"])
 
-    def test_moving_targets_reject_implicit_frozen_head(self):
-        for authority in ("MOVING_PR","MOVING_BRANCH"):
-            value=draft(authority)
-            value["invariants"]=[{"invariant_id":"old-head", "identity_kind":"CANDIDATE_HEAD", "classification":"immutable", "responsibility":"EXECUTOR", "value_or_ref":"sha:abc123"}]
-            result=compile_assignment(value,SUPPORTED)
-            self.assertEqual(result["status"],"REJECTED"); self.assertIn(INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,codes(result)); self.assertEqual(result["authorized_required_capabilities"],[])
+    def test_operation_encoding_cannot_bypass_platform_authority(self):
+        value=draft(); value["authorized_claims"].append(claim("workspace-use",kind="CONTEXT_FACT",source="PLATFORM_PROVIDED",target="workspace",responsibility="EXECUTOR",classification="platform_provided")); value["mandatory_actions"].append(action("generic-remote",claim_ref="workspace-use",operation="VERIFY_REMOTE_PR_HEAD",obligation_class="remote_observation",fact_ref="workspace",capabilities=["repository_remote_read","outbound_network"]))
+        result=compile_ok(value); self.assertIn(PLATFORM_FACT_REAUTHENTICATION,codes(result)); self.assertEqual(result["authorized_required_capabilities"],[])
 
-    def test_platform_checkout_remote_reauthentication_is_rejected(self):
-        value=draft()
-        value["mandatory_actions"].append({"action_id":"rediscover", "responsibility":"EXECUTOR", "operation":"REAUTHENTICATE_CONTEXT_FACT", "obligation_class":"remote_observation", "context_fact_ref":"workspace", "required_capabilities":["repository_remote_read","connector:github","outbound_network"], "evidence_path":"remote lookup"})
-        result=compile_assignment(value,SUPPORTED)
-        self.assertEqual(result["status"],"REJECTED"); self.assertIn(PLATFORM_FACT_REAUTHENTICATION,codes(result)); self.assertFalse(set(result["authorized_required_capabilities"]) & {"repository_remote_read","connector:github","outbound_network"})
+    def test_live_remote_authorized_claim_compiles(self):
+        value=draft("LIVE_REMOTE_STATE"); value["context_facts"].append({"fact_id":"remote-release","fact_kind":"published_release","authority_source":"REMOTE_LIVE","value_or_ref":"remote:current","mutable":True,"required_for":["objective"]}); value["authorized_claims"]=[claim("remote-state",kind="RUNTIME_FACT",source="REMOTE_LIVE",target="remote-release",classification="remote_live")]; value["mandatory_actions"]=[action("read-remote",claim_ref="remote-state",operation="READ_REMOTE_STATE",obligation_class="remote_observation",fact_ref="remote-release",capabilities=["repository_remote_read","outbound_network"])]
+        result=compile_ok(value); self.assertEqual(result["status"],"COMPILED"); self.assertEqual(result["authorized_required_capabilities"],["outbound_network","repository_remote_read"])
 
-    def test_local_moving_pr_and_post_merge_compile(self):
-        for authority in ("MOVING_PR","POST_MERGE_STATE"):
-            result=compile_assignment(draft(authority),SUPPORTED)
-            self.assertEqual(result["status"],"COMPILED"); self.assertEqual(result["authorized_required_capabilities"],["python_runtime","shell"])
+    def test_freeze_authority_must_resolve_and_match(self):
+        base=draft(); base["invariants"]=[{"invariant_id":"head","identity_kind":"CANDIDATE_HEAD","classification":"immutable","responsibility":"CONTROL","target_ref":"workstream:39","value_or_ref":"sha:abc","independent_freeze_authority_ref":"FREEZE-1"}]
+        self.assertIn(INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,codes(compile_ok(base)))
+        no_ref=deepcopy(base); no_ref["invariants"][0]["independent_freeze_authority_ref"]=None; self.assertIn(INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,codes(compile_ok(no_ref)))
+        branch=deepcopy(no_ref); branch["authority_class"]="MOVING_BRANCH"; self.assertIn(INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,codes(compile_ok(branch)))
+        unrelated={"artifact_type":"OWNER_DECISION_RECORD","artifact_id":"FREEZE-1","status":"RECORDED"}; self.assertIn(INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,codes(compile_ok(base,authority_resolver=resolver_for(unrelated))))
+        wrong={"artifact_type":"FREEZE_AUTHORITY","artifact_id":"FREEZE-1","produced_by_role":"owner-interface","status":"AUTHORIZED","provenance":["OWNER-DECISION-1"],"authority_role":"OWNER_K0","target_ref":"other","authority_class":"MOVING_PR","authorizes_exact_candidate_freeze":True,"candidate_identity":"sha:wrong"}; self.assertIn(INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,codes(compile_ok(base,authority_resolver=resolver_for(wrong))))
+        valid=dict(wrong,target_ref="workstream:39",candidate_identity="sha:abc"); result=compile_ok(base,authority_resolver=resolver_for(valid)); self.assertEqual(result["status"],"COMPILED"); self.assertEqual(validate_compiled_assignment(result,resolver_for(envelope()),resolver_for(valid)),[])
 
-    def test_live_remote_requirement_compiles(self):
-        value=draft("LIVE_REMOTE_STATE")
-        value["context_facts"].append({"fact_id":"remote", "fact_kind":"repository_state", "authority_source":"REMOTE_LIVE", "value_or_ref":"remote:current", "mutable":True, "required_for":["objective"]})
-        value["mandatory_actions"]=[{"action_id":"read-remote", "responsibility":"EXECUTOR", "operation":"READ_REMOTE_STATE", "obligation_class":"remote_observation", "context_fact_ref":"remote", "required_capabilities":["repository_remote_read"], "evidence_path":"remote state"}]
-        result=compile_assignment(value,SUPPORTED)
-        self.assertEqual(result["status"],"COMPILED"); self.assertEqual(result["authorized_required_capabilities"],["repository_remote_read"])
+    def test_frozen_candidate_needs_no_moving_exception(self):
+        value=draft("FROZEN_CANDIDATE"); value["invariants"]=[{"invariant_id":"head","identity_kind":"CANDIDATE_HEAD","classification":"immutable","responsibility":"CONTROL","target_ref":"candidate","value_or_ref":"sha:abc"}]
+        self.assertEqual(compile_ok(value)["status"],"COMPILED")
 
-    def test_responsibility_partition_excludes_platform_and_control_capabilities(self):
-        value=draft()
+    def test_non_frozen_authority_classes_preserve_local_work(self):
+        for authority in ("MOVING_PR","MOVING_BRANCH","POST_MERGE_STATE"):
+            with self.subTest(authority=authority): self.assertEqual(compile_ok(draft(authority))["status"],"COMPILED")
+
+    def test_control_and_platform_obligations_remain_partitioned(self):
+        value=draft(); value["authorized_claims"].extend([
+          claim("platform-context",kind="CONTEXT_FACT",source="PLATFORM_PROVIDED",target="workspace",responsibility="PLATFORM",classification="platform_provided"),
+          claim("control-context",kind="TASK_OUTCOME",source="RESOLVER_BOUND",target="acceptance:tests-pass",responsibility="CONTROL",classification="immutable")])
         value["mandatory_actions"].extend([
-            {"action_id":"bind", "responsibility":"PLATFORM", "operation":"PROVIDE_CONTEXT", "obligation_class":"provided_context", "context_fact_ref":"workspace", "required_capabilities":["platform_binding"], "evidence_path":None},
-            {"action_id":"adjudicate", "responsibility":"CONTROL", "operation":"ADJUDICATE", "obligation_class":"control_adjudication", "context_fact_ref":None, "required_capabilities":["owner_authority"], "evidence_path":None},
-        ])
-        result=compile_assignment(value,SUPPORTED)
-        self.assertEqual(result["status"],"COMPILED"); self.assertEqual(result["authorized_required_capabilities"],["python_runtime","shell"])
-        bad=deepcopy(value); bad["mandatory_actions"][1]["responsibility"]="EXECUTOR"
-        rejected=compile_assignment(bad,SUPPORTED); self.assertIn(RESPONSIBILITY_MISMATCH,codes(rejected))
+          action("provide",claim_ref="platform-context",responsibility="PLATFORM",operation="PROVIDE_CONTEXT",obligation_class="provided_context",fact_ref="workspace",capabilities=["platform_binding"]),
+          action("adjudicate",claim_ref="control-context",responsibility="CONTROL",operation="ADJUDICATE",obligation_class="control_adjudication",capabilities=["owner_authority"])])
+        result=compile_ok(value); self.assertEqual(result["status"],"COMPILED"); self.assertEqual(result["authorized_required_capabilities"],["shell"]); self.assertEqual(len(result["platform_responsibilities"]),1); self.assertEqual(len(result["control_responsibilities"]),1)
 
-    def test_unsupported_portfolio_precedes_destination_admission(self):
-        value=draft(); value["mandatory_actions"][0]["obligation_class"]="unsupported_hardware"
-        result=compile_assignment(value,SUPPORTED)
-        self.assertEqual(result["status"],"REJECTED"); self.assertEqual(result["supported_execution_envelope_status"],"UNSUPPORTED"); self.assertIn(UNSUPPORTED_EXECUTION_ENVELOPE,codes(result))
-        compiled=compile_assignment(draft(),SUPPORTED)
-        self.assertEqual(compiled["status"],"COMPILED")
-        self.assertEqual(evaluate_assignment_admissibility(compiled["authorized_required_capabilities"],["shell"])["status"],"NOT_ADMISSIBLE")
+    def test_action_and_evidence_share_one_capability_closure(self):
+        value=draft(); value["evidence_requirements"]=[action("checkout-proof",claim_ref="local-outcome",operation="OBSERVE_LOCAL",obligation_class="local_evidence",capabilities=["repository_local_checkout"])]
+        result=compile_ok(value); self.assertEqual(result["authorized_required_capabilities"],["repository_local_checkout","shell"]); self.assertEqual(validate_compiled_assignment(result,resolver_for(envelope())),[])
+        value["mandatory_actions"].append(action("again",capabilities=["shell"])); value["evidence_requirements"][0]["required_capabilities"]=["python_runtime"]; self.assertEqual(compile_ok(value)["authorized_required_capabilities"],["python_runtime","shell"])
 
-    def test_declared_capability_mismatch_rejected(self):
-        value=draft(); value["authorized_required_capabilities"]=["repository_remote_read"]
-        result=compile_assignment(value,SUPPORTED)
-        self.assertIn(COMPILED_CAPABILITY_MISMATCH,codes(result))
+    def test_control_evidence_does_not_contaminate_executor(self):
+        value=draft(); value["authorized_claims"].append(claim("control-proof",kind="INDEPENDENT_VERIFICATION",source="RESOLVER_BOUND",target="control:acceptance",responsibility="CONTROL",verification=True)); value["evidence_requirements"]=[action("control-evidence",claim_ref="control-proof",responsibility="CONTROL",operation="VERIFY_CONTROL",obligation_class="control_adjudication",capabilities=["repository_remote_read"])]
+        self.assertEqual(compile_ok(value)["authorized_required_capabilities"],["shell"])
 
-    def test_recompiled_semantics_have_new_identity(self):
-        first=compile_assignment(draft(),SUPPORTED)
-        changed=draft(); changed["compiled_artifact_id"]="COMPILED-2"; changed["mandatory_actions"][0]["required_capabilities"].append("repository_local_checkout")
-        second=compile_assignment(changed,SUPPORTED)
-        self.assertNotEqual(first["artifact_id"],second["artifact_id"]); self.assertNotEqual(first["authorized_required_capabilities"],second["authorized_required_capabilities"])
+    def test_validator_rejects_extra_capability_and_bad_envelope_claim(self):
+        env=envelope(); result=compile_ok(draft(),env); result["authorized_required_capabilities"].append("outbound_network"); self.assertIn(COMPILED_CAPABILITY_MISMATCH,validate_compiled_assignment(result,resolver_for(env)))
+        result=compile_ok(draft(),env); narrow=envelope(["remote_observation"]); self.assertIn(UNSUPPORTED_EXECUTION_ENVELOPE,validate_compiled_assignment(result,resolver_for(narrow)))
+        self.assertIn(UNSUPPORTED_EXECUTION_ENVELOPE,validate_compiled_assignment(result,None))
+
+    def test_envelope_authority_cannot_be_overridden(self):
+        narrow=envelope(["remote_observation"]); result=compile_assignment(draft(),"ENVELOPE-1",resolver_for(narrow)); self.assertEqual(result["status"],"REJECTED"); self.assertIn(UNSUPPORTED_EXECUTION_ENVELOPE,codes(result))
+        broad={"local_execution","anything"}
+        override=compile_assignment(draft(),broad,resolver_for(narrow))
+        self.assertEqual(override["status"],"REJECTED"); self.assertIn(UNSUPPORTED_EXECUTION_ENVELOPE,codes(override))
+
+    def test_supported_compile_can_still_fail_destination(self):
+        result=compile_ok(draft()); self.assertEqual(result["status"],"COMPILED"); self.assertEqual(evaluate_assignment_admissibility(result["authorized_required_capabilities"],[])["status"],"NOT_ADMISSIBLE")
 
 
 if __name__ == "__main__": unittest.main()

@@ -34,7 +34,11 @@ requires remote provenance.
 
 Compiled obligations are partitioned among `EXECUTOR`, `CONTROL`, and
 `PLATFORM`. Only Executor obligations contribute assignment-semantic required
-capabilities. Before exact-destination admission, each realization/evidence
+capabilities. Every obligation cites an authorized structured claim; a supported
+operation class or requested capability is never authority by itself. A
+platform-provided fact authorizes reliance, not Executor reauthentication,
+unless a distinct Resolver-bound independent-verification claim requires it.
+Before exact-destination admission, each realization/evidence
 obligation must belong to the bounded supported Surface Portfolio. Portfolio
 `UNSUPPORTED` is a compilation rejection; it is not destination
 `ASSIGNMENT_NOT_ADMISSIBLE`.
@@ -43,6 +47,13 @@ obligation must belong to the bounded supported Surface Portfolio. Portfolio
 union. `REJECTED` authorizes no capabilities and cannot proceed to route,
 profile selection, admissibility, or assignment. The reference compiler and
 validator are `tools/assignment_compiler.py`.
+
+Moving-target exact-identity exceptions require a resolved `FREEZE_AUTHORITY`
+record whose authority role, target, movability class, explicit freeze grant,
+and exact candidate identity all match. A non-empty reference alone grants no
+authority. Execution-envelope support likewise resolves through an exact local
+`EXECUTION_ENVELOPE` artifact. The compiled artifact retains that envelope ref;
+a caller-supplied capability or obligation set cannot broaden it.
 
 ## Binding chain
 
