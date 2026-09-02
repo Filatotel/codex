@@ -93,6 +93,8 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if decision["engine_status"] != "available":
         reason = "ENGINE_NOT_MATERIALIZED" if decision["engine_status"] == "not_materialized" else "ENGINE_UNAVAILABLE"
         return _out("ESCALATE", reason, engine_id=decision["engine_id"])
+    if decision["engine_id"] == "research" and decision.get("research_admission") != "MACHINE_ONLY_ADMITTED":
+        return _out("ESCALATE", "RESEARCH_ADMISSION_REQUIRED", engine_id=decision["engine_id"])
     if "additional_required_capabilities" in control_bundle or "final_required_capabilities" in control_bundle:
         return _out("ESCALATE", "UNACCOUNTED_CAPABILITY_EXPANSION")
 
@@ -120,9 +122,22 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     prerequisites, prerequisite_errors = _valid_prerequisites(control_bundle.get("selected_prerequisite_actions", []))
     if prerequisite_errors:
         return _out("ESCALATE", "MALFORMED_PREREQUISITE_ACTION", errors=prerequisite_errors)
-    compiled_actions = deepcopy(compiled["authorized_mandatory_actions"])
-    compiled_evidence = deepcopy(compiled["authorized_evidence_requirements"])
+    compiled_actions = [
+        deepcopy(item) for item in compiled["authorized_mandatory_actions"]
+        if isinstance(item, Mapping) and item.get("responsibility") == "EXECUTOR"
+    ]
+    compiled_evidence = [
+        deepcopy(item) for item in compiled["authorized_evidence_requirements"]
+        if isinstance(item, Mapping) and item.get("responsibility") == "EXECUTOR"
+    ]
     final_actions = compiled_actions + compiled_evidence + prerequisites
+    capability_errors = []
+    for index, action in enumerate(final_actions):
+        capabilities = action.get("required_capabilities")
+        if not isinstance(capabilities, list) or not all(isinstance(cap, str) and cap.strip() for cap in capabilities):
+            capability_errors.append(f"final mandatory action[{index}].required_capabilities must be a string list")
+    if capability_errors:
+        return _out("ESCALATE", "MALFORMED_MANDATORY_ACTION", errors=capability_errors)
     action_ids = [item.get("action_id") for item in final_actions if isinstance(item, Mapping)]
     if len(action_ids) != len(set(action_ids)):
         return _out("ESCALATE", "CONTRADICTORY_CONTROL_ARTIFACTS", errors=["duplicate final mandatory action id"])
