@@ -59,6 +59,12 @@ class ResolverSpawnTest(unittest.TestCase):
             with self.subTest(engine=value["decision"]["engine_id"]):
                 self.assert_spawn_ready(value)
 
+    def test_research_requires_structured_machine_only_admission(self):
+        value = bundle("research", "execute_research_work", "machine-only-execution")
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "RESEARCH_ADMISSION_REQUIRED"))
+        self.assertNotIn("assignment", result)
+
     def test_compilation_rejected_escalates_without_assignment(self):
         value = bundle(); value["assignment_compilation_draft"]["mandatory_actions"][0]["claim_ref"] = "missing"
         result = resolve_spawn(value)
@@ -72,6 +78,18 @@ class ResolverSpawnTest(unittest.TestCase):
         self.assertEqual((result["control_state"], result["reason"]), ("WAIT", "ASSIGNMENT_NOT_ADMISSIBLE"))
         self.assertEqual(result["missing_capabilities"], ["database_access"])
         self.assertNotIn("assignment", result)
+
+    def test_control_obligation_capability_does_not_expand_executor_destination(self):
+        value = bundle()
+        value["assignment_compilation_draft"]["authorized_claims"].append(
+            claim("control-outcome", responsibility="CONTROL")
+        )
+        value["assignment_compilation_draft"]["mandatory_actions"].append(
+            action("owner-check", claim_ref="control-outcome", responsibility="CONTROL", capabilities=["owner_authority"])
+        )
+        result = self.assert_spawn_ready(value)
+        self.assertNotIn("owner_authority", result["assignment_admissibility"]["required_capabilities"])
+        self.assertFalse(any(item.get("action_id") == "owner-check" for item in result["assignment_admissibility"]["mandatory_actions"]))
 
     def test_stale_profile_waits_but_malformed_profile_escalates(self):
         stale = bundle(); profile = stale["artifacts"][2]
@@ -162,6 +180,14 @@ class ResolverSpawnTest(unittest.TestCase):
             result = resolve_spawn(value)
         self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "FINAL_ASSIGNMENT_PROOF_FAILED"))
         self.assertTrue(any("admissibility_ref mismatch" in error for error in result["errors"]))
+
+    def test_malformed_final_capability_entry_escalates_without_exception(self):
+        value = bundle()
+        value["assignment_compilation_draft"]["mandatory_actions"][0]["required_capabilities"] = [5]
+        value["assignment_compilation_draft"]["authorized_required_capabilities"] = []
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "MALFORMED_MANDATORY_ACTION"))
+        self.assertNotIn("assignment", result)
 
     def test_cli_reads_only_local_json_and_emits_json(self):
         value = bundle()
