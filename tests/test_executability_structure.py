@@ -16,6 +16,7 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertEqual(contract["properties"]["unsatisfied_required_capabilities"]["maxItems"], 0)
         for required in [
             "assignment_draft_ref",
+            "compiled_assignment_ref",
             "destination_id",
             "runtime_identity",
             "capability_profile_ref",
@@ -42,6 +43,7 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertEqual(schema["properties"]["status"]["enum"], ["ADMISSIBLE", "NOT_ADMISSIBLE"])
         self.assertIn("mandatory_actions", schema["required"])
         self.assertIn("runtime_identity", schema["required"])
+        self.assertIn("compiled_assignment_ref", schema["required"])
         self.assertEqual(schema["properties"]["mandatory_actions"]["minItems"], 1)
         serialized = json.dumps(schema)
         self.assertIn('"maxItems": 0', serialized)
@@ -75,6 +77,22 @@ class ExecutabilityStructureTest(unittest.TestCase):
         self.assertIn("NO ASSIGNMENT WITHOUT EXECUTABILITY PROOF", agents)
         self.assertIn("REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES", director)
         self.assertIn("UNKNOWN prerequisites, not zero prerequisites", router)
+        self.assertLess(router.index("compile structured assignment semantics"), router.index("derive REQUIRED_CAPABILITIES"))
+        self.assertLess(director.index("COMPILED_ASSIGNMENT"), director.index("destination executability preflight"))
+
+    def test_compiled_assignment_schema_and_enum_parity(self) -> None:
+        schema = json.loads((ROOT / "schemas/compiled-assignment.schema.json").read_text(encoding="utf-8"))
+        from tools.assignment_compiler import AUTHORITY_CLASSES, CONTEXT_AUTHORITIES
+        self.assertEqual(schema["properties"]["authority_class"]["enum"], list(AUTHORITY_CLASSES))
+        context = schema["properties"]["context_facts"]["items"]["properties"]["authority_source"]["enum"]
+        self.assertEqual(context, list(CONTEXT_AUTHORITIES))
+        for field in ["authorized_claims", "authorized_evidence_requirements", "supported_execution_envelope_ref"]:
+            self.assertIn(field, schema["required"])
+        envelope = json.loads((ROOT / "schemas/execution-envelope.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(envelope["properties"]["artifact_type"]["const"], "EXECUTION_ENVELOPE")
+        serialized = json.dumps(schema)
+        for forbidden in ["CODEX_CLOUD", "ChatGPT", "Cloudflare", "Google Drive"]:
+            self.assertNotIn(forbidden, serialized)
 
     def test_engine_manifests_require_destination_preflight(self) -> None:
         software = (ROOT / "engines/production/software/MANIFEST.yaml").read_text(encoding="utf-8")

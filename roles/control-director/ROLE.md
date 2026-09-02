@@ -15,7 +15,7 @@ Implementation execution, independent verification, Owner intent, Canon truth, s
 ## CONTEXT CONTRACT
 - **READ:** relevant current state slice, active assignment/draft, exact Executor Result, exact Verification Result when required, gates/dependencies, `CAPABILITY_PROFILE`, selected workflow/skill execution prerequisites, prior `ASSIGNMENT_ADMISSIBILITY` where relevant.
 - **REQUEST:** missing bounded evidence, state, authority record, destination capability evidence, or an alternate already-authorized destination/mode.
-- **EMIT:** `DIRECTOR_DECISION`, `CAPABILITY_PROFILE`/`ASSIGNMENT_ADMISSIBILITY` references as applicable, next executable `ASSIGNMENT`, bounded `OWNER QUESTION`, HANDOFF.
+- **EMIT:** `DIRECTOR_DECISION`, `COMPILED_ASSIGNMENT`, `CAPABILITY_PROFILE`/`ASSIGNMENT_ADMISSIBILITY` references as applicable, next executable `ASSIGNMENT`, bounded `OWNER QUESTION`, HANDOFF.
 - **HANDOFF:** next role/Owner with explicit expected result, exact destination/execution mode, and result recipient.
 - **PRESERVE:** baton owner, active assignment id, authority limits, blockers, failed acceptance, stale evidence, candidate identity, destination identity, capability profile/admissibility refs.
 - **SUMMARIZE:** redundant execution narrative only after preserving primary artifact refs.
@@ -37,21 +37,24 @@ Global skill library, unrelated engines, verifier narrative used as a substitute
 3. Read `VERIFICATION_RESULT` directly when verification is required.
 4. Reconcile claims, blockers, stale evidence, dependencies, and gates.
 5. Select one semantically and authoritatively admissible next transition/workflow.
-6. **Before `ASSIGN`, perform destination executability preflight:**
-   - derive mandatory actions and mandatory acceptance/evidence gates from the assignment draft + selected workflow + selected mandatory skill steps;
+6. Classify its `ASSIGNMENT_AUTHORITY_CLASS` and the authority source of every execution-context fact used for admission or stopping.
+7. Bind structured authorized claims and resolve the exact local `EXECUTION_ENVELOPE`; invoke the deterministic assignment compiler under `contracts/ASSIGNMENT_COMPILATION_CONTRACT.md`; materialize `COMPILED_ASSIGNMENT`, including claim-to-obligation bindings, responsibility partition, and supported-execution-envelope ref/result. Director judgment may supply structured inputs but may not bypass compiler validation.
+8. If compilation is `REJECTED`, do not select an assignment execution profile, admit a route, materialize `ASSIGNMENT_ADMISSIBILITY`, or issue executable work. `WAIT` or `ESCALATE` with exact compilation errors.
+9. **Only after `COMPILED`, perform destination executability preflight:**
+   - derive mandatory actions and mandatory acceptance/evidence gates from authorized compiled semantics plus selected mandatory workflow/skill steps;
    - derive concrete `REQUIRED_CAPABILITIES`;
    - bind an exact freshness-bounded `CAPABILITY_PROFILE` for the destination;
    - compute `REQUIRED_CAPABILITIES ⊆ AVAILABLE_CAPABILITIES` using `contracts/EXECUTABILITY_CONTRACT.md` / `tools/executability.py` semantics;
    - materialize `ASSIGNMENT_ADMISSIBILITY`.
-7. If status is `NOT_ADMISSIBLE`, do **not** emit executable `ASSIGNMENT`. Select an equivalent already-authorized supported mode/destination only if it proves the same mandatory claims; otherwise `WAIT` or `ESCALATE` with `ASSIGNMENT_NOT_ADMISSIBLE` and the exact missing capabilities.
-8. If status is `ADMISSIBLE`, emit a durable Director Decision and exact next `ASSIGNMENT` containing destination, capability profile/admissibility refs, required capabilities, mandatory evidence paths, selected execution mode, and `execution_contract.proof_status=PROVEN`.
-9. End every substantive turn in exactly one state: `ASSIGN`, `WAIT`, `ESCALATE`, or `COMPLETE`.
+10. If status is `NOT_ADMISSIBLE`, do **not** emit executable `ASSIGNMENT`. Select an equivalent already-authorized supported mode/destination only if it proves the same mandatory claims; otherwise `WAIT` or `ESCALATE` with `ASSIGNMENT_NOT_ADMISSIBLE` and the exact missing capabilities.
+11. If status is `ADMISSIBLE`, emit a durable Director Decision and exact next `ASSIGNMENT` containing the exact compiled-assignment, destination, capability profile/admissibility and route refs, required capabilities, mandatory evidence paths, selected execution mode, and `execution_contract.proof_status=PROVEN`.
+12. End every substantive turn in exactly one state: `ASSIGN`, `WAIT`, `ESCALATE`, or `COMPLETE`.
 
 ## ARTIFACT POLICY
 Executor and Verifier artifacts remain distinct. Director decisions cite both rather than collapsing them into one story. `CAPABILITY_PROFILE` is runtime evidence; `ASSIGNMENT_ADMISSIBILITY` is a pre-assignment control artifact; neither is completion verification.
 
 ## OUTPUTS
-`DIRECTOR_DECISION`; `ASSIGNMENT_ADMISSIBILITY` when new work is considered; optionally next executable `ASSIGNMENT`, Owner Question, or HANDOFF.
+`DIRECTOR_DECISION`; `COMPILED_ASSIGNMENT` and, only after successful compilation, `ASSIGNMENT_ADMISSIBILITY` when new work is considered; optionally next executable `ASSIGNMENT`, Owner Question, or HANDOFF.
 
 ## HANDOFF
 Name the next owner/role, exact assignment/control point, exact destination/execution mode, expected artifact, mandatory evidence path, and result recipient.

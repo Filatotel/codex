@@ -16,6 +16,10 @@ ROOT_REQUIRED = [
     "ARCHITECTURE_MIGRATION_MAP.md",
     "kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md",
     "contracts/EXECUTABILITY_CONTRACT.md",
+    "contracts/ASSIGNMENT_COMPILATION_CONTRACT.md",
+    "schemas/compiled-assignment.schema.json",
+    "schemas/execution-envelope.schema.json",
+    "tools/assignment_compiler.py",
     "tools/executability.py",
 ]
 
@@ -69,11 +73,16 @@ RESEARCH_ENFORCEMENT_SURFACES = [
 ]
 
 EXECUTABILITY_ENFORCEMENT_SURFACES = [
+    "contracts/ASSIGNMENT_COMPILATION_CONTRACT.md",
     "contracts/EXECUTABILITY_CONTRACT.md",
+    "schemas/compiled-assignment.schema.json",
+    "schemas/execution-envelope.schema.json",
     "schemas/capability-profile.schema.json",
     "schemas/assignment-admissibility.schema.json",
     "schemas/assignment.schema.json",
     "tools/executability.py",
+    "tools/assignment_compiler.py",
+    "tests/test_assignment_compiler.py",
     "tests/test_executability.py",
     "tests/test_executability_structure.py",
     "roles/control-director/ROLE.md",
@@ -135,6 +144,7 @@ def validate_executability_gate(root: Path = ROOT) -> list[str]:
         required = set(execution_contract.get("required", []))
         for field in {
             "destination_id",
+            "compiled_assignment_ref",
             "capability_profile_ref",
             "admissibility_ref",
             "proof_status",
@@ -152,9 +162,26 @@ def validate_executability_gate(root: Path = ROOT) -> list[str]:
             fail(errors, "ASSIGNMENT may contain unsatisfied required capabilities")
 
         admissibility = _load_schema(root, "schemas/assignment-admissibility.schema.json")
+        if "compiled_assignment_ref" not in admissibility.get("required", []):
+            fail(errors, "ASSIGNMENT_ADMISSIBILITY does not bind COMPILED_ASSIGNMENT")
         status_values = admissibility.get("properties", {}).get("status", {}).get("enum", [])
         if status_values != ["ADMISSIBLE", "NOT_ADMISSIBLE"]:
             fail(errors, "ASSIGNMENT_ADMISSIBILITY status contract drifted")
+        compiled = _load_schema(root, "schemas/compiled-assignment.schema.json")
+        if "authorized_claims" not in compiled.get("required", []) or "supported_execution_envelope_ref" not in compiled.get("required", []):
+            fail(errors, "COMPILED_ASSIGNMENT lacks claim or execution-envelope authority binding")
+        if "authorized_evidence_requirements" not in compiled.get("required", []):
+            fail(errors, "COMPILED_ASSIGNMENT lacks first-class authorized evidence closure")
+        envelope_schema = _load_schema(root, "schemas/execution-envelope.schema.json")
+        if envelope_schema.get("properties", {}).get("artifact_type", {}).get("const") != "EXECUTION_ENVELOPE":
+            fail(errors, "EXECUTION_ENVELOPE schema is not registered correctly")
+        if compiled.get("properties", {}).get("authority_class", {}).get("enum") != [
+            "FROZEN_CANDIDATE", "MOVING_PR", "MOVING_BRANCH", "POST_MERGE_STATE", "LIVE_REMOTE_STATE"
+        ]:
+            fail(errors, "COMPILED_ASSIGNMENT authority classes drifted")
+        context_enum = compiled["properties"]["context_facts"]["items"]["properties"]["authority_source"]["enum"]
+        if context_enum != ["PLATFORM_PROVIDED", "RESOLVER_BOUND", "EXECUTOR_RESOLVED", "REMOTE_LIVE"]:
+            fail(errors, "COMPILED_ASSIGNMENT context authority classes drifted")
     except Exception as exc:
         fail(errors, f"executability schema validation unavailable: {exc}")
 
@@ -170,10 +197,21 @@ def validate_executability_gate(root: Path = ROOT) -> list[str]:
         fail(errors, "root agent rules are missing the executability kernel law")
     if "CAPABILITY_PROFILE" not in director or "ASSIGNMENT_ADMISSIBILITY" not in director:
         fail(errors, "Control Director does not materialize destination capability/admissibility control")
+    if director.find("COMPILED_ASSIGNMENT") > director.find("destination executability preflight"):
+        fail(errors, "Control Director does not compile before destination executability")
+    if router.find("compile structured assignment semantics") > router.find("derive REQUIRED_CAPABILITIES"):
+        fail(errors, "Router does not compile before capability derivation")
+    forbidden_platform_names = ["CODEX_CLOUD", "ChatGPT", "Cloudflare", "Google Drive"]
+    compiler_core = (root / "tools/assignment_compiler.py").read_text(encoding="utf-8") + json.dumps(compiled)
+    for name in forbidden_platform_names:
+        if name in compiler_core:
+            fail(errors, f"platform-specific name entered compiler Core: {name}")
 
     system_manifest = (root / "SYSTEM_MANIFEST.yaml").read_text(encoding="utf-8")
     if "destination_executability: contracts/EXECUTABILITY_CONTRACT.md" not in system_manifest:
         fail(errors, "system manifest does not register destination executability contract")
+    if "assignment_compilation: contracts/ASSIGNMENT_COMPILATION_CONTRACT.md" not in system_manifest:
+        fail(errors, "system manifest does not register assignment compilation contract")
 
     software_manifest = (root / "engines/production/software/MANIFEST.yaml").read_text(encoding="utf-8")
     verification_manifest = (root / "engines/verification/MANIFEST.yaml").read_text(encoding="utf-8")
