@@ -7,9 +7,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tests.test_assignment_compiler import action, claim, draft, envelope
 from tests.test_executability import governed_chain, valid_chain
+import tools.resolver_spawn as resolver_spawn
 from tools.resolver_spawn import resolve_spawn
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -117,6 +119,49 @@ class ResolverSpawnTest(unittest.TestCase):
         value = bundle(); value["selected_prerequisite_actions"] = [{"action_id": "test", "required_capabilities": ["shell"], "evidence_path": None}]
         result = resolve_spawn(value)
         self.assertEqual(result["reason"], "CONTRADICTORY_CONTROL_ARTIFACTS")
+
+    def test_malformed_profile_or_route_ref_escalates_without_exception(self):
+        for field, bad_value in (("capability_profile_ref", []), ("route_ref", {})):
+            with self.subTest(field=field):
+                value = bundle(); value[field] = bad_value
+                result = resolve_spawn(value)
+                self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "MALFORMED_CONTROL_ARTIFACT"))
+                self.assertNotIn("assignment", result)
+
+    def test_duplicate_artifact_identity_fails_closed(self):
+        value = bundle(); value["artifacts"].append(deepcopy(value["artifacts"][2]))
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "CONTRADICTORY_CONTROL_ARTIFACTS"))
+        self.assertTrue(any("duplicate artifact_id" in error for error in result["errors"]))
+
+    def test_compiled_capability_drop_is_caught_by_full_proof(self):
+        value = bundle()
+        real_compile = resolver_spawn.compile_assignment
+
+        def compile_with_extra_capability(*args, **kwargs):
+            compiled = real_compile(*args, **kwargs)
+            compiled["authorized_required_capabilities"] = sorted(set(compiled["authorized_required_capabilities"]) | {"database_access"})
+            return compiled
+
+        with patch.object(resolver_spawn, "compile_assignment", side_effect=compile_with_extra_capability), \
+             patch.object(resolver_spawn, "validate_compiled_assignment", return_value=[]):
+            result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "FINAL_ASSIGNMENT_PROOF_FAILED"))
+        self.assertTrue(any("drops compiled assignment capabilities" in error for error in result["errors"]))
+
+    def test_final_assignment_ref_mismatch_is_caught_by_full_proof(self):
+        value = bundle()
+        real_proof = resolver_spawn.validate_assignment_execution_contract
+
+        def validate_with_bad_ref(assignment, *args, **kwargs):
+            mutated = deepcopy(assignment)
+            mutated["execution_contract"]["admissibility_ref"] = "ADM-WRONG"
+            return real_proof(mutated, *args, **kwargs)
+
+        with patch.object(resolver_spawn, "validate_assignment_execution_contract", side_effect=validate_with_bad_ref):
+            result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "FINAL_ASSIGNMENT_PROOF_FAILED"))
+        self.assertTrue(any("admissibility_ref mismatch" in error for error in result["errors"]))
 
     def test_cli_reads_only_local_json_and_emits_json(self):
         value = bundle()
