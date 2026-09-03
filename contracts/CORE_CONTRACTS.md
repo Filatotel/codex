@@ -57,3 +57,16 @@ These contracts define shared meanings. Engines may extend them but may not sile
 - `ASSIGNMENT DRAFT != EXECUTABLE ASSIGNMENT`: only an admissible destination-bound assignment may be issued.
 - `STATE != CHAT CONTEXT`: durable state survives independently of conversation history.
 - `VERIFICATION AUTHORITY != INFORMATION AUTHORITY`: a verifier may establish whether claims are supported; it does not thereby own product/Canon/Owner decisions.
+
+## Minimal protected-proof lifecycle
+
+A proof reused at a post-spawn protected transition identifies only its relevant
+dependencies as exact `dependency_ref` / `proven_identity` bindings under
+`transition_proof.dependency_bindings`. Reuse compares those bindings with the
+current locally supplied artifact identities. A changed relevant dependency
+invalidates that proof; an unrelated state change does not. Reuse of assignment
+admission for a transition explicitly requiring current executability also
+requires a current governed capability profile for the same runtime whose
+available capabilities still cover the assignment execution contract. This
+bounded representation is not a proof registry, dependency graph, state engine,
+or authorization to recompute unrelated proofs.
