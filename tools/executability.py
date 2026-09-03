@@ -17,6 +17,117 @@ from tools.assignment_compiler import EnvelopeResolver, validate_compiled_assign
 CapabilityEvidenceResolver = Callable[[str], Mapping[str, object] | None]
 
 
+def validate_state_observation(artifact: Mapping[str, object]) -> list[str]:
+    """Validate the bounded Control-owned relevant-state observation contract."""
+    errors: list[str] = []
+    if artifact.get("artifact_type") != "STATE_OBSERVATION": errors.append("artifact_type must be STATE_OBSERVATION")
+    if artifact.get("produced_by_role") != "control-director": errors.append("produced_by_role must be control-director")
+    if artifact.get("status") != "CURRENT": errors.append("status must be CURRENT")
+    for field in ("artifact_id", "state_identity", "authority_scope"):
+        if not isinstance(artifact.get(field), str) or not str(artifact[field]).strip(): errors.append(f"{field} must be a non-empty string")
+    value = artifact.get("input_state_ref")
+    if "input_state_ref" not in artifact or (value is not None and (not isinstance(value, str) or not value.strip())): errors.append("input_state_ref must be null or a non-empty string")
+    for field in ("provenance", "related_artifacts"): _string_list(artifact.get(field), field, errors)
+    allowed = {"artifact_type", "artifact_id", "produced_by_role", "input_state_ref", "status", "provenance", "related_artifacts", "state_identity", "authority_scope"}
+    if extra := sorted(set(artifact) - allowed): errors.append(f"unexpected fields: {extra}")
+    return errors
+
+
+def validate_executor_result(result: Mapping[str, object]) -> list[str]:
+    """Validate the canonical factual EXECUTOR_RESULT contract."""
+    errors: list[str] = []
+    if result.get("artifact_type") != "EXECUTOR_RESULT": errors.append("artifact_type must be EXECUTOR_RESULT")
+    if result.get("produced_by_role") != "executor": errors.append("produced_by_role must be executor")
+    for field in ("artifact_id", "assignment_id"):
+        if not isinstance(result.get(field), str) or not str(result[field]).strip(): errors.append(f"{field} must be a non-empty string")
+    value = result.get("input_state_ref")
+    if "input_state_ref" not in result or (value is not None and (not isinstance(value, str) or not value.strip())): errors.append("input_state_ref must be null or a non-empty string")
+    if result.get("status") not in {"COMPLETE", "PARTIAL", "BLOCKED", "FAILED"}: errors.append("status is invalid")
+    for field in ("provenance", "related_artifacts", "resulting_state_refs", "evidence_refs", "deferred_findings", "limitations"):
+        _string_list(result.get(field), field, errors)
+    claims = result.get("claims")
+    if not isinstance(claims, list): errors.append("claims must be a list"); return errors
+    seen: set[str] = set()
+    for index, claim in enumerate(claims):
+        if not isinstance(claim, Mapping): errors.append(f"claims[{index}] must be an object"); continue
+        claim_id = claim.get("claim_id")
+        if not isinstance(claim_id, str) or not claim_id.strip(): errors.append(f"claims[{index}].claim_id must be non-empty")
+        elif claim_id in seen: errors.append(f"duplicate claim_id: {claim_id}")
+        else: seen.add(claim_id)
+        if not isinstance(claim.get("claim"), str): errors.append(f"claims[{index}].claim must be a string")
+        _string_list(claim.get("evidence_refs"), f"claims[{index}].evidence_refs", errors)
+    return errors
+
+
+def validate_verification_result(result: Mapping[str, object]) -> list[str]:
+    """Validate the canonical VERIFICATION_RESULT contract."""
+    errors: list[str] = []
+    if result.get("artifact_type") != "VERIFICATION_RESULT": errors.append("artifact_type must be VERIFICATION_RESULT")
+    if result.get("produced_by_role") != "control-verifier": errors.append("produced_by_role must be control-verifier")
+    for field in ("artifact_id", "assignment_id", "executor_result_ref"):
+        if not isinstance(result.get(field), str) or not str(result[field]).strip(): errors.append(f"{field} must be a non-empty string")
+    value = result.get("input_state_ref")
+    if "input_state_ref" not in result or (value is not None and (not isinstance(value, str) or not value.strip())): errors.append("input_state_ref must be null or a non-empty string")
+    if result.get("status") not in {"CONFIRMED", "QUALIFIED", "NOT_PROVEN", "BLOCKED"}: errors.append("status is invalid")
+    for field in ("provenance", "related_artifacts", "additional_findings", "evidence_gaps"): _string_list(result.get(field), field, errors)
+    verdicts = result.get("claim_verdicts")
+    if not isinstance(verdicts, list): errors.append("claim_verdicts must be a list"); return errors
+    seen: set[str] = set()
+    for index, verdict in enumerate(verdicts):
+        if not isinstance(verdict, Mapping): errors.append(f"claim_verdicts[{index}] must be an object"); continue
+        claim_id = verdict.get("claim_id")
+        if not isinstance(claim_id, str) or not claim_id.strip(): errors.append(f"claim_verdicts[{index}].claim_id must be non-empty")
+        elif claim_id in seen: errors.append(f"duplicate claim verdict: {claim_id}")
+        else: seen.add(claim_id)
+        if verdict.get("verdict") not in {"CONFIRMED", "QUALIFIED", "NOT_PROVEN"}: errors.append(f"claim_verdicts[{index}].verdict is invalid")
+        if "evidence_refs" in verdict: _string_list(verdict.get("evidence_refs"), f"claim_verdicts[{index}].evidence_refs", errors)
+        if "note" in verdict and not isinstance(verdict.get("note"), str): errors.append(f"claim_verdicts[{index}].note must be a string")
+    return errors
+
+
+def validate_director_decision(decision: Mapping[str, object]) -> list[str]:
+    """Validate canonical Director fields and bounded declarative transition authority."""
+    errors: list[str] = []
+    if decision.get("artifact_type") != "DIRECTOR_DECISION": errors.append("artifact_type must be DIRECTOR_DECISION")
+    if decision.get("produced_by_role") != "control-director": errors.append("produced_by_role must be control-director")
+    for field in ("artifact_id", "status", "decision"):
+        if not isinstance(decision.get(field), str) or not str(decision[field]).strip(): errors.append(f"{field} must be a non-empty string")
+    for field in ("assignment_id", "input_state_ref", "executor_result_ref", "verification_result_ref", "next_owner"):
+        value = decision.get(field)
+        if field not in decision or (value is not None and (not isinstance(value, str) or not value.strip())): errors.append(f"{field} must be null or a non-empty string")
+    for field in ("provenance", "related_artifacts"): _string_list(decision.get(field), field, errors)
+    if decision.get("control_state") not in {"ASSIGN", "WAIT", "ESCALATE", "COMPLETE"}: errors.append("control_state is invalid")
+    authority = decision.get("transition_authority")
+    if not isinstance(authority, Mapping): errors.append("transition_authority must be an object"); return errors
+    expected = {"transition_id", "assignment_ref", "acceptance_requirements", "verification_required", "verification_target_claim_ids", "allowed_verification_outcomes", "verification_outcome_map", "incomplete_outcome", "next_control_intent_ref", "required_proof_refs", "requires_current_executability"}
+    if extra := sorted(set(authority) - expected): errors.append(f"transition_authority unexpected fields: {extra}")
+    if missing := sorted(expected - set(authority)): errors.append(f"transition_authority missing fields: {missing}")
+    for field in ("transition_id", "assignment_ref"):
+        if not isinstance(authority.get(field), str) or not str(authority[field]).strip(): errors.append(f"transition_authority.{field} must be non-empty")
+    if not isinstance(authority.get("verification_required"), bool): errors.append("transition_authority.verification_required must be boolean")
+    if not isinstance(authority.get("requires_current_executability"), bool): errors.append("transition_authority.requires_current_executability must be boolean")
+    for field in ("verification_target_claim_ids", "allowed_verification_outcomes", "required_proof_refs"): _string_list(authority.get(field), f"transition_authority.{field}", errors, unique=True, min_items=1 if field == "required_proof_refs" else 0)
+    allowed_outcomes = {"CONFIRMED", "QUALIFIED", "NOT_PROVEN", "BLOCKED"}
+    if isinstance(authority.get("allowed_verification_outcomes"), list) and any(item not in allowed_outcomes for item in authority["allowed_verification_outcomes"]): errors.append("transition_authority.allowed_verification_outcomes is invalid")
+    if authority.get("incomplete_outcome") not in {"ASSIGN", "WAIT", "ESCALATE"}: errors.append("transition_authority.incomplete_outcome is invalid")
+    next_ref = authority.get("next_control_intent_ref")
+    if next_ref is not None and (not isinstance(next_ref, str) or not next_ref.strip()): errors.append("transition_authority.next_control_intent_ref must be null or non-empty")
+    requirements = authority.get("acceptance_requirements")
+    if not isinstance(requirements, list) or not requirements: errors.append("transition_authority.acceptance_requirements must be non-empty")
+    else:
+        seen: set[str] = set()
+        for index, item in enumerate(requirements):
+            if not isinstance(item, Mapping) or set(item) != {"requirement_id", "claim_id", "required_evidence_refs"}: errors.append(f"acceptance_requirements[{index}] has invalid shape"); continue
+            for field in ("requirement_id", "claim_id"):
+                if not isinstance(item.get(field), str) or not item[field].strip(): errors.append(f"acceptance_requirements[{index}].{field} must be non-empty")
+            if isinstance(item.get("requirement_id"), str) and item["requirement_id"] in seen: errors.append("duplicate acceptance requirement")
+            else: seen.add(str(item.get("requirement_id")))
+            _string_list(item.get("required_evidence_refs"), f"acceptance_requirements[{index}].required_evidence_refs", errors)
+    outcome_map = authority.get("verification_outcome_map")
+    if not isinstance(outcome_map, Mapping) or any(key not in allowed_outcomes or value not in {"WAIT", "ESCALATE", "COMPLETE"} for key, value in outcome_map.items()): errors.append("transition_authority.verification_outcome_map is invalid")
+    return errors
+
+
 def _normalize(values: Iterable[str]) -> list[str]:
     return sorted({value.strip() for value in values if isinstance(value, str) and value.strip()})
 
@@ -314,6 +425,27 @@ def validate_admissibility_record(record: Mapping[str, object]) -> list[str]:
     actions = record.get("mandatory_actions")
     evidence_paths = record.get("mandatory_evidence_paths")
     status = record.get("status")
+
+    proof = record.get("transition_proof")
+    if not isinstance(proof, Mapping):
+        errors.append("transition_proof must be an object")
+    else:
+        expected = {"proof_class", "proof_status", "assignment_ref", "admissibility_ref", "destination_id", "runtime_identity", "dependency_bindings"}
+        if set(proof) != expected: errors.append("transition_proof has invalid fields")
+        if proof.get("proof_class") != "ASSIGNMENT_ADMISSION": errors.append("transition_proof.proof_class must be ASSIGNMENT_ADMISSION")
+        if proof.get("proof_status") != "PROVEN": errors.append("transition_proof.proof_status must be PROVEN")
+        for field in ("assignment_ref", "admissibility_ref", "destination_id", "runtime_identity"):
+            if not isinstance(proof.get(field), str) or not str(proof[field]).strip(): errors.append(f"transition_proof.{field} must be non-empty")
+        bindings = proof.get("dependency_bindings")
+        if not isinstance(bindings, list) or not bindings: errors.append("transition_proof.dependency_bindings must be non-empty")
+        else:
+            refs: set[str] = set()
+            for index, binding in enumerate(bindings):
+                if not isinstance(binding, Mapping) or set(binding) != {"dependency_ref", "proven_identity"}: errors.append(f"transition_proof.dependency_bindings[{index}] has invalid shape"); continue
+                for field in ("dependency_ref", "proven_identity"):
+                    if not isinstance(binding.get(field), str) or not binding[field].strip(): errors.append(f"transition_proof.dependency_bindings[{index}].{field} must be non-empty")
+                if binding.get("dependency_ref") in refs: errors.append("transition_proof has duplicate dependency_ref")
+                refs.add(str(binding.get("dependency_ref")))
 
     if record.get("artifact_type") != "ASSIGNMENT_ADMISSIBILITY":
         errors.append("artifact_type must be ASSIGNMENT_ADMISSIBILITY")
@@ -701,6 +833,12 @@ def validate_assignment_execution_contract(
         errors.append(
             f"admissibility_ref mismatch: assignment {contract.get('admissibility_ref')!r}, record {record_id!r}"
         )
+    proof = record.get("transition_proof")
+    if isinstance(proof, Mapping):
+        if proof.get("assignment_ref") != assignment.get("artifact_id"): errors.append("transition proof assignment_ref mismatch")
+        if proof.get("admissibility_ref") != record_id: errors.append("transition proof admissibility_ref mismatch")
+        if proof.get("destination_id") != contract.get("destination_id"): errors.append("transition proof destination_id mismatch")
+        if proof.get("runtime_identity") != contract.get("runtime_identity"): errors.append("transition proof runtime_identity mismatch")
 
     profile_id = profile.get("artifact_id")
     if contract.get("capability_profile_ref") != profile_id:

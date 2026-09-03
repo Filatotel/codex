@@ -19,6 +19,7 @@ ROOT_REQUIRED = [
     "contracts/ASSIGNMENT_COMPILATION_CONTRACT.md",
     "schemas/compiled-assignment.schema.json",
     "schemas/execution-envelope.schema.json",
+    "schemas/state-observation.schema.json",
     "tools/assignment_compiler.py",
     "tools/executability.py",
 ]
@@ -80,6 +81,7 @@ EXECUTABILITY_ENFORCEMENT_SURFACES = [
     "schemas/capability-profile.schema.json",
     "schemas/assignment-admissibility.schema.json",
     "schemas/assignment.schema.json",
+    "schemas/state-observation.schema.json",
     "tools/executability.py",
     "tools/assignment_compiler.py",
     "tests/test_assignment_compiler.py",

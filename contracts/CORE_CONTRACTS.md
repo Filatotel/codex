@@ -60,13 +60,15 @@ These contracts define shared meanings. Engines may extend them but may not sile
 
 ## Minimal protected-proof lifecycle
 
-A proof reused at a post-spawn protected transition identifies only its relevant
+A governed `ASSIGNMENT_ADMISSIBILITY` reused at a post-spawn protected transition identifies only its relevant
 dependencies as exact `dependency_ref` / `proven_identity` bindings under
 `transition_proof.dependency_bindings`. Reuse compares those bindings with the
-current locally supplied artifact identities. A changed relevant dependency
+current locally supplied Control Director `STATE_OBSERVATION` identities. A changed relevant dependency
 invalidates that proof; an unrelated state change does not. Reuse of assignment
 admission for a transition explicitly requiring current executability also
 requires a current governed capability profile for the same runtime whose
-available capabilities still cover the assignment execution contract. This
+destination and runtime identities match and whose available capabilities still
+cover the assignment execution contract. `resolve_spawn()` produces this binding;
+`resolve_transition()` consumes it and rejects every other proof class. This
 bounded representation is not a proof registry, dependency graph, state engine,
 or authorization to recompute unrelated proofs.

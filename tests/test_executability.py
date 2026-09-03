@@ -88,6 +88,15 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
         "unsatisfied_required_capabilities": [],
         "mandatory_evidence_paths": ["python -m unittest"],
         "execution_mode": "local",
+        "transition_proof": {
+            "proof_class": "ASSIGNMENT_ADMISSION",
+            "proof_status": "PROVEN",
+            "assignment_ref": "ASSIGN-1",
+            "admissibility_ref": "ADM-1",
+            "destination_id": "agent-1",
+            "runtime_identity": "runtime-1",
+            "dependency_bindings": [{"dependency_ref": "state-1", "proven_identity": "state-1"}],
+        },
     }
     assignment = {
         "artifact_type": "ASSIGNMENT",
