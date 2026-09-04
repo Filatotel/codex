@@ -22,6 +22,7 @@ from tools.executability import (
 )
 
 BATONS = {"ASSIGN", "WAIT", "ESCALATE", "COMPLETE"}
+VERIFICATION_SEVERITY = {"CONFIRMED": 0, "QUALIFIED": 1, "NOT_PROVEN": 2, "BLOCKED": 3}
 
 
 def _out(state: str, reason: str, **details: object) -> dict[str, object]:
@@ -99,6 +100,16 @@ def _incomplete(authority: Mapping[str, object], artifacts: Mapping[str, Mapping
     if outcome == "WAIT":
         return _out("WAIT", "AUTHORIZED_REQUIREMENT_PENDING")
     return _out("ESCALATE", "AUTHORIZED_MATERIAL_CONFLICT")
+
+
+def _effective_verification_outcome(
+    aggregate_status: str,
+    target_claim_ids: set[str],
+    verdicts: Mapping[str, str],
+) -> str:
+    """Return the weakest governed verification outcome across aggregate and required claims."""
+    outcomes = [aggregate_status, *(verdicts[claim_id] for claim_id in target_claim_ids)]
+    return max(outcomes, key=VERIFICATION_SEVERITY.__getitem__)
 
 
 def resolve_transition(control_bundle: Mapping[str, object]) -> dict[str, object]:
@@ -201,11 +212,12 @@ def resolve_transition(control_bundle: Mapping[str, object]) -> dict[str, object
         verdicts = {item["claim_id"]: item["verdict"] for item in verification["claim_verdicts"]}
         if target_ids != set(claims).intersection(target_ids) or target_ids - set(verdicts):
             return _out("ESCALATE", "VERIFICATION_TARGET_IDENTITY_MISMATCH")
-        mapped = authority["verification_outcome_map"].get(verification["status"])
-        if mapped not in BATONS or verification["status"] not in authority["allowed_verification_outcomes"]:
+        effective_outcome = _effective_verification_outcome(verification["status"], target_ids, verdicts)
+        mapped = authority["verification_outcome_map"].get(effective_outcome)
+        if mapped not in BATONS or effective_outcome not in authority["allowed_verification_outcomes"]:
             return _incomplete(authority, artifacts, assignment_id)
         if mapped != "COMPLETE":
-            return _out(mapped, "AUTHORIZED_VERIFICATION_OUTCOME")
+            return _out(mapped, "AUTHORIZED_VERIFICATION_OUTCOME", verification_outcome=effective_outcome)
 
     if factual_requirements_met and executor.get("status") == "COMPLETE":
         return _out("COMPLETE", "DIRECTOR_ACCEPTANCE_CONDITION_SATISFIED")

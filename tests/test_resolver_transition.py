@@ -142,6 +142,13 @@ class ResolverTransitionTest(unittest.TestCase):
         escalating = transition_bundle(verification_status="NOT_PROVEN", incomplete="ESCALATE")
         self.assertEqual(resolve_transition(escalating)["control_state"], "ESCALATE")
 
+    def test_aggregate_verification_cannot_elevate_required_claim(self):
+        value = transition_bundle(verification_status="CONFIRMED", incomplete="WAIT")
+        artifact(value, "VERIFY-1")["claim_verdicts"][0]["verdict"] = "NOT_PROVEN"
+        result = resolve_transition(value)
+        self.assertEqual((result["control_state"], result["reason"]), ("WAIT", "AUTHORIZED_VERIFICATION_OUTCOME"))
+        self.assertEqual(result["verification_outcome"], "NOT_PROVEN")
+
     def test_malformed_director_and_non_proven_assignment_fail(self):
         value = transition_bundle(); del artifact(value, "DIRECTOR-POST")["decision"]
         self.assertEqual(resolve_transition(value)["reason"], "MALFORMED_DIRECTOR_DECISION")
