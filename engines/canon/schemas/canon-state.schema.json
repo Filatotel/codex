@@ -25,10 +25,20 @@
     "freeze": {"$ref": "#/$defs/freeze"},
     "change_history": {"type": "array", "items": {"$ref": "#/$defs/change"}}
   },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "FROZEN"}}},
+      "then": {"properties": {"freeze": {"type": "object", "required": ["state", "freeze_record_ref"], "properties": {"state": {"const": "FROZEN"}, "freeze_record_ref": {"type": "string", "minLength": 1}}}}}
+    },
+    {
+      "if": {"properties": {"freeze": {"type": "object", "required": ["state"], "properties": {"state": {"const": "FROZEN"}}}}},
+      "then": {"properties": {"status": {"const": "FROZEN"}, "freeze": {"type": "object", "required": ["freeze_record_ref"], "properties": {"freeze_record_ref": {"type": "string", "minLength": 1}}}}}
+    }
+  ],
   "$defs": {
     "authority": {"type": "object", "additionalProperties": false, "required": ["holder", "scope", "source_ref"], "properties": {"holder": {"type": "string", "minLength": 1}, "scope": {"type": "string", "minLength": 1}, "source_ref": {"type": "string", "minLength": 1}}},
     "entry": {"type": "object", "additionalProperties": false, "required": ["id", "type", "statement", "status", "scope", "provenance", "authority_ref"], "properties": {"id": {"type": "string", "minLength": 1}, "type": {"enum": ["PROTECTED_VALUE", "FACT", "ASSUMPTION", "UNKNOWN", "AMBIGUITY", "CONTRADICTION", "DECISION"]}, "statement": {"type": "string", "minLength": 1}, "status": {"enum": ["PROPOSED", "ACCEPTED", "FROZEN", "SUPERSEDED"]}, "scope": {"type": "string", "minLength": 1}, "provenance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "authority_ref": {"type": "string", "minLength": 1}, "dependencies": {"type": "array", "items": {"type": "string", "minLength": 1}}, "metadata": {"type": "object"}}},
-    "freeze": {"type": "object", "additionalProperties": false, "required": ["state", "scope"], "properties": {"state": {"enum": ["OPEN", "FROZEN"]}, "scope": {"type": "string", "minLength": 1}, "freeze_record_ref": {"type": ["string", "null"]}}},
+    "freeze": {"type": "object", "additionalProperties": false, "required": ["state", "scope"], "properties": {"state": {"enum": ["OPEN", "FROZEN"]}, "scope": {"type": "string", "minLength": 1}, "freeze_record_ref": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}}},
     "change": {"type": "object", "additionalProperties": false, "required": ["change_id", "class", "prior_state_ref", "result_state_ref", "authority_ref"], "properties": {"change_id": {"type": "string", "minLength": 1}, "class": {"enum": ["A_ENRICHMENT", "B_CLOSURE", "C_PRODUCTION_REQUIRED_CANONICAL_CHANGE", "D_CORE_CHANGE_RETCON", "RESEARCH_RECONCILIATION", "FINAL_RECONCILIATION", "REOPEN"]}, "prior_state_ref": {"type": "string", "minLength": 1}, "result_state_ref": {"type": "string", "minLength": 1}, "authority_ref": {"type": "string", "minLength": 1}, "reason_ref": {"type": "string"}}}
   }
 }

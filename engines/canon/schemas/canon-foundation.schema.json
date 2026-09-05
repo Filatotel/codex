@@ -27,6 +27,16 @@
     "decisions": {"type": "array", "items": {"$ref": "#/$defs/governedRecord"}},
     "freeze": {"$ref": "#/$defs/freeze"}
   },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "FROZEN"}}},
+      "then": {"properties": {"freeze": {"type": "object", "required": ["state", "freeze_record_ref"], "properties": {"state": {"const": "FROZEN"}, "freeze_record_ref": {"type": "string", "minLength": 1}}}}}
+    },
+    {
+      "if": {"properties": {"freeze": {"type": "object", "required": ["state"], "properties": {"state": {"const": "FROZEN"}}}}},
+      "then": {"properties": {"status": {"const": "FROZEN"}, "freeze": {"type": "object", "required": ["freeze_record_ref"], "properties": {"freeze_record_ref": {"type": "string", "minLength": 1}}}}}
+    }
+  ],
   "$defs": {
     "authority": {"type": "object", "additionalProperties": false, "required": ["holder", "scope", "source_ref"], "properties": {"holder": {"type": "string", "minLength": 1}, "scope": {"type": "string", "minLength": 1}, "source_ref": {"type": "string", "minLength": 1}}},
     "governedRecord": {"type": "object", "additionalProperties": false, "required": ["id", "statement", "status", "scope", "provenance", "authority_ref"], "properties": {"id": {"type": "string", "minLength": 1}, "statement": {"type": "string", "minLength": 1}, "status": {"enum": ["PROPOSED", "ACCEPTED", "FROZEN", "SUPERSEDED"]}, "scope": {"type": "string", "minLength": 1}, "provenance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "authority_ref": {"type": "string", "minLength": 1}, "dependencies": {"type": "array", "items": {"type": "string", "minLength": 1}}}},
@@ -34,6 +44,6 @@
     "unknown": {"type": "object", "additionalProperties": false, "required": ["id", "question", "scope", "blocking", "provenance"], "properties": {"id": {"type": "string", "minLength": 1}, "question": {"type": "string", "minLength": 1}, "scope": {"type": "string", "minLength": 1}, "blocking": {"type": "boolean"}, "provenance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "resolution_path": {"type": "string"}}},
     "ambiguity": {"type": "object", "additionalProperties": false, "required": ["id", "statement", "status", "scope", "authority_ref", "provenance", "preservation_requirements"], "properties": {"id": {"type": "string", "minLength": 1}, "statement": {"type": "string", "minLength": 1}, "status": {"enum": ["PROPOSED", "ACCEPTED", "FROZEN", "SUPERSEDED"]}, "scope": {"type": "string", "minLength": 1}, "authority_ref": {"type": "string", "minLength": 1}, "provenance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "allowed_readings": {"type": "array", "items": {"type": "string"}}, "forbidden_collapses": {"type": "array", "items": {"type": "string"}}, "preservation_requirements": {"type": "array", "items": {"type": "string"}}}},
     "contradiction": {"type": "object", "additionalProperties": false, "required": ["id", "class", "involved_refs", "scope", "blocking", "provenance"], "properties": {"id": {"type": "string", "minLength": 1}, "class": {"enum": ["DIRECT", "TEMPORAL", "IDENTITY", "TERMINOLOGY", "DEPENDENCY", "INTENTIONAL_TENSION", "SCOPED_APPARENT_CONFLICT", "NONBLOCKING_DUPLICATION", "NEEDS_AUTHORITY"]}, "involved_refs": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}}, "scope": {"type": "string", "minLength": 1}, "blocking": {"type": "boolean"}, "provenance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}},
-    "freeze": {"type": "object", "additionalProperties": false, "required": ["state", "scope"], "properties": {"state": {"enum": ["OPEN", "FROZEN"]}, "scope": {"type": "string", "minLength": 1}, "freeze_record_ref": {"type": ["string", "null"]}}}
+    "freeze": {"type": "object", "additionalProperties": false, "required": ["state", "scope"], "properties": {"state": {"enum": ["OPEN", "FROZEN"]}, "scope": {"type": "string", "minLength": 1}, "freeze_record_ref": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}}}
   }
 }

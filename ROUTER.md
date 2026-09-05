@@ -128,7 +128,7 @@ Research fields such as `MACHINE_EXECUTABLE=true` and `CAN_EXECUTE_WITH_AVAILABL
 | `register_contradiction` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the contradiction-registration skill as the selected semantic operation |
 | `reconcile_research_into_canon` | `canon` | load Canon manifest + reconciliation workflow + all declared required skills; require exact Research/Canon refs and mutation authority for accepted changes |
 | `classify_canon_change` | `canon` | load Canon manifest + production Canon-change workflow + all declared required skills |
-| `validate_canon` | `canon` | load Canon manifest + validate/freeze workflow + all declared required skills; internal validation is not independent Verification |
+| `validate_canon` | `canon` | load Canon manifest + validation-only `validate_canon` workflow + `validate-canon` skill; no freeze authority or freeze mutation is implied |
 | `freeze_canon` | `canon` | load Canon manifest + validate/freeze workflow + all declared required skills and explicit freeze authority |
 | `final_canon_reconciliation` | `canon` | load Canon manifest + final reconciliation workflow + all declared required skills and final Canon authority |
 | `reopen_canon` | `canon` | load Canon manifest + reopen workflow + all declared required skills and explicit reopen authority |

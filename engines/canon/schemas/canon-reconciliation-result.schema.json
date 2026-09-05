@@ -31,14 +31,11 @@
       "required": ["source_ref", "disposition", "canon_entry_refs", "reason", "authority_ref"],
       "properties": {
         "source_ref": {"type": "string", "minLength": 1},
-        "disposition": {"enum": ["NO_CHANGE", "PROPOSE_CHANGE", "ACCEPT_AUTHORIZED_CHANGE", "PRESERVE_UNKNOWN", "PRESERVE_AMBIGUITY", "PRESERVE_CONTRADICTION", "BLOCKED"]},
+        "disposition": {"enum": ["ACCEPT_ADD_PROPOSAL", "REJECT_PROPOSAL", "RETAIN", "SUPERSEDE_PROPOSAL", "CLOSE_UNKNOWN_PROPOSAL", "RETAIN_UNKNOWN", "PRESERVE_AMBIGUITY", "REGISTER_CONTRADICTION", "REQUIRE_OWNER_DECISION", "DEFER_OUT_OF_SCOPE"]},
         "canon_entry_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "reason": {"type": "string", "minLength": 1},
         "authority_ref": {"type": ["string", "null"]}
-      },
-      "allOf": [
-        {"if": {"properties": {"disposition": {"const": "ACCEPT_AUTHORIZED_CHANGE"}}}, "then": {"properties": {"authority_ref": {"type": "string", "minLength": 1}}, "required": ["authority_ref"]}}
-      ]
+      }
     }
   }
 }

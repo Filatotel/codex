@@ -75,6 +75,7 @@ workflows:
   establish_canon_foundation: engines/canon/workflows/establish-canon-foundation.md
   reconcile_research_into_canon: engines/canon/workflows/reconcile-research-into-canon.md
   manage_production_canon_change: engines/canon/workflows/manage-production-canon-change.md
+  validate_canon: engines/canon/workflows/validate-canon.md
   validate_and_freeze_canon: engines/canon/workflows/validate-and-freeze-canon.md
   final_canon_reconciliation: engines/canon/workflows/final-canon-reconciliation.md
   reopen_canon: engines/canon/workflows/reopen-canon.md
@@ -124,6 +125,14 @@ workflow_contracts:
       - exact_current_canon_ref
       - exact_production_change_signal
       - canon_mutation_authority_for_any_accepted_change
+  validate_canon:
+    executing_role: roles/executor/ROLE.md
+    consuming_role: roles/control-director/ROLE.md
+    required_skills:
+      - engines/canon/skills/validate-canon/SKILL.md
+    optional_skills: []
+    upstream_requirements:
+      - exact_canon_candidate_ref
   validate_and_freeze_canon:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -168,7 +177,7 @@ capabilities:
   register_contradiction: establish_canon_foundation
   reconcile_research_into_canon: reconcile_research_into_canon
   classify_canon_change: manage_production_canon_change
-  validate_canon: validate_and_freeze_canon
+  validate_canon: validate_canon
   freeze_canon: validate_and_freeze_canon
   final_canon_reconciliation: final_canon_reconciliation
   reopen_canon: reopen_canon
