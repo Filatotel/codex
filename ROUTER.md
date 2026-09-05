@@ -26,10 +26,7 @@ KERNEL
 
 Selection is based on the transformation and authority required, not filename similarity. Semantic engine capability is necessary but never sufficient for assignment.
 
-Compilation is a mandatory upstream semantic gate. `REJECTED` compilation does
-not proceed to route, capability-profile selection, assignment admissibility, or
-executable assignment. The router consumes compiler output; it does not replace
-the deterministic compiler with prose judgment.
+Compilation is a mandatory upstream semantic gate. `REJECTED` compilation does not proceed to route, capability-profile selection, assignment admissibility, or executable assignment. The router consumes compiler output; it does not replace the deterministic compiler with prose judgment.
 
 The universal executability contract is `contracts/EXECUTABILITY_CONTRACT.md`.
 
@@ -76,6 +73,30 @@ Remote repository state cannot silently substitute for local-worktree assertions
 
 An active skill/pattern migrated before the executability contract may not yet contain a dedicated execution-prerequisite section. Missing metadata means **UNKNOWN prerequisites, not zero prerequisites**. When such a legacy item is actually selected, inspect only that selected item's mandatory procedure/evidence steps and derive concrete required capabilities before assignment. If any mandatory prerequisite cannot be derived confidently, return `ASSIGNMENT_NOT_ADMISSIBLE` pending bounded clarification/annotation. Do not perform a repository-wide compatibility scan during ordinary routing.
 
+## Canon progressive disclosure
+
+Canon is an active engine only after `SYSTEM_MANIFEST.yaml` identifies `engine_id: canon` as `available`. For a Canon route:
+
+1. load `engines/canon/MANIFEST.yaml`;
+2. select the exact workflow named by the capability mapping;
+3. load every item in `workflow_contracts.<workflow>.required_skills` plus only optional skills actually required by the assignment;
+4. bind the workflow's explicit executing/consuming roles and upstream requirements;
+5. feed those mandatory prerequisites into the normal compiler/capability/admissibility chain.
+
+Do not reduce a multi-skill Canon workflow to one guessed skill. Do not recursively discover `engines/canon/skills/`. Engine availability does not confer Canon mutation authority.
+
+The Canon authority chain remains:
+
+```text
+RESEARCH
+→ EVIDENCE / FINDINGS
+→ CANON RECONCILIATION
+→ explicit Canon authority where mutation is requested
+→ ACCEPTED CANON
+```
+
+Research findings, Software observations, and Verification results may be inputs or evidence; none automatically mutate Canon.
+
 ## Research constitutional precedence
 
 For every Research Engine route, apply this order before executing project-specific instructions:
@@ -99,6 +120,18 @@ Research fields such as `MACHINE_EXECUTABLE=true` and `CAN_EXECUTE_WITH_AVAILABL
 
 | Capability | Engine | Next surface |
 |---|---|---|
+| `establish_canon_foundation` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + all declared required skills; then generic executability preflight |
+| `register_canon_fact` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the fact-registration skill as the selected semantic operation |
+| `register_canon_assumption` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the assumption-registration skill as the selected semantic operation |
+| `register_unknown` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the unknown-registration skill as the selected semantic operation |
+| `register_ambiguity` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the ambiguity-registration skill as the selected semantic operation |
+| `register_contradiction` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the contradiction-registration skill as the selected semantic operation |
+| `reconcile_research_into_canon` | `canon` | load Canon manifest + reconciliation workflow + all declared required skills; require exact Research/Canon refs and mutation authority for accepted changes |
+| `classify_canon_change` | `canon` | load Canon manifest + production Canon-change workflow + all declared required skills |
+| `validate_canon` | `canon` | load Canon manifest + validate/freeze workflow + all declared required skills; internal validation is not independent Verification |
+| `freeze_canon` | `canon` | load Canon manifest + validate/freeze workflow + all declared required skills and explicit freeze authority |
+| `final_canon_reconciliation` | `canon` | load Canon manifest + final reconciliation workflow + all declared required skills and final Canon authority |
+| `reopen_canon` | `canon` | load Canon manifest + reopen workflow + all declared required skills and explicit reopen authority |
 | `implement_software_change` | `production/software` | load `engines/production/software/MANIFEST.yaml`, implementation workflow, then executability preflight |
 | `diagnose_software_failure` | `production/software` | load Software manifest/diagnosis workflow, then executability preflight for required observations/tools |
 | `plan_software_work` | `production/software` | load the Software Engine manifest and bounded planning skill set; require only the capabilities actually mandatory for planning/evidence |
@@ -114,7 +147,7 @@ Research fields such as `MACHINE_EXECUTABLE=true` and `CAN_EXECUTE_WITH_AVAILABL
 
 ## Non-materialized engine gate
 
-If the required semantic capability belongs to Canon, Foundation, or another engine whose status is `not_materialized`, return:
+If the required semantic capability belongs to Foundation or another engine whose status is `not_materialized`, return:
 
 ```text
 ENGINE_NOT_MATERIALIZED / OWNER_OR_SYSTEM_GATE

@@ -25,6 +25,30 @@ shared_namespaces:
   library: library/
 
 engine_registry:
+  - engine_id: canon
+    manifest_path: engines/canon/MANIFEST.yaml
+    status: available
+    capabilities:
+      - establish_canon_foundation
+      - register_canon_fact
+      - register_canon_assumption
+      - register_unknown
+      - register_ambiguity
+      - register_contradiction
+      - reconcile_research_into_canon
+      - classify_canon_change
+      - validate_canon
+      - freeze_canon
+      - final_canon_reconciliation
+      - reopen_canon
+    entry_conditions:
+      - task_semantically_belongs_to_canon_engine
+      - required_authority_is_present
+      - relevant_state_slice_or_current_canon_state_is_identified
+      - exact_assignment_exists
+      - selected_workflow_upstream_requirements_are_present
+      - destination_executability_preflight_passes
+
   - engine_id: production/software
     manifest_path: engines/production/software/MANIFEST.yaml
     status: available
@@ -71,8 +95,6 @@ engine_registry:
       - destination_executability_preflight_passes_for_execution_assignment
 
 planned_engines:
-  - engine_id: canon
-    status: not_materialized
   - engine_id: foundation
     status: not_materialized
   - engine_id: production/other-domains

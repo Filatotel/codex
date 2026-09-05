@@ -1,0 +1,16 @@
+artifact_type: CANON_RECONCILIATION_RESULT
+artifact_id: "CANON-RECONCILIATION-ID"
+produced_by_role: "executor"
+assignment_id: "ASSIGNMENT-ID"
+input_state_ref: "INPUT-STATE-REF"
+status: PROPOSED
+provenance:
+  - "SOURCE-CANON-REF"
+related_artifacts:
+  - "SOURCE-CANON-REF"
+project_id: "PROJECT_ID"
+source_canon_ref: "SOURCE-CANON-REF"
+research_release_refs: []
+dispositions: []
+change_proposal_refs: []
+mutation_authority_ref: null
