@@ -11,10 +11,13 @@ from unittest.mock import patch
 
 from tests.test_assignment_compiler import action, claim, draft, envelope
 from tests.test_executability import governed_chain, valid_chain
+from tests.test_research_machine_only import base_wp
 import tools.resolver_spawn as resolver_spawn
+from tools.research_policy import admit_work_package
 from tools.resolver_spawn import resolve_spawn
 
 ROOT = Path(__file__).resolve().parents[1]
+RESEARCH_POLICY_SURFACE = "tools.research_policy.admit_work_package"
 
 
 def bundle(engine="production/software", capability="implement_software_change", workflow="implementation"):
@@ -44,6 +47,24 @@ def bundle(engine="production/software", capability="implement_software_change",
     }
 
 
+def attach_research_admission(value, work_package=None, admission_id="RESEARCH-ADM-1"):
+    work = deepcopy(work_package or base_wp())
+    admission_result = admit_work_package(work)
+    admission = {
+        "artifact_type": "RESEARCH_ADMISSION", "artifact_id": admission_id, "produced_by_role": "research-engine",
+        "status": admission_result["ADMISSION_STATUS"],
+        "provenance": [RESEARCH_POLICY_SURFACE, work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
+        "related_artifacts": [work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
+        "policy_surface": RESEARCH_POLICY_SURFACE, "work_package_id": work["WORK_PACKAGE_ID"],
+        "question_id": work["QUESTION_ID"], "work_package": work, "admission_result": admission_result,
+    }
+    value["decision"].update({"research_admission_ref": admission_id,
+                              "research_work_package_id": work["WORK_PACKAGE_ID"],
+                              "research_question_id": work["QUESTION_ID"]})
+    value["artifacts"].append(admission)
+    return admission
+
+
 class ResolverSpawnTest(unittest.TestCase):
     def assert_spawn_ready(self, value):
         result = resolve_spawn(value)
@@ -57,7 +78,7 @@ class ResolverSpawnTest(unittest.TestCase):
             bundle("research", "execute_research_work", "machine-only-execution"),
             bundle("verification", "verify_completion_claim", "exact-evidence-verification"),
         ]
-        cases[1]["decision"]["research_admission"] = "MACHINE_ONLY_ADMITTED"
+        attach_research_admission(cases[1])
         cases[2]["assignment_compilation_draft"]["evidence_requirements"] = [
             action("verification-evidence", capabilities=["python_runtime"], obligation_class="local_evidence")]
         for value in cases:
@@ -136,7 +157,7 @@ class ResolverSpawnTest(unittest.TestCase):
     def test_missing_semantics_fail_closed(self):
         value = bundle(); del value["assignment_draft_semantics"]["objective"]
         result = resolve_spawn(value)
-        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "MISSING_ASSIGNMENT_SEMANTICS"))
+        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "MISSING_ASSIGNMENT_SEMANTICS"), result)
 
     def test_duplicate_action_identity_fails_closed(self):
         value = bundle(); value["selected_prerequisite_actions"] = [{"action_id": "test", "required_capabilities": ["shell"], "evidence_path": None}]
