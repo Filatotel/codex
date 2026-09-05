@@ -19,6 +19,7 @@ from tools.executability import (
     validate_assignment_execution_contract,
     validate_capability_profile,
     validate_execution_route,
+    validate_state_observation,
 )
 
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
@@ -102,6 +103,13 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if artifact_errors:
         reason = "CONTRADICTORY_CONTROL_ARTIFACTS" if any(error.startswith("duplicate artifact_id:") for error in artifact_errors) else "MALFORMED_CONTROL_ARTIFACT"
         return _out("ESCALATE", reason, errors=artifact_errors)
+    state_observation_ref = control_bundle.get("input_state_observation_ref")
+    state_observation = artifacts.get(state_observation_ref) if isinstance(state_observation_ref, str) else None
+    if not isinstance(state_observation, Mapping):
+        return _out("ESCALATE", "INPUT_STATE_OBSERVATION_REQUIRED")
+    state_errors = validate_state_observation(state_observation)
+    if state_errors:
+        return _out("ESCALATE", "MALFORMED_STATE_OBSERVATION", errors=state_errors)
     draft = control_bundle.get("assignment_compilation_draft")
     semantics = control_bundle.get("assignment_draft_semantics")
     if not isinstance(draft, Mapping) or not isinstance(semantics, Mapping):
@@ -167,7 +175,7 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     subset = evaluate_assignment_admissibility(required, profile.get("available_capabilities", []))
     admissibility = {
         "artifact_type": "ASSIGNMENT_ADMISSIBILITY", "artifact_id": control_bundle.get("admissibility_id"),
-        "produced_by_role": "control-director", "assignment_id": None, "input_state_ref": draft.get("input_state_ref"),
+        "produced_by_role": "control-director", "assignment_id": control_bundle.get("assignment_id"), "input_state_ref": draft.get("input_state_ref"),
         "status": subset["status"], "provenance": [str(profile_ref)], "related_artifacts": [str(profile_ref), str(route_ref)],
         "assignment_draft_id": draft.get("assignment_draft_ref"), "compiled_assignment_ref": compiled.get("artifact_id"),
         "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"),
@@ -175,6 +183,11 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
         "required_capabilities": required, "available_capabilities": subset["available_capabilities"],
         "unsatisfied_required_capabilities": subset["unsatisfied_required_capabilities"], "mandatory_evidence_paths": paths,
         "execution_mode": decision.get("execution_mode"),
+        "transition_proof": {"proof_class": "ASSIGNMENT_ADMISSION", "proof_status": "PROVEN",
+            "assignment_ref": control_bundle.get("assignment_id"), "admissibility_ref": control_bundle.get("admissibility_id"),
+            "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"),
+            "dependency_bindings": [{"dependency_ref": state_observation.get("artifact_id"),
+                                     "proven_identity": state_observation.get("state_identity")}]},
     }
     admission_errors = validate_admissibility_against_profile(admissibility, profile, resolver)
     if admission_errors:
@@ -203,7 +216,9 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
             "workflow_id": decision["workflow_id"], "compiled_assignment_ref": compiled["artifact_id"],
             "capability_profile_ref": profile_ref, "route_ref": route_ref, "admissibility_ref": admissibility["artifact_id"],
             "assignment_ref": assignment["artifact_id"], "compiled_assignment": compiled,
-            "assignment_admissibility": admissibility, "assignment": assignment}
+            "assignment_admissibility": admissibility, "assignment": assignment,
+            "capability_profile": profile, "execution_route": route,
+            "input_state_observation": state_observation}
 
 
 def main() -> int:

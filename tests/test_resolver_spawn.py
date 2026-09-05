@@ -25,6 +25,10 @@ def bundle(engine="production/software", capability="implement_software_change",
     compilation["authorized_required_capabilities"] = ["python_runtime", "shell"]
     env = envelope()
     evidence = profile["evidence_artifacts"][0]
+    state_observation = {"artifact_type": "STATE_OBSERVATION", "artifact_id": "STATE-OBS-1",
+        "produced_by_role": "control-director", "input_state_ref": compilation["input_state_ref"],
+        "status": "CURRENT", "provenance": ["OWNER/K0"], "related_artifacts": [],
+        "state_identity": "git:input-state", "authority_scope": "assignment-input"}
     return {
         "decision": {"control_state": "ASSIGN", "engine_id": engine, "engine_status": "available",
                      "semantic_capability": capability, "workflow_id": workflow, "execution_mode": "local"},
@@ -35,7 +39,8 @@ def bundle(engine="production/software", capability="implement_software_change",
         "selected_prerequisite_actions": [], "execution_envelope_ref": env["artifact_id"],
         "capability_profile_ref": profile["artifact_id"], "route_ref": route["artifact_id"],
         "admissibility_id": "ADM-RESOLVED", "assignment_id": "ASSIGN-RESOLVED",
-        "artifacts": [env, evidence, profile, route],
+        "input_state_observation_ref": state_observation["artifact_id"],
+        "artifacts": [env, evidence, profile, route, state_observation],
     }
 
 

@@ -8,6 +8,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ExecutabilityStructureTest(unittest.TestCase):
+    def test_post_spawn_authority_and_lifecycle_are_schema_backed(self) -> None:
+        director = json.loads((ROOT / "schemas/director-decision.schema.json").read_text(encoding="utf-8"))
+        executor = json.loads((ROOT / "schemas/executor-result.schema.json").read_text(encoding="utf-8"))
+        admissibility = json.loads((ROOT / "schemas/assignment-admissibility.schema.json").read_text(encoding="utf-8"))
+        state = json.loads((ROOT / "schemas/state-observation.schema.json").read_text(encoding="utf-8"))
+        self.assertNotIn("transition_authority", director["required"])
+        self.assertIn("transition_authority", director["properties"])
+        self.assertFalse(director["properties"]["transition_authority"]["additionalProperties"])
+        self.assertNotIn("acceptance_status", executor["properties"]["claims"]["items"]["properties"])
+        self.assertIn("transition_proof", admissibility["required"])
+        self.assertEqual(admissibility["properties"]["transition_proof"]["properties"]["proof_class"]["const"], "ASSIGNMENT_ADMISSION")
+        self.assertEqual(state["properties"]["produced_by_role"]["const"], "control-director")
+
     def test_assignment_requires_proven_execution_contract(self) -> None:
         schema = json.loads((ROOT / "schemas/assignment.schema.json").read_text(encoding="utf-8"))
         self.assertIn("execution_contract", schema["required"])

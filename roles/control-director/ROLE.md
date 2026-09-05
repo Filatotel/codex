@@ -50,6 +50,44 @@ Global skill library, unrelated engines, verifier narrative used as a substitute
 11. If status is `ADMISSIBLE`, emit a durable Director Decision and exact next `ASSIGNMENT` containing the exact compiled-assignment, destination, capability profile/admissibility and route refs, required capabilities, mandatory evidence paths, selected execution mode, and `execution_contract.proof_status=PROVEN`.
 12. End every substantive turn in exactly one state: `ASSIGN`, `WAIT`, `ESCALATE`, or `COMPLETE`.
 
+### Structured post-spawn transition authority
+
+The production post-spawn composition surface is
+`tools.resolver_transition.resolve_transition(control_bundle)`. It consumes an
+existing `DIRECTOR_DECISION.transition_authority`; it does not replace Director
+judgment or infer policy from result prose. The authority object names required
+acceptance requirements, their exact factual Executor claim ids and required
+evidence refs, whether independent verification is already required, the exact
+verification targets and Director-owned outcome-to-baton mapping, relied-upon
+proof refs, whether current executability is protected, and the authorized
+incomplete transition (`ASSIGN`, `WAIT`, or `ESCALATE`). `ASSIGN` additionally
+requires a referenced `CONTROL_INTENT` and only
+returns the baton to `tools.resolver_spawn.resolve_spawn`; the transition surface
+cannot author an executable assignment or emit `SPAWN_READY`.
+
+For this bounded procedure, every relied-upon existing proof carries
+`transition_proof.dependency_bindings`, materialized by `resolve_spawn()` on its
+`ASSIGNMENT_ADMISSIBILITY`, each binding an exact `dependency_ref` to
+the `state_identity` under which it was proven. A changed referenced identity is
+stale and maps to `WAIT`; unreferenced state is irrelevant. When the Director
+marks `requires_current_executability`, the current governed capability profile
+must still cover the assignment execution contract for the exact destination and runtime;
+otherwise runtime drift maps to `WAIT`. Malformed, contradictory, unauthorized,
+or identity-mismatched artifacts map to `ESCALATE`. Missing results or required
+verification map to `WAIT`. `COMPLETE` requires every structured required
+acceptance claim and Director-required evidence to be present and, when required,
+the exact Verification Result outcome to map to `COMPLETE`. Executor status and
+any self-authored acceptance field are not acceptance authority. These are
+composition rules over Director-owned structured
+authority, not a new semantic decision owner.
+
+Producer/consumer ownership is fixed: the Control Director produces
+`transition_authority`; `resolve_spawn()` materializes admission-owned
+`transition_proof`; the Control Director produces bounded `STATE_OBSERVATION`
+artifacts; Executor and Control Verifier produce their distinct factual results;
+and `resolve_transition()` consumes these artifacts without adding semantic
+policy.
+
 ## ARTIFACT POLICY
 Executor and Verifier artifacts remain distinct. Director decisions cite both rather than collapsing them into one story. `CAPABILITY_PROFILE` is runtime evidence; `ASSIGNMENT_ADMISSIBILITY` is a pre-assignment control artifact; neither is completion verification.
 
