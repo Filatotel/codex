@@ -16,17 +16,13 @@ def attach_research_admission(value: dict, work_package: dict | None = None, adm
     work = deepcopy(work_package or base_wp())
     admission_result = admit_work_package(work)
     admission = {
-        "artifact_type": "RESEARCH_ADMISSION",
         "artifact_id": admission_id,
-        "produced_by_role": "research-engine",
-        "status": admission_result["ADMISSION_STATUS"],
-        "provenance": [POLICY_SURFACE, work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
-        "related_artifacts": [work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
-        "policy_surface": POLICY_SURFACE,
-        "work_package_id": work["WORK_PACKAGE_ID"],
-        "question_id": work["QUESTION_ID"],
-        "work_package": work,
-        "admission_result": admission_result,
+        **admission_result,
+        "WORK_PACKAGE_ID": work["WORK_PACKAGE_ID"],
+        "QUESTION_ID": work["QUESTION_ID"],
+        "POLICY_SURFACE": POLICY_SURFACE,
+        "PROVENANCE": [POLICY_SURFACE, work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
+        "WORK_PACKAGE": work,
     }
     value["decision"].update({
         "research_admission_ref": admission_id,
@@ -51,15 +47,15 @@ class ResearchSpawnAdmissionContinuityTest(unittest.TestCase):
     def test_positive_real_research_admission_composes_to_spawn_ready(self) -> None:
         value = research_bundle()
         admission = attach_research_admission(value)
-        self.assertEqual(admission["admission_result"]["ADMISSION_STATUS"], "ADMITTED_MACHINE_RESEARCH")
+        self.assertEqual(admission["ADMISSION_STATUS"], "ADMITTED_MACHINE_RESEARCH")
         self.assertNotIn("research_admission", value["decision"])
 
         result = resolve_spawn(value)
 
         self.assertEqual((result["control_state"], result["status"]), ("ASSIGN", "SPAWN_READY"), result)
         self.assertEqual(result["research_admission_ref"], admission["artifact_id"])
-        self.assertEqual(result["research_admission"]["work_package_id"], admission["work_package_id"])
-        self.assertEqual(result["research_admission"]["question_id"], admission["question_id"])
+        self.assertEqual(result["research_admission"]["WORK_PACKAGE_ID"], admission["WORK_PACKAGE_ID"])
+        self.assertEqual(result["research_admission"]["QUESTION_ID"], admission["QUESTION_ID"])
         self.assertEqual(result["assignment_admissibility"]["status"], "ADMISSIBLE")
         self.assertEqual(result["assignment"]["execution_contract"]["proof_status"], "PROVEN")
         self.assertIn(admission["artifact_id"], result["assignment"]["related_artifacts"])
@@ -81,15 +77,15 @@ class ResearchSpawnAdmissionContinuityTest(unittest.TestCase):
     def test_D_malformed_admission_result_fails_closed(self) -> None:
         value = research_bundle()
         admission = attach_research_admission(value)
-        admission["admission_result"] = "ADMITTED_MACHINE_RESEARCH"
-        self.assert_escalates(value, "MALFORMED_RESEARCH_ADMISSION")
+        admission["ERRORS"] = "not-a-list"
+        self.assert_escalates(value, "RESEARCH_ADMISSION_RESULT_MISMATCH")
 
     def test_E_non_admitted_work_package_fails_closed(self) -> None:
         value = research_bundle()
         work = base_wp()
         work["REQUIRES_THIRD_PARTY_HUMAN"] = True
         admission = attach_research_admission(value, work)
-        self.assertNotEqual(admission["admission_result"]["ADMISSION_STATUS"], "ADMITTED_MACHINE_RESEARCH")
+        self.assertNotEqual(admission["ADMISSION_STATUS"], "ADMITTED_MACHINE_RESEARCH")
         self.assert_escalates(value, "RESEARCH_ADMISSION_NOT_ADMITTED")
 
     def test_F_admission_for_other_work_package_cannot_authorize_selected_work(self) -> None:
@@ -107,7 +103,7 @@ class ResearchSpawnAdmissionContinuityTest(unittest.TestCase):
     def test_H_lookalike_without_research_provenance_fails_closed(self) -> None:
         value = research_bundle()
         admission = attach_research_admission(value)
-        admission["provenance"] = [admission["work_package_id"], admission["question_id"]]
+        admission["PROVENANCE"] = [admission["WORK_PACKAGE_ID"], admission["QUESTION_ID"]]
         self.assert_escalates(value, "MALFORMED_RESEARCH_ADMISSION")
 
     def test_I_valid_research_admission_does_not_bypass_generic_executability(self) -> None:
