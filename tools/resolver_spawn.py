@@ -21,9 +21,15 @@ from tools.executability import (
     validate_execution_route,
     validate_state_observation,
 )
+from tools.research_policy import admit_work_package
 
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
 SEMANTIC_FIELDS = ("objective", "authority", "scope", "acceptance", "stop_conditions", "result_to")
+RESEARCH_POLICY_SURFACE = "tools.research_policy.admit_work_package"
+RESEARCH_RESULT_FIELDS = {"ADMISSION_STATUS", "ERROR_CODE", "REQUIRE_MACHINE_REDESIGN", "ERRORS"}
+RESEARCH_ADMISSION_FIELDS = {
+    "artifact_id", *RESEARCH_RESULT_FIELDS, "WORK_PACKAGE_ID", "QUESTION_ID", "POLICY_SURFACE", "PROVENANCE", "WORK_PACKAGE",
+}
 
 
 def _out(control_state: str, reason: str, **details: object) -> dict[str, object]:
@@ -76,6 +82,50 @@ def _valid_prerequisites(value: object) -> tuple[list[dict[str, object]], list[s
     return actions, errors
 
 
+def _research_admission(
+    decision: Mapping[str, object],
+    artifacts: Mapping[str, Mapping[str, object]],
+) -> tuple[Mapping[str, object] | None, dict[str, object] | None]:
+    """Revalidate exact Research work through the existing Research policy surface."""
+    admission_ref = decision.get("research_admission_ref")
+    if not isinstance(admission_ref, str) or not admission_ref.strip():
+        return None, _out("ESCALATE", "RESEARCH_ADMISSION_REQUIRED", engine_id="research")
+    selected_work_id = decision.get("research_work_package_id")
+    selected_question_id = decision.get("research_question_id")
+    if not isinstance(selected_work_id, str) or not selected_work_id.strip() or not isinstance(selected_question_id, str) or not selected_question_id.strip():
+        return None, _out("ESCALATE", "RESEARCH_WORK_IDENTITY_REQUIRED", engine_id="research")
+
+    admission = artifacts.get(admission_ref)
+    if not isinstance(admission, Mapping):
+        return None, _out("ESCALATE", "RESEARCH_ADMISSION_UNRESOLVED", engine_id="research", research_admission_ref=admission_ref)
+    if set(admission) != RESEARCH_ADMISSION_FIELDS:
+        return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
+    if admission.get("artifact_id") != admission_ref or admission.get("POLICY_SURFACE") != RESEARCH_POLICY_SURFACE:
+        return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
+
+    work_package = admission.get("WORK_PACKAGE")
+    if not isinstance(work_package, Mapping):
+        return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
+    work_id = work_package.get("WORK_PACKAGE_ID")
+    question_id = work_package.get("QUESTION_ID")
+    if not isinstance(work_id, str) or not work_id.strip() or not isinstance(question_id, str) or not question_id.strip():
+        return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
+    if admission.get("WORK_PACKAGE_ID") != work_id or admission.get("QUESTION_ID") != question_id:
+        return None, _out("ESCALATE", "RESEARCH_ADMISSION_IDENTITY_MISMATCH", engine_id="research", research_admission_ref=admission_ref)
+    if selected_work_id != work_id or selected_question_id != question_id:
+        return None, _out("ESCALATE", "RESEARCH_ADMISSION_IDENTITY_MISMATCH", engine_id="research", research_admission_ref=admission_ref)
+    if admission.get("PROVENANCE") != [RESEARCH_POLICY_SURFACE, work_id, question_id]:
+        return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
+
+    authoritative_result = admit_work_package(dict(work_package))
+    carried_result = {field: admission.get(field) for field in RESEARCH_RESULT_FIELDS}
+    if carried_result != authoritative_result:
+        return None, _out("ESCALATE", "RESEARCH_ADMISSION_RESULT_MISMATCH", engine_id="research", research_admission_ref=admission_ref)
+    if authoritative_result.get("ADMISSION_STATUS") != "ADMITTED_MACHINE_RESEARCH":
+        return None, _out("ESCALATE", "RESEARCH_ADMISSION_NOT_ADMITTED", engine_id="research", research_admission_ref=admission_ref)
+    return admission, None
+
+
 def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     """Resolve one already-selected local control bundle to a baton outcome."""
     if not isinstance(control_bundle, Mapping):
@@ -94,8 +144,6 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if decision["engine_status"] != "available":
         reason = "ENGINE_NOT_MATERIALIZED" if decision["engine_status"] == "not_materialized" else "ENGINE_UNAVAILABLE"
         return _out("ESCALATE", reason, engine_id=decision["engine_id"])
-    if decision["engine_id"] == "research" and decision.get("research_admission") != "MACHINE_ONLY_ADMITTED":
-        return _out("ESCALATE", "RESEARCH_ADMISSION_REQUIRED", engine_id=decision["engine_id"])
     if "additional_required_capabilities" in control_bundle or "final_required_capabilities" in control_bundle:
         return _out("ESCALATE", "UNACCOUNTED_CAPABILITY_EXPANSION")
 
@@ -103,6 +151,12 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if artifact_errors:
         reason = "CONTRADICTORY_CONTROL_ARTIFACTS" if any(error.startswith("duplicate artifact_id:") for error in artifact_errors) else "MALFORMED_CONTROL_ARTIFACT"
         return _out("ESCALATE", reason, errors=artifact_errors)
+    research_admission = None
+    if decision["engine_id"] == "research":
+        research_admission, research_error = _research_admission(decision, artifacts)
+        if research_error is not None:
+            return research_error
+
     state_observation_ref = control_bundle.get("input_state_observation_ref")
     state_observation = artifacts.get(state_observation_ref) if isinstance(state_observation_ref, str) else None
     if not isinstance(state_observation, Mapping):
@@ -173,10 +227,11 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
         return _out("ESCALATE", "EXECUTION_ROUTE_INVALID", errors=route_errors)
 
     subset = evaluate_assignment_admissibility(required, profile.get("available_capabilities", []))
+    research_refs = [str(research_admission["artifact_id"])] if isinstance(research_admission, Mapping) else []
     admissibility = {
         "artifact_type": "ASSIGNMENT_ADMISSIBILITY", "artifact_id": control_bundle.get("admissibility_id"),
         "produced_by_role": "control-director", "assignment_id": control_bundle.get("assignment_id"), "input_state_ref": draft.get("input_state_ref"),
-        "status": subset["status"], "provenance": [str(profile_ref)], "related_artifacts": [str(profile_ref), str(route_ref)],
+        "status": subset["status"], "provenance": [str(profile_ref)], "related_artifacts": [str(profile_ref), str(route_ref), *research_refs],
         "assignment_draft_id": draft.get("assignment_draft_ref"), "compiled_assignment_ref": compiled.get("artifact_id"),
         "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"),
         "capability_profile_ref": profile_ref, "route_ref": route_ref, "mandatory_actions": final_actions,
@@ -201,7 +256,7 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     assignment.update({
         "artifact_type": "ASSIGNMENT", "artifact_id": control_bundle.get("assignment_id"), "produced_by_role": "control-director",
         "assignment_id": control_bundle.get("assignment_id"), "input_state_ref": draft.get("input_state_ref"), "status": "ISSUED",
-        "provenance": [str(admissibility["artifact_id"])], "related_artifacts": [str(admissibility["artifact_id"]), str(profile_ref), str(route_ref)],
+        "provenance": [str(admissibility["artifact_id"])], "related_artifacts": [str(admissibility["artifact_id"]), str(profile_ref), str(route_ref), *research_refs],
         "execution_contract": {"assignment_draft_ref": draft.get("assignment_draft_ref"), "compiled_assignment_ref": compiled.get("artifact_id"),
             "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"), "capability_profile_ref": profile_ref,
             "admissibility_ref": admissibility.get("artifact_id"), "route_ref": route_ref, "proof_status": "PROVEN",
@@ -212,13 +267,17 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
                                                            compiled, resolver)
     if proof_errors:
         return _out("ESCALATE", "FINAL_ASSIGNMENT_PROOF_FAILED", errors=proof_errors)
-    return {"status": "SPAWN_READY", "control_state": "ASSIGN", "engine_id": decision["engine_id"],
-            "workflow_id": decision["workflow_id"], "compiled_assignment_ref": compiled["artifact_id"],
-            "capability_profile_ref": profile_ref, "route_ref": route_ref, "admissibility_ref": admissibility["artifact_id"],
-            "assignment_ref": assignment["artifact_id"], "compiled_assignment": compiled,
-            "assignment_admissibility": admissibility, "assignment": assignment,
-            "capability_profile": profile, "execution_route": route,
-            "input_state_observation": state_observation}
+    result = {"status": "SPAWN_READY", "control_state": "ASSIGN", "engine_id": decision["engine_id"],
+              "workflow_id": decision["workflow_id"], "compiled_assignment_ref": compiled["artifact_id"],
+              "capability_profile_ref": profile_ref, "route_ref": route_ref, "admissibility_ref": admissibility["artifact_id"],
+              "assignment_ref": assignment["artifact_id"], "compiled_assignment": compiled,
+              "assignment_admissibility": admissibility, "assignment": assignment,
+              "capability_profile": profile, "execution_route": route,
+              "input_state_observation": state_observation}
+    if isinstance(research_admission, Mapping):
+        result["research_admission_ref"] = research_admission["artifact_id"]
+        result["research_admission"] = research_admission
+    return result
 
 
 def main() -> int:
