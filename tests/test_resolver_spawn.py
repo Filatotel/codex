@@ -20,6 +20,60 @@ ROOT = Path(__file__).resolve().parents[1]
 RESEARCH_POLICY_SURFACE = "tools.research_policy.admit_work_package"
 
 
+def _append_artifact(value: dict, artifact: dict) -> str:
+    value["artifacts"].append(artifact)
+    return artifact["artifact_id"]
+
+
+def _attach_default_canon_prerequisites(value: dict, workflow: str) -> None:
+    """Keep pre-existing Canon resolver fixtures valid under governed workflow closure."""
+    state_ref = value["input_state_observation_ref"]
+    if workflow == "establish_canon_foundation":
+        owner_ref = _append_artifact(value, {
+            "artifact_id": "OWNER-FOUNDATION-INPUT-1", "artifact_type": "OWNER_DECISION_RECORD",
+            "provenance": ["OWNER/K0"],
+        })
+        value["workflow_prerequisite_bindings"] = {
+            "owner_or_authorized_foundation_input": owner_ref,
+            "exact_state_identity": state_ref,
+        }
+    elif workflow == "reconcile_research_into_canon":
+        canon_ref = _append_artifact(value, {
+            "artifact_id": "CANON-CURRENT-1", "artifact_type": "CANON_STATE", "provenance": ["OWNER/K0"],
+        })
+        research_ref = _append_artifact(value, {
+            "artifact_id": "FINDING-1", "artifact_type": "RESEARCH_FINDING", "provenance": ["RESEARCH-RELEASE-1"],
+        })
+        authority_ref = _append_artifact(value, {
+            "artifact_id": "CANON-MUTATION-AUTH-1", "artifact_type": "OWNER_DECISION_RECORD", "provenance": ["OWNER/K0"],
+        })
+        value["workflow_prerequisite_bindings"] = {
+            "exact_current_canon_ref": canon_ref,
+            "exact_research_release_or_finding_refs": [research_ref],
+            "canon_mutation_authority_for_any_accepted_change": authority_ref,
+        }
+    elif workflow == "manage_production_canon_change":
+        canon_ref = _append_artifact(value, {
+            "artifact_id": "CANON-CURRENT-1", "artifact_type": "CANON_STATE", "provenance": ["OWNER/K0"],
+        })
+        signal_ref = _append_artifact(value, {
+            "artifact_id": "PRODUCTION-CHANGE-1", "artifact_type": "PRODUCTION_CHANGE", "provenance": ["PRODUCTION-1"],
+        })
+        authority_ref = _append_artifact(value, {
+            "artifact_id": "CANON-MUTATION-AUTH-1", "artifact_type": "OWNER_DECISION_RECORD", "provenance": ["OWNER/K0"],
+        })
+        value["workflow_prerequisite_bindings"] = {
+            "exact_current_canon_ref": canon_ref,
+            "exact_production_change_signal": signal_ref,
+            "canon_mutation_authority_for_any_accepted_change": authority_ref,
+        }
+    elif workflow == "validate_canon":
+        candidate_ref = _append_artifact(value, {
+            "artifact_id": "CANON-CANDIDATE-1", "artifact_type": "CANON_STATE", "provenance": ["OWNER/K0"],
+        })
+        value["workflow_prerequisite_bindings"] = {"exact_canon_candidate_ref": candidate_ref}
+
+
 def bundle(engine="production/software", capability="implement_software_change", workflow="implementation"):
     assignment, _, profile = deepcopy(valid_chain())
     _, route = governed_chain(assignment, {}, profile)
@@ -32,7 +86,7 @@ def bundle(engine="production/software", capability="implement_software_change",
         "produced_by_role": "control-director", "input_state_ref": compilation["input_state_ref"],
         "status": "CURRENT", "provenance": ["OWNER/K0"], "related_artifacts": [],
         "state_identity": "git:input-state", "authority_scope": "assignment-input"}
-    return {
+    value = {
         "decision": {"control_state": "ASSIGN", "engine_id": engine, "engine_status": "available",
                      "semantic_capability": capability, "workflow_id": workflow, "execution_mode": "local"},
         "assignment_compilation_draft": compilation,
@@ -45,6 +99,9 @@ def bundle(engine="production/software", capability="implement_software_change",
         "input_state_observation_ref": state_observation["artifact_id"],
         "artifacts": [env, evidence, profile, route, state_observation],
     }
+    if engine == "canon":
+        _attach_default_canon_prerequisites(value, workflow)
+    return value
 
 
 def attach_research_admission(value, work_package=None, admission_id="RESEARCH-ADM-1"):

@@ -94,8 +94,8 @@ workflow_contracts:
       - engines/canon/skills/register-contradiction/SKILL.md
       - engines/canon/skills/freeze-canon/SKILL.md
     upstream_requirements:
-      - owner_or_authorized_foundation_input
-      - exact_state_identity
+      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"owner_or_authorized_foundation_input"}
+      - {"allowed_artifact_types":["STATE_OBSERVATION"],"proof_class":"ARTIFACT_REF","requirement_id":"exact_state_identity"}
   reconcile_research_into_canon:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -110,9 +110,9 @@ workflow_contracts:
       - engines/canon/skills/register-contradiction/SKILL.md
       - engines/canon/skills/freeze-canon/SKILL.md
     upstream_requirements:
-      - exact_current_canon_ref
-      - exact_research_release_or_finding_refs
-      - canon_mutation_authority_for_any_accepted_change
+      - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_current_canon_ref"}
+      - {"multiple":true,"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_research_release_or_finding_refs"}
+      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"canon_mutation_authority_for_any_accepted_change"}
   manage_production_canon_change:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -122,9 +122,9 @@ workflow_contracts:
     optional_skills:
       - engines/canon/skills/register-canon-fact/SKILL.md
     upstream_requirements:
-      - exact_current_canon_ref
-      - exact_production_change_signal
-      - canon_mutation_authority_for_any_accepted_change
+      - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_current_canon_ref"}
+      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_production_change_signal"}
+      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"canon_mutation_authority_for_any_accepted_change"}
   validate_canon:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -132,7 +132,7 @@ workflow_contracts:
       - engines/canon/skills/validate-canon/SKILL.md
     optional_skills: []
     upstream_requirements:
-      - exact_canon_candidate_ref
+      - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE","CANON_CHANGE_PROPOSAL","CANON_RECONCILIATION_RESULT"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_canon_candidate_ref"}
   validate_and_freeze_canon:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -141,8 +141,8 @@ workflow_contracts:
       - engines/canon/skills/freeze-canon/SKILL.md
     optional_skills: []
     upstream_requirements:
-      - exact_canon_candidate_ref
-      - explicit_freeze_authority
+      - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE","CANON_CHANGE_PROPOSAL","CANON_RECONCILIATION_RESULT"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_canon_candidate_ref"}
+      - {"authority_contract":{"artifact_types":["FREEZE_AUTHORITY"],"authority_roles":["OWNER_K0","CONTROL_DIRECTOR"],"binding_checks":[{"artifact_field":"artifact_id","authority_field":"target_ref","requirement_id":"exact_canon_candidate_ref"},{"artifact_field":"artifact_id","authority_field":"candidate_identity","requirement_id":"exact_canon_candidate_ref"}],"constant_checks":{"authorizes_exact_candidate_freeze":true},"produced_by_roles":["owner-interface","control-director"],"require_provenance":true,"statuses":["AUTHORIZED"],"workflow_field":"workflow_id"},"proof_class":"AUTHORITY_REF","requirement_id":"explicit_freeze_authority"}
   final_canon_reconciliation:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -152,9 +152,9 @@ workflow_contracts:
     optional_skills:
       - engines/canon/skills/classify-canon-change/SKILL.md
     upstream_requirements:
-      - exact_canon_1x_ref
-      - exact_production_change_records
-      - explicit_final_canon_authority
+      - {"allowed_artifact_types":["CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_canon_1x_ref"}
+      - {"multiple":true,"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_production_change_records"}
+      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"explicit_final_canon_authority"}
   reopen_canon:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -163,8 +163,8 @@ workflow_contracts:
     optional_skills:
       - engines/canon/skills/validate-canon/SKILL.md
     upstream_requirements:
-      - exact_frozen_canon_ref
-      - explicit_reopen_authority
+      - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_frozen_canon_ref"}
+      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"explicit_reopen_authority"}
 skill_namespaces:
   canon_skills: engines/canon/skills/
   shared_core: kernel/skills/

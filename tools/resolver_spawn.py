@@ -22,6 +22,7 @@ from tools.executability import (
     validate_state_observation,
 )
 from tools.research_policy import admit_work_package
+from tools.workflow_contract import resolve_workflow_contract
 
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
 SEMANTIC_FIELDS = ("objective", "authority", "scope", "acceptance", "stop_conditions", "result_to")
@@ -151,6 +152,22 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if artifact_errors:
         reason = "CONTRADICTORY_CONTROL_ARTIFACTS" if any(error.startswith("duplicate artifact_id:") for error in artifact_errors) else "MALFORMED_CONTROL_ARTIFACT"
         return _out("ESCALATE", reason, errors=artifact_errors)
+
+    workflow_proof = resolve_workflow_contract(
+        decision,
+        control_bundle.get("workflow_prerequisite_bindings"),
+        resolver,
+    )
+    if workflow_proof.get("status") == "ERROR":
+        return _out("ESCALATE", str(workflow_proof.get("reason")),
+                    engine_id=decision["engine_id"], workflow_id=decision["workflow_id"],
+                    workflow_contract_source=workflow_proof.get("contract_source"),
+                    workflow_contract_details={key: value for key, value in workflow_proof.items()
+                                               if key not in {"status", "reason", "contract_source"}})
+    workflow_refs = workflow_proof.get("proof_refs", []) if workflow_proof.get("status") == "PROVEN" else []
+    if not isinstance(workflow_refs, list):
+        return _out("ESCALATE", "WORKFLOW_CONTRACT_MALFORMED")
+
     research_admission = None
     if decision["engine_id"] == "research":
         research_admission, research_error = _research_admission(decision, artifacts)
@@ -228,10 +245,11 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
 
     subset = evaluate_assignment_admissibility(required, profile.get("available_capabilities", []))
     research_refs = [str(research_admission["artifact_id"])] if isinstance(research_admission, Mapping) else []
+    proof_refs = [*research_refs, *(str(ref) for ref in workflow_refs)]
     admissibility = {
         "artifact_type": "ASSIGNMENT_ADMISSIBILITY", "artifact_id": control_bundle.get("admissibility_id"),
         "produced_by_role": "control-director", "assignment_id": control_bundle.get("assignment_id"), "input_state_ref": draft.get("input_state_ref"),
-        "status": subset["status"], "provenance": [str(profile_ref)], "related_artifacts": [str(profile_ref), str(route_ref), *research_refs],
+        "status": subset["status"], "provenance": [str(profile_ref)], "related_artifacts": [str(profile_ref), str(route_ref), *proof_refs],
         "assignment_draft_id": draft.get("assignment_draft_ref"), "compiled_assignment_ref": compiled.get("artifact_id"),
         "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"),
         "capability_profile_ref": profile_ref, "route_ref": route_ref, "mandatory_actions": final_actions,
@@ -256,7 +274,7 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     assignment.update({
         "artifact_type": "ASSIGNMENT", "artifact_id": control_bundle.get("assignment_id"), "produced_by_role": "control-director",
         "assignment_id": control_bundle.get("assignment_id"), "input_state_ref": draft.get("input_state_ref"), "status": "ISSUED",
-        "provenance": [str(admissibility["artifact_id"])], "related_artifacts": [str(admissibility["artifact_id"]), str(profile_ref), str(route_ref), *research_refs],
+        "provenance": [str(admissibility["artifact_id"])], "related_artifacts": [str(admissibility["artifact_id"]), str(profile_ref), str(route_ref), *proof_refs],
         "execution_contract": {"assignment_draft_ref": draft.get("assignment_draft_ref"), "compiled_assignment_ref": compiled.get("artifact_id"),
             "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"), "capability_profile_ref": profile_ref,
             "admissibility_ref": admissibility.get("artifact_id"), "route_ref": route_ref, "proof_status": "PROVEN",
@@ -274,6 +292,9 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
               "assignment_admissibility": admissibility, "assignment": assignment,
               "capability_profile": profile, "execution_route": route,
               "input_state_observation": state_observation}
+    if workflow_proof.get("status") == "PROVEN":
+        result["workflow_contract_source"] = workflow_proof.get("contract_source")
+        result["workflow_prerequisite_refs"] = workflow_refs
     if isinstance(research_admission, Mapping):
         result["research_admission_ref"] = research_admission["artifact_id"]
         result["research_admission"] = research_admission
