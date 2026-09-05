@@ -26,9 +26,9 @@ from tools.research_policy import admit_work_package
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
 SEMANTIC_FIELDS = ("objective", "authority", "scope", "acceptance", "stop_conditions", "result_to")
 RESEARCH_POLICY_SURFACE = "tools.research_policy.admit_work_package"
+RESEARCH_RESULT_FIELDS = {"ADMISSION_STATUS", "ERROR_CODE", "REQUIRE_MACHINE_REDESIGN", "ERRORS"}
 RESEARCH_ADMISSION_FIELDS = {
-    "artifact_type", "artifact_id", "produced_by_role", "status", "provenance", "related_artifacts",
-    "policy_surface", "work_package_id", "question_id", "work_package", "admission_result",
+    "artifact_id", *RESEARCH_RESULT_FIELDS, "WORK_PACKAGE_ID", "QUESTION_ID", "POLICY_SURFACE", "PROVENANCE", "WORK_PACKAGE",
 }
 
 
@@ -86,7 +86,7 @@ def _research_admission(
     decision: Mapping[str, object],
     artifacts: Mapping[str, Mapping[str, object]],
 ) -> tuple[Mapping[str, object] | None, dict[str, object] | None]:
-    """Validate Research-owned admission continuity without owning Research policy."""
+    """Revalidate exact Research work through the existing Research policy surface."""
     admission_ref = decision.get("research_admission_ref")
     if not isinstance(admission_ref, str) or not admission_ref.strip():
         return None, _out("ESCALATE", "RESEARCH_ADMISSION_REQUIRED", engine_id="research")
@@ -100,32 +100,26 @@ def _research_admission(
         return None, _out("ESCALATE", "RESEARCH_ADMISSION_UNRESOLVED", engine_id="research", research_admission_ref=admission_ref)
     if set(admission) != RESEARCH_ADMISSION_FIELDS:
         return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
-    if admission.get("artifact_type") != "RESEARCH_ADMISSION" or admission.get("artifact_id") != admission_ref:
-        return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
-    if admission.get("produced_by_role") != "research-engine" or admission.get("policy_surface") != RESEARCH_POLICY_SURFACE:
+    if admission.get("artifact_id") != admission_ref or admission.get("POLICY_SURFACE") != RESEARCH_POLICY_SURFACE:
         return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
 
-    work_package = admission.get("work_package")
-    admission_result = admission.get("admission_result")
-    if not isinstance(work_package, Mapping) or not isinstance(admission_result, Mapping):
+    work_package = admission.get("WORK_PACKAGE")
+    if not isinstance(work_package, Mapping):
         return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
     work_id = work_package.get("WORK_PACKAGE_ID")
     question_id = work_package.get("QUESTION_ID")
     if not isinstance(work_id, str) or not work_id.strip() or not isinstance(question_id, str) or not question_id.strip():
         return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
-    if admission.get("work_package_id") != work_id or admission.get("question_id") != question_id:
+    if admission.get("WORK_PACKAGE_ID") != work_id or admission.get("QUESTION_ID") != question_id:
         return None, _out("ESCALATE", "RESEARCH_ADMISSION_IDENTITY_MISMATCH", engine_id="research", research_admission_ref=admission_ref)
     if selected_work_id != work_id or selected_question_id != question_id:
         return None, _out("ESCALATE", "RESEARCH_ADMISSION_IDENTITY_MISMATCH", engine_id="research", research_admission_ref=admission_ref)
-
-    expected_provenance = [RESEARCH_POLICY_SURFACE, work_id, question_id]
-    if admission.get("provenance") != expected_provenance or admission.get("related_artifacts") != [work_id, question_id]:
+    if admission.get("PROVENANCE") != [RESEARCH_POLICY_SURFACE, work_id, question_id]:
         return None, _out("ESCALATE", "MALFORMED_RESEARCH_ADMISSION", engine_id="research", research_admission_ref=admission_ref)
 
     authoritative_result = admit_work_package(dict(work_package))
-    if dict(admission_result) != authoritative_result:
-        return None, _out("ESCALATE", "RESEARCH_ADMISSION_RESULT_MISMATCH", engine_id="research", research_admission_ref=admission_ref)
-    if admission.get("status") != authoritative_result.get("ADMISSION_STATUS"):
+    carried_result = {field: admission.get(field) for field in RESEARCH_RESULT_FIELDS}
+    if carried_result != authoritative_result:
         return None, _out("ESCALATE", "RESEARCH_ADMISSION_RESULT_MISMATCH", engine_id="research", research_admission_ref=admission_ref)
     if authoritative_result.get("ADMISSION_STATUS") != "ADMITTED_MACHINE_RESEARCH":
         return None, _out("ESCALATE", "RESEARCH_ADMISSION_NOT_ADMITTED", engine_id="research", research_admission_ref=admission_ref)
