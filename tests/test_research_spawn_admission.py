@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import unittest
 
+from tests.test_assignment_compiler import action
 from tests.test_research_machine_only import base_wp
 from tests.test_resolver_spawn import bundle
 from tools.research_policy import admit_work_package
@@ -125,14 +126,7 @@ class ResearchSpawnAdmissionContinuityTest(unittest.TestCase):
         software = resolve_spawn(bundle())
         verification_value = bundle("verification", "verify_completion_claim", "exact-evidence-verification")
         verification_value["assignment_compilation_draft"]["evidence_requirements"] = [
-            {
-                "action_id": "verification-evidence",
-                "claim_ref": "claim-1",
-                "responsibility": "EXECUTOR",
-                "required_capabilities": ["python_runtime"],
-                "evidence_path": None,
-                "obligation_class": "local_evidence",
-            }
+            action("verification-evidence", capabilities=["python_runtime"], obligation_class="local_evidence")
         ]
         verification = resolve_spawn(verification_value)
         self.assertEqual((software["control_state"], software["status"]), ("ASSIGN", "SPAWN_READY"), software)
