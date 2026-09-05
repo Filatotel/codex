@@ -124,7 +124,13 @@ def validate_director_decision(decision: Mapping[str, object]) -> list[str]:
             else: seen.add(str(item.get("requirement_id")))
             _string_list(item.get("required_evidence_refs"), f"acceptance_requirements[{index}].required_evidence_refs", errors)
     outcome_map = authority.get("verification_outcome_map")
-    if not isinstance(outcome_map, Mapping) or any(key not in allowed_outcomes or value not in {"WAIT", "ESCALATE", "COMPLETE"} for key, value in outcome_map.items()): errors.append("transition_authority.verification_outcome_map is invalid")
+    allowed_batons_by_outcome = {
+        "CONFIRMED": {"WAIT", "ESCALATE", "COMPLETE"},
+        "QUALIFIED": {"WAIT", "ESCALATE"},
+        "NOT_PROVEN": {"WAIT", "ESCALATE"},
+        "BLOCKED": {"WAIT", "ESCALATE"},
+    }
+    if not isinstance(outcome_map, Mapping) or any(key not in allowed_outcomes or value not in allowed_batons_by_outcome[key] for key, value in outcome_map.items()): errors.append("transition_authority.verification_outcome_map is invalid")
     return errors
 
 
@@ -612,8 +618,7 @@ def validate_execution_route(
     segment_by_id: dict[str, Mapping[str, object]] = {}
     for index, segment in enumerate(segments):
         prefix = f"execution_route.segments[{index}]"
-        if not isinstance(segment, Mapping):
-            errors.append(f"{prefix} must be an object"); continue
+        if not isinstance(segment, Mapping): errors.append(f"{prefix} must be an object"); continue
         sid, role = segment.get("segment_id"), segment.get("route_role")
         for field in ["segment_id", "route_role", "destination_id", "runtime_identity", "capability_profile_ref", "execution_mode"]:
             if not isinstance(segment.get(field), str) or not str(segment[field]).strip(): errors.append(f"{prefix}.{field} must be a non-empty string")
