@@ -51,12 +51,13 @@ def attach_research_admission(value, work_package=None, admission_id="RESEARCH-A
     work = deepcopy(work_package or base_wp())
     admission_result = admit_work_package(work)
     admission = {
-        "artifact_type": "RESEARCH_ADMISSION", "artifact_id": admission_id, "produced_by_role": "research-engine",
-        "status": admission_result["ADMISSION_STATUS"],
-        "provenance": [RESEARCH_POLICY_SURFACE, work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
-        "related_artifacts": [work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
-        "policy_surface": RESEARCH_POLICY_SURFACE, "work_package_id": work["WORK_PACKAGE_ID"],
-        "question_id": work["QUESTION_ID"], "work_package": work, "admission_result": admission_result,
+        "artifact_id": admission_id,
+        **admission_result,
+        "WORK_PACKAGE_ID": work["WORK_PACKAGE_ID"],
+        "QUESTION_ID": work["QUESTION_ID"],
+        "POLICY_SURFACE": RESEARCH_POLICY_SURFACE,
+        "PROVENANCE": [RESEARCH_POLICY_SURFACE, work["WORK_PACKAGE_ID"], work["QUESTION_ID"]],
+        "WORK_PACKAGE": work,
     }
     value["decision"].update({"research_admission_ref": admission_id,
                               "research_work_package_id": work["WORK_PACKAGE_ID"],
