@@ -112,7 +112,6 @@ workflow_contracts:
     upstream_requirements:
       - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_current_canon_ref"}
       - {"multiple":true,"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_research_release_or_finding_refs"}
-      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"canon_mutation_authority_for_any_accepted_change"}
   manage_production_canon_change:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -124,7 +123,6 @@ workflow_contracts:
     upstream_requirements:
       - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_current_canon_ref"}
       - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_production_change_signal"}
-      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"canon_mutation_authority_for_any_accepted_change"}
   validate_canon:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -154,7 +152,7 @@ workflow_contracts:
     upstream_requirements:
       - {"allowed_artifact_types":["CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_canon_1x_ref"}
       - {"multiple":true,"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_production_change_records"}
-      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"explicit_final_canon_authority"}
+      - {"authority_contract":{"artifact_types":["OWNER_DECISION_RECORD"],"authority_roles":["OWNER_K0"],"binding_checks":[{"artifact_field":"artifact_id","authority_field":"authorized_scope","requirement_id":"exact_canon_1x_ref"}],"constant_checks":{"selected_option":"AUTHORIZE_FINAL_CANON_RECONCILIATION"},"produced_by_roles":["owner-interface"],"require_provenance":true,"statuses":["RECORDED"],"workflow_field":"decision_kind"},"proof_class":"AUTHORITY_REF","requirement_id":"explicit_final_canon_authority"}
   reopen_canon:
     executing_role: roles/executor/ROLE.md
     consuming_role: roles/control-director/ROLE.md
@@ -164,7 +162,7 @@ workflow_contracts:
       - engines/canon/skills/validate-canon/SKILL.md
     upstream_requirements:
       - {"allowed_artifact_types":["CANON_FOUNDATION","CANON_STATE"],"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_frozen_canon_ref"}
-      - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"explicit_reopen_authority"}
+      - {"authority_contract":{"artifact_types":["OWNER_DECISION_RECORD"],"authority_roles":["OWNER_K0"],"binding_checks":[{"artifact_field":"artifact_id","authority_field":"authorized_scope","requirement_id":"exact_frozen_canon_ref"}],"constant_checks":{"selected_option":"AUTHORIZE_REOPEN_CANON"},"produced_by_roles":["owner-interface"],"require_provenance":true,"statuses":["RECORDED"],"workflow_field":"decision_kind"},"proof_class":"AUTHORITY_REF","requirement_id":"explicit_reopen_authority"}
 skill_namespaces:
   canon_skills: engines/canon/skills/
   shared_core: kernel/skills/

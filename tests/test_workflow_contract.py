@@ -163,5 +163,135 @@ class CanonWorkflowAdmissionIntegrationTest(unittest.TestCase):
         self.assertNotIn("assignment", result)
 
 
+
+def _owner_decision_authority(
+    workflow_id: str,
+    target_ref: str,
+    selected_option: str,
+    *,
+    artifact_id: str = "OWNER-CANON-AUTH-1",
+) -> dict[str, object]:
+    return {
+        "artifact_type": "OWNER_DECISION_RECORD",
+        "artifact_id": artifact_id,
+        "produced_by_role": "owner-interface",
+        "assignment_id": "OWNER-ASSIGN-1",
+        "input_state_ref": target_ref,
+        "status": "RECORDED",
+        "provenance": ["OWNER/K0", target_ref],
+        "related_artifacts": [target_ref],
+        "question_ref": f"{workflow_id}:{target_ref}",
+        "options_presented": [selected_option, "DEFER"],
+        "selected_option": selected_option,
+        "owner_constraints": [],
+        "consequences_acknowledged": ["Canon authority is scoped and non-transitive."],
+        "authority_role": "OWNER_K0",
+        "decision_kind": workflow_id,
+        "authorized_scope": target_ref,
+    }
+
+
+def _final_bundle(authority: dict[str, object] | None = None) -> dict:
+    value = bundle("canon", "final_canon_reconciliation", "final_canon_reconciliation")
+    canon = {"artifact_type": "CANON_STATE", "artifact_id": "CANON-1X-1", "provenance": ["OWNER/K0"]}
+    record = {"artifact_type": "PRODUCTION_CHANGE", "artifact_id": "PROD-CHANGE-1", "provenance": ["PRODUCTION-1"]}
+    value["artifacts"].extend([canon, record])
+    bindings: dict[str, object] = {
+        "exact_canon_1x_ref": canon["artifact_id"],
+        "exact_production_change_records": [record["artifact_id"]],
+    }
+    if authority is not None:
+        value["artifacts"].append(authority)
+        bindings["explicit_final_canon_authority"] = authority["artifact_id"]
+    value["workflow_prerequisite_bindings"] = bindings
+    return value
+
+
+def _reopen_bundle(authority: dict[str, object] | None = None) -> dict:
+    value = bundle("canon", "reopen_canon", "reopen_canon")
+    canon = {"artifact_type": "CANON_STATE", "artifact_id": "CANON-FROZEN-1", "provenance": ["FREEZE-1"]}
+    value["artifacts"].append(canon)
+    bindings: dict[str, object] = {"exact_frozen_canon_ref": canon["artifact_id"]}
+    if authority is not None:
+        value["artifacts"].append(authority)
+        bindings["explicit_reopen_authority"] = authority["artifact_id"]
+    value["workflow_prerequisite_bindings"] = bindings
+    return value
+
+
+class CanonAuthoritySemanticsR3Test(unittest.TestCase):
+    def assert_fail_closed(self, value: dict, reason: str) -> dict:
+        result = resolve_spawn(value)
+        self.assertNotEqual(result.get("status"), "SPAWN_READY", result)
+        self.assertNotIn("assignment", result)
+        self.assertEqual(result.get("reason"), reason, result)
+        return result
+
+    def test_final_authority_is_governed_and_target_workflow_bound(self) -> None:
+        authority = _owner_decision_authority(
+            "final_canon_reconciliation", "CANON-1X-1", "AUTHORIZE_FINAL_CANON_RECONCILIATION"
+        )
+        result = resolve_spawn(_final_bundle(authority))
+        self.assertEqual((result["control_state"], result["status"]), ("ASSIGN", "SPAWN_READY"), result)
+        self.assertIn(authority["artifact_id"], result["workflow_prerequisite_refs"])
+
+        wrong_target = dict(authority)
+        wrong_target["artifact_id"] = "OWNER-FINAL-WRONG-TARGET"
+        wrong_target["authorized_scope"] = "CANON-OTHER"
+        self.assert_fail_closed(_final_bundle(wrong_target), "WORKFLOW_AUTHORITY_SCOPE_MISMATCH")
+
+        wrong_workflow = dict(authority)
+        wrong_workflow["artifact_id"] = "OWNER-FINAL-WRONG-WORKFLOW"
+        wrong_workflow["decision_kind"] = "reopen_canon"
+        self.assert_fail_closed(_final_bundle(wrong_workflow), "WORKFLOW_AUTHORITY_SCOPE_MISMATCH")
+
+    def test_final_missing_or_fake_authority_fails_closed(self) -> None:
+        self.assert_fail_closed(_final_bundle(), "WORKFLOW_PREREQUISITE_REQUIRED")
+        fake = {"artifact_type": "RESEARCH_FINDING", "artifact_id": "FAKE-FINAL-AUTH", "provenance": ["OWNER/K0"]}
+        self.assert_fail_closed(_final_bundle(fake), "WORKFLOW_AUTHORITY_TYPE_MISMATCH")
+
+    def test_reopen_authority_is_governed_and_target_workflow_bound(self) -> None:
+        authority = _owner_decision_authority(
+            "reopen_canon", "CANON-FROZEN-1", "AUTHORIZE_REOPEN_CANON"
+        )
+        result = resolve_spawn(_reopen_bundle(authority))
+        self.assertEqual((result["control_state"], result["status"]), ("ASSIGN", "SPAWN_READY"), result)
+        self.assertIn(authority["artifact_id"], result["workflow_prerequisite_refs"])
+
+        wrong_target = dict(authority)
+        wrong_target["artifact_id"] = "OWNER-REOPEN-WRONG-TARGET"
+        wrong_target["authorized_scope"] = "CANON-OTHER"
+        self.assert_fail_closed(_reopen_bundle(wrong_target), "WORKFLOW_AUTHORITY_SCOPE_MISMATCH")
+
+        wrong_workflow = dict(authority)
+        wrong_workflow["artifact_id"] = "OWNER-REOPEN-WRONG-WORKFLOW"
+        wrong_workflow["decision_kind"] = "final_canon_reconciliation"
+        self.assert_fail_closed(_reopen_bundle(wrong_workflow), "WORKFLOW_AUTHORITY_SCOPE_MISMATCH")
+
+    def test_reopen_missing_or_fake_authority_fails_closed(self) -> None:
+        self.assert_fail_closed(_reopen_bundle(), "WORKFLOW_PREREQUISITE_REQUIRED")
+        fake = {"artifact_type": "PRODUCTION_CHANGE", "artifact_id": "FAKE-REOPEN-AUTH", "provenance": ["PRODUCTION-1"]}
+        self.assert_fail_closed(_reopen_bundle(fake), "WORKFLOW_AUTHORITY_TYPE_MISMATCH")
+
+    def test_reconciliation_proposal_only_does_not_require_mutation_authority(self) -> None:
+        value = bundle("canon", "reconcile_research_into_canon", "reconcile_research_into_canon")
+        self.assertNotIn("canon_mutation_authority_for_any_accepted_change", value["workflow_prerequisite_bindings"])
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["status"]), ("ASSIGN", "SPAWN_READY"), result)
+
+    def test_production_classification_does_not_require_mutation_authority(self) -> None:
+        value = bundle("canon", "classify_canon_change", "manage_production_canon_change")
+        self.assertNotIn("canon_mutation_authority_for_any_accepted_change", value["workflow_prerequisite_bindings"])
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["status"]), ("ASSIGN", "SPAWN_READY"), result)
+
+    def test_arbitrary_mutation_authority_binding_cannot_become_entry_authority(self) -> None:
+        value = bundle("canon", "reconcile_research_into_canon", "reconcile_research_into_canon")
+        fake = {"artifact_type": "OWNER_DECISION_RECORD", "artifact_id": "FAKE-MUTATION-AUTH", "provenance": ["OWNER/K0"]}
+        value["artifacts"].append(fake)
+        value["workflow_prerequisite_bindings"]["canon_mutation_authority_for_any_accepted_change"] = fake["artifact_id"]
+        self.assert_fail_closed(value, "WORKFLOW_PREREQUISITE_BINDING_MISMATCH")
+
+
 if __name__ == "__main__":
     unittest.main()

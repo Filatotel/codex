@@ -44,13 +44,9 @@ def _attach_default_canon_prerequisites(value: dict, workflow: str) -> None:
         research_ref = _append_artifact(value, {
             "artifact_id": "FINDING-1", "artifact_type": "RESEARCH_FINDING", "provenance": ["RESEARCH-RELEASE-1"],
         })
-        authority_ref = _append_artifact(value, {
-            "artifact_id": "CANON-MUTATION-AUTH-1", "artifact_type": "OWNER_DECISION_RECORD", "provenance": ["OWNER/K0"],
-        })
         value["workflow_prerequisite_bindings"] = {
             "exact_current_canon_ref": canon_ref,
             "exact_research_release_or_finding_refs": [research_ref],
-            "canon_mutation_authority_for_any_accepted_change": authority_ref,
         }
     elif workflow == "manage_production_canon_change":
         canon_ref = _append_artifact(value, {
@@ -59,13 +55,9 @@ def _attach_default_canon_prerequisites(value: dict, workflow: str) -> None:
         signal_ref = _append_artifact(value, {
             "artifact_id": "PRODUCTION-CHANGE-1", "artifact_type": "PRODUCTION_CHANGE", "provenance": ["PRODUCTION-1"],
         })
-        authority_ref = _append_artifact(value, {
-            "artifact_id": "CANON-MUTATION-AUTH-1", "artifact_type": "OWNER_DECISION_RECORD", "provenance": ["OWNER/K0"],
-        })
         value["workflow_prerequisite_bindings"] = {
             "exact_current_canon_ref": canon_ref,
             "exact_production_change_signal": signal_ref,
-            "canon_mutation_authority_for_any_accepted_change": authority_ref,
         }
     elif workflow == "validate_canon":
         candidate_ref = _append_artifact(value, {
