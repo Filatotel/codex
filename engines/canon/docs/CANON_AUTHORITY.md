@@ -88,3 +88,35 @@ A frozen Canon scope may reopen only under explicit authority and a new state/ve
 - `REOPEN`
 
 No mode authorizes retroactive mutation without provenance or impact handling.
+
+## Accepted mutation materialization gate
+
+The stable Owner decision selection for accepted Canon mutation is exactly
+`AUTHORIZE_CANON_MUTATION`.
+
+This selection is conditional on an actual accepted mutation. Proposal,
+classification, retain, defer, blocked and superseded outputs do not require
+mutation authority merely to execute.
+
+Before durable materialization of an accepted `CANON_RECONCILIATION_RESULT` or
+`CANON_CHANGE_PROPOSAL`, the active Canon workflow must call
+`guard_mutation_materialization()` from
+`engines/canon/tools/mutation_authority.py`.
+
+The resolved authority must be an existing governed `OWNER_DECISION_RECORD`
+with `produced_by_role = owner-interface`, `status = RECORDED`,
+`authority_role = OWNER_K0`, non-empty provenance, the exact machine selection
+above, and `decision_kind` equal to the active mutation workflow.
+
+Target and scope are non-transitive. `input_state_ref` on the authority binds
+the exact `source_canon_ref` / `prior_canon_ref`; `project_id` must match. For
+`CANON_CHANGE_PROPOSAL`, `authorized_scope` must equal the proposal `scope`.
+For `CANON_RECONCILIATION_RESULT`, which has no separate scope field,
+`authorized_scope` must equal the exact `source_canon_ref`.
+
+Only gate status `PROVEN` permits durable `ACCEPTED` materialization or
+application into resulting Canon state. The accepted artifact must retain the
+validated authority ref in its authority field and include both the authority
+and exact Canon target in `related_artifacts`. A missing, unresolved, fake,
+unrelated, wrong-workflow, wrong-target, wrong-project or wrong-scope authority
+fails closed.

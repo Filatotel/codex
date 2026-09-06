@@ -33,11 +33,13 @@ Producer, schema and template surfaces must use this same vocabulary.
 ## Procedure
 
 1. Lock exact current Canon and upstream Research identities.
-2. Run `reconcile-research-into-canon` and emit envelope-compatible reconciliation/change-proposal artifacts using only the declared disposition contract.
-3. Do not apply an accepted Canon mutation without exact governing mutation authority.
-4. Apply only authorized Canon changes with provenance and prior-state refs; proposal/retain/defer dispositions do not grant mutation authority.
-5. Run mandatory `validate-canon` on any resulting exact candidate.
-6. Route to `validate_and_freeze_canon` only when freeze authority and maturity prerequisites are separately present.
+2. Run `reconcile-research-into-canon` and construct envelope-compatible reconciliation/change-proposal candidates using only the declared disposition contract.
+3. Structurally validate each candidate before durable output. Proposal/retain/defer/classification results remain non-accepted unless explicit acceptance is actually selected.
+4. Before durably materializing any `status: ACCEPTED` `CANON_RECONCILIATION_RESULT` or `CANON_CHANGE_PROPOSAL`, call `guard_mutation_materialization()` from `engines/canon/tools/mutation_authority.py` with workflow id `reconcile_research_into_canon` and the governed supplied artifacts.
+5. Only a `PROVEN` gate result may be written as `ACCEPTED` or applied into resulting Canon state. A rejected gate is a controlled blocker; never downgrade or bypass it. A `NOT_REQUIRED` result is valid only for non-accepted output.
+6. Preserve the validated authority ref in the accepted artifact and include that authority plus the exact source Canon target in `related_artifacts`.
+7. Run mandatory `validate-canon` on any resulting exact candidate.
+8. Route to `validate_and_freeze_canon` only when freeze authority and maturity prerequisites are separately present.
 
 ## Stop
 

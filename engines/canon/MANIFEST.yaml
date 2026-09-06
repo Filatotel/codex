@@ -63,6 +63,7 @@ required_dependencies:
   - engines/canon/schemas/canon-change-proposal.schema.json
   - engines/canon/schemas/canon-reconciliation-result.schema.json
   - engines/canon/schemas/canon-freeze-record.schema.json
+  - engines/canon/tools/mutation_authority.py
 forbidden_dependencies:
   - automatic_research_to_canon_mutation
   - implementation_as_canon_authority
@@ -184,6 +185,8 @@ execution_contract:
   rule: required_capabilities_subset_of_destination_available_capabilities
   assignment_without_proof: forbidden
   workflow_required_skills_are_mandatory_prerequisites: true
+  accepted_mutation_gate: engines/canon/tools/mutation_authority.py
+  accepted_mutation_without_proven_gate: forbidden
   global_skill_discovery: forbidden
 artifact_protocol:
   authority: protocols/artifacts.md
