@@ -11,6 +11,38 @@
         "minLength": 1
       }
     },
+    "executionHint": {
+      "type": "object",
+      "description": "Non-authoritative executor-local guidance. An execution hint creates no authority, mandatory action, evidence requirement, required capability, acceptance requirement, invariant, or semantic stop condition.",
+      "required": [
+        "hint_id",
+        "hint_kind",
+        "description"
+      ],
+      "properties": {
+        "hint_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hint_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
     "obligation": {
       "type": "object",
       "required": [
@@ -366,6 +398,13 @@
         "additionalProperties": false
       }
     },
+    "execution_hints": {
+      "type": "array",
+      "description": "Non-authoritative executor-local guidance preserved for adaptation only. This field contributes zero authority, obligations, required capabilities, acceptance requirements, invariants, or semantic stop conditions.",
+      "items": {
+        "$ref": "#/$defs/executionHint"
+      }
+    },
     "supported_execution_envelope_status": {
       "enum": [
         "SUPPORTED",
@@ -404,7 +443,8 @@
               "RESPONSIBILITY_MISMATCH",
               "UNSUPPORTED_EXECUTION_ENVELOPE",
               "INVALID_CONTEXT_AUTHORITY",
-              "COMPILED_CAPABILITY_MISMATCH"
+              "COMPILED_CAPABILITY_MISMATCH",
+              "INVALID_EXECUTION_HINT"
             ]
           },
           "detail": {
