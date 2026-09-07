@@ -20,6 +20,7 @@ RESPONSIBILITY_MISMATCH = "RESPONSIBILITY_MISMATCH"
 UNSUPPORTED_EXECUTION_ENVELOPE = "UNSUPPORTED_EXECUTION_ENVELOPE"
 INVALID_CONTEXT_AUTHORITY = "INVALID_CONTEXT_AUTHORITY"
 COMPILED_CAPABILITY_MISMATCH = "COMPILED_CAPABILITY_MISMATCH"
+INVALID_EXECUTION_HINT = "INVALID_EXECUTION_HINT"
 
 AuthorityResolver = Callable[[str], Mapping[str, object] | None]
 EnvelopeResolver = Callable[[str], Mapping[str, object] | None]
@@ -43,6 +44,50 @@ def _resolve(resolver: Callable[[str], Mapping[str, object] | None] | None, ref:
     except Exception:
         return None
     return value if isinstance(value, Mapping) and value.get("artifact_id") == ref else None
+
+
+def _execution_hints(value: object) -> tuple[list[dict[str, object]], list[str]]:
+    """Validate inert executor-local hints without interpreting their content."""
+    if not isinstance(value, list):
+        return [], ["execution_hints must be a list"]
+    allowed = {"hint_id", "hint_kind", "description", "target", "source"}
+    required = {"hint_id", "hint_kind", "description"}
+    seen: set[str] = set()
+    hints: list[dict[str, object]] = []
+    errors: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, Mapping):
+            errors.append(f"execution_hints[{index}] must be an object")
+            continue
+        keys = set(item)
+        missing = sorted(required - keys)
+        extra = sorted(keys - allowed)
+        if missing:
+            errors.append(f"execution_hints[{index}] missing required fields: {', '.join(missing)}")
+        if extra:
+            errors.append(f"execution_hints[{index}] has unsupported fields: {', '.join(extra)}")
+        invalid_fields = [
+            field for field in required
+            if not isinstance(item.get(field), str) or not str(item.get(field)).strip()
+        ]
+        if invalid_fields:
+            errors.append(f"execution_hints[{index}] has invalid required fields: {', '.join(sorted(invalid_fields))}")
+        for field in ("target", "source"):
+            if field in item and (not isinstance(item.get(field), str) or not str(item.get(field)).strip()):
+                errors.append(f"execution_hints[{index}].{field} must be a non-empty string when supplied")
+        hint_id = item.get("hint_id")
+        if isinstance(hint_id, str) and hint_id.strip():
+            if hint_id in seen:
+                errors.append(f"execution_hints[{index}] duplicates hint_id {hint_id!r}")
+            else:
+                seen.add(hint_id)
+        if not missing and not extra and not invalid_fields and all(
+            field not in item or (isinstance(item.get(field), str) and str(item.get(field)).strip())
+            for field in ("target", "source")
+        ) and isinstance(hint_id, str) and hint_id.strip() and hint_id in seen:
+            if not any(f"duplicates hint_id {hint_id!r}" in error for error in errors):
+                hints.append(deepcopy(dict(item)))
+    return hints, errors
 
 
 def _executor_capabilities(actions: object, evidence: object) -> list[str]:
@@ -137,7 +182,8 @@ def compile_assignment(
     actions = deepcopy(draft.get("mandatory_actions", [])) if isinstance(draft.get("mandatory_actions"), list) else []
     evidence = deepcopy(draft.get("evidence_requirements", [])) if isinstance(draft.get("evidence_requirements"), list) else []
     stops = deepcopy(draft.get("stop_conditions", [])) if isinstance(draft.get("stop_conditions"), list) else []
-    errors: list[dict[str, str]] = []
+    hints, hint_errors = _execution_hints(draft.get("execution_hints")) if "execution_hints" in draft else ([], [])
+    errors: list[dict[str, str]] = [_error(INVALID_EXECUTION_HINT, detail) for detail in hint_errors]
     acceptance_refs = {f"acceptance:{item.get('requirement_id')}" for item in draft.get("acceptance_requirements", []) if isinstance(item, Mapping) and isinstance(item.get("requirement_id"), str)} if isinstance(draft.get("acceptance_requirements"), list) else set()
 
     if authority_class not in AUTHORITY_CLASSES:
@@ -233,7 +279,7 @@ def compile_assignment(
         "authorized_claims":claims, "immutable_invariants":immutable, "runtime_resolved_invariants":runtime,
         "context_facts":facts, "executor_responsibilities":executor, "control_responsibilities":control,
         "platform_responsibilities":platform, "acceptance_requirements":deepcopy(draft.get("acceptance_requirements", [])),
-        "evidence_requirements":evidence, "stop_conditions":stops,
+        "evidence_requirements":evidence, "stop_conditions":stops, "execution_hints":hints,
         "supported_execution_envelope_ref":execution_envelope_ref,
         "supported_execution_envelope_status":"UNSUPPORTED" if any(e["code"] == UNSUPPORTED_EXECUTION_ENVELOPE for e in errors) else "SUPPORTED",
         "authorized_mandatory_actions":[] if errors else authorized_actions,
@@ -255,6 +301,8 @@ def validate_compiled_assignment(
     if compiled.get("authority_class") not in AUTHORITY_CLASSES: errors.append("authority_class is invalid")
     compilation_errors = compiled.get("compilation_errors")
     if not isinstance(compilation_errors, list) or (status == "COMPILED" and compilation_errors) or (status == "REJECTED" and not compilation_errors): errors.append("compilation_errors do not match status")
+    _, hint_errors = _execution_hints(compiled.get("execution_hints")) if "execution_hints" in compiled else ([], [])
+    errors.extend(f"{INVALID_EXECUTION_HINT}: {detail}" for detail in hint_errors)
     facts = compiled.get("context_facts")
     fact_by_id = {str(f.get("fact_id")):f for f in facts if isinstance(f, Mapping) and isinstance(f.get("fact_id"), str)} if isinstance(facts, list) else {}
     compiled_invariants = [item for field in ("immutable_invariants", "runtime_resolved_invariants") for item in compiled.get(field, []) if isinstance(item, Mapping)]
