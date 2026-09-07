@@ -5,8 +5,6 @@ from pathlib import Path
 import re
 import unittest
 
-from tests.test_executability_parity import schema_accepts
-
 ROOT = Path(__file__).resolve().parents[1]
 ROLE = ROOT / "roles/owner-interface/ROLE.md"
 SKILL_ROOT = ROOT / "roles/owner-interface/skills"
@@ -16,6 +14,47 @@ SKILLS = {
     "owner-response-recording": SKILL_ROOT / "owner-response-recording/SKILL.md",
 }
 OWNER_SCHEMA = ROOT / "schemas/owner-decision-record.schema.json"
+
+
+def schema_accepts(value: object, schema: dict) -> bool:
+    """Execute the JSON-Schema keywords used by OWNER_DECISION_RECORD fixtures."""
+    def valid(instance: object, rule: dict) -> bool:
+        kind = rule.get("type")
+        kinds = kind if isinstance(kind, list) else [kind] if kind else []
+        if kinds:
+            checks = {
+                "object": lambda x: isinstance(x, dict),
+                "array": lambda x: isinstance(x, list),
+                "string": lambda x: isinstance(x, str),
+                "null": lambda x: x is None,
+                "boolean": lambda x: isinstance(x, bool),
+            }
+            if not any(name in checks and checks[name](instance) for name in kinds):
+                return False
+        if "const" in rule and instance != rule["const"]:
+            return False
+        if isinstance(instance, str):
+            if len(instance) < rule.get("minLength", 0):
+                return False
+            if "pattern" in rule and re.fullmatch(rule["pattern"], instance) is None:
+                return False
+        if isinstance(instance, list):
+            if len(instance) < rule.get("minItems", 0):
+                return False
+            if "items" in rule and not all(valid(item, rule["items"]) for item in instance):
+                return False
+        if isinstance(instance, dict):
+            if any(name not in instance for name in rule.get("required", [])):
+                return False
+            properties = rule.get("properties", {})
+            if any(name in instance and not valid(instance[name], child) for name, child in properties.items()):
+                return False
+            for condition in rule.get("allOf", []):
+                if "if" in condition and valid(instance, condition["if"]) and not valid(instance, condition.get("then", {})):
+                    return False
+        return True
+
+    return valid(value, schema)
 
 
 class OwnerInterfaceCoreSkillsTest(unittest.TestCase):
