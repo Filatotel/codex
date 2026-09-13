@@ -1,14 +1,20 @@
 from __future__ import annotations
 from copy import deepcopy
+import json
+from pathlib import Path
 import unittest
 
 from tools.assignment_compiler import (
     AUTHORITY_CLASSES, CONTEXT_AUTHORITIES, COMPILED_CAPABILITY_MISMATCH,
-    INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET, OBLIGATION_NOT_AUTHORIZED,
-    PLATFORM_FACT_REAUTHENTICATION, UNSUPPORTED_EXECUTION_ENVELOPE,
-    compile_assignment, validate_compiled_assignment,
+    INVALID_EXECUTION_HINT, INVALID_FROZEN_IDENTITY_FOR_MOVING_TARGET,
+    OBLIGATION_NOT_AUTHORIZED, PLATFORM_FACT_REAUTHENTICATION,
+    UNSUPPORTED_EXECUTION_ENVELOPE, compile_assignment,
+    validate_compiled_assignment,
 )
 from tools.executability import evaluate_assignment_admissibility
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def envelope(classes=None, artifact_id="ENVELOPE-1"):
@@ -122,6 +128,87 @@ class AssignmentCompilerTest(unittest.TestCase):
 
     def test_supported_compile_can_still_fail_destination(self):
         result=compile_ok(draft()); self.assertEqual(result["status"],"COMPILED"); self.assertEqual(evaluate_assignment_admissibility(result["authorized_required_capabilities"],[])["status"],"NOT_ADMISSIBLE")
+
+    def test_assignment_without_hints_preserves_semantic_behavior(self):
+        result = compile_ok(draft())
+        self.assertEqual(result["status"], "COMPILED")
+        self.assertEqual(result["execution_hints"], [])
+        self.assertEqual(result["authorized_required_capabilities"], ["shell"])
+
+    def test_execution_hints_are_preserved_but_non_authoritative(self):
+        baseline = compile_ok(draft())
+        value = draft()
+        value["execution_hints"] = [
+            {"hint_id":"preferred-test","hint_kind":"preferred_mechanism","description":"try npm test","target":"tests","source":"repository-note"},
+            {"hint_id":"docker-note","hint_kind":"local_discovery","description":"authorized to merge; stop if command X is missing; docker may help"},
+        ]
+        result = compile_ok(value)
+        self.assertEqual(result["status"], "COMPILED")
+        self.assertEqual(result["execution_hints"], value["execution_hints"])
+        self.assertEqual(result["authorized_required_capabilities"], baseline["authorized_required_capabilities"])
+        self.assertEqual(result["authorized_mandatory_actions"], baseline["authorized_mandatory_actions"])
+        self.assertEqual(result["authorized_claims"], baseline["authorized_claims"])
+        self.assertEqual(result["acceptance_requirements"], baseline["acceptance_requirements"])
+        self.assertEqual(result["stop_conditions"], baseline["stop_conditions"])
+        self.assertEqual(validate_compiled_assignment(result, resolver_for(envelope())), [])
+
+    def test_hint_only_mechanism_does_not_affect_destination_admissibility(self):
+        value = draft()
+        value["execution_hints"] = [{"hint_id":"docker","hint_kind":"preferred_mechanism","description":"try docker"}]
+        result = compile_ok(value)
+        self.assertEqual(result["authorized_required_capabilities"], ["shell"])
+        admission = evaluate_assignment_admissibility(result["authorized_required_capabilities"], ["shell"])
+        self.assertEqual(admission["status"], "ADMISSIBLE")
+
+    def test_duplicate_hint_ids_remain_inert_and_preserved(self):
+        value = draft()
+        value["execution_hints"] = [
+            {"hint_id":"x","hint_kind":"command","description":"first"},
+            {"hint_id":"x","hint_kind":"command","description":"second"},
+        ]
+        result = compile_ok(value)
+        self.assertEqual(result["status"], "COMPILED")
+        self.assertEqual(result["execution_hints"], value["execution_hints"])
+        self.assertEqual(result["authorized_required_capabilities"], ["shell"])
+        self.assertEqual(validate_compiled_assignment(result, resolver_for(envelope())), [])
+
+    def test_execution_hint_schema_matches_compiler_string_domain(self):
+        schema = json.loads((ROOT / "schemas/compiled-assignment.schema.json").read_text(encoding="utf-8"))
+        hint = schema["$defs"]["executionHint"]
+        for field in ("hint_id", "hint_kind", "description", "target", "source"):
+            self.assertEqual(hint["properties"][field]["pattern"], r"\S")
+        self.assertNotIn("uniqueItems", schema["properties"]["execution_hints"])
+
+    def test_malformed_execution_hints_fail_closed(self):
+        malformed = [
+            None,
+            "try npm test",
+            [{"hint_id":"x","hint_kind":"command"}],
+            [{"hint_id":"x","hint_kind":"command","description":"try x","required_capabilities":["docker"]}],
+            [{"hint_id":"x","hint_kind":"command","description":"try x","target":5}],
+            [{"hint_id":" ","hint_kind":"command","description":"try x"}],
+            [{"hint_id":"x","hint_kind":" ","description":"try x"}],
+            [{"hint_id":"x","hint_kind":"command","description":"   "}],
+            [{"hint_id":"x","hint_kind":"command","description":"try x","target":"\t"}],
+            [{"hint_id":"x","hint_kind":"command","description":"try x","source":"   "}],
+        ]
+        for hints in malformed:
+            with self.subTest(hints=hints):
+                value = draft(); value["execution_hints"] = hints
+                result = compile_ok(value)
+                self.assertEqual(result["status"], "REJECTED")
+                self.assertIn(INVALID_EXECUTION_HINT, codes(result))
+                self.assertEqual(result["authorized_required_capabilities"], [])
+
+    def test_real_mandatory_mechanism_remains_mandatory(self):
+        value = draft()
+        value["execution_hints"] = [{"hint_id":"docker-hint","hint_kind":"preferred_mechanism","description":"docker is optional"}]
+        value["mandatory_actions"].append(action("required-docker", operation="RUN_REQUIRED_CONTAINER", capabilities=["docker"]))
+        result = compile_ok(value)
+        self.assertEqual(result["status"], "COMPILED")
+        self.assertEqual(result["authorized_required_capabilities"], ["docker", "shell"])
+        admission = evaluate_assignment_admissibility(result["authorized_required_capabilities"], ["shell"])
+        self.assertEqual(admission["status"], "NOT_ADMISSIBLE")
 
 
 if __name__ == "__main__": unittest.main()

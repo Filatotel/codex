@@ -95,12 +95,20 @@ class ExecutabilityStructureTest(unittest.TestCase):
 
     def test_compiled_assignment_schema_and_enum_parity(self) -> None:
         schema = json.loads((ROOT / "schemas/compiled-assignment.schema.json").read_text(encoding="utf-8"))
-        from tools.assignment_compiler import AUTHORITY_CLASSES, CONTEXT_AUTHORITIES
+        from tools.assignment_compiler import AUTHORITY_CLASSES, CONTEXT_AUTHORITIES, INVALID_EXECUTION_HINT
         self.assertEqual(schema["properties"]["authority_class"]["enum"], list(AUTHORITY_CLASSES))
         context = schema["properties"]["context_facts"]["items"]["properties"]["authority_source"]["enum"]
         self.assertEqual(context, list(CONTEXT_AUTHORITIES))
         for field in ["authorized_claims", "authorized_evidence_requirements", "supported_execution_envelope_ref"]:
             self.assertIn(field, schema["required"])
+        self.assertIn("execution_hints", schema["properties"])
+        hints = schema["properties"]["execution_hints"]
+        self.assertIn("non-authoritative", hints["description"].lower())
+        hint = schema["$defs"]["executionHint"]
+        self.assertEqual(hint["required"], ["hint_id", "hint_kind", "description"])
+        self.assertFalse(hint["additionalProperties"])
+        error_codes = schema["properties"]["compilation_errors"]["items"]["properties"]["code"]["enum"]
+        self.assertIn(INVALID_EXECUTION_HINT, error_codes)
         envelope = json.loads((ROOT / "schemas/execution-envelope.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(envelope["properties"]["artifact_type"]["const"], "EXECUTION_ENVELOPE")
         serialized = json.dumps(schema)
