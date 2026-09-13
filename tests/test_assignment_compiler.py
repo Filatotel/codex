@@ -1,5 +1,7 @@
 from __future__ import annotations
 from copy import deepcopy
+import json
+from pathlib import Path
 import unittest
 
 from tools.assignment_compiler import (
@@ -10,6 +12,9 @@ from tools.assignment_compiler import (
     validate_compiled_assignment,
 )
 from tools.executability import evaluate_assignment_admissibility
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def envelope(classes=None, artifact_id="ENVELOPE-1"):
@@ -155,14 +160,37 @@ class AssignmentCompilerTest(unittest.TestCase):
         admission = evaluate_assignment_admissibility(result["authorized_required_capabilities"], ["shell"])
         self.assertEqual(admission["status"], "ADMISSIBLE")
 
+    def test_duplicate_hint_ids_remain_inert_and_preserved(self):
+        value = draft()
+        value["execution_hints"] = [
+            {"hint_id":"x","hint_kind":"command","description":"first"},
+            {"hint_id":"x","hint_kind":"command","description":"second"},
+        ]
+        result = compile_ok(value)
+        self.assertEqual(result["status"], "COMPILED")
+        self.assertEqual(result["execution_hints"], value["execution_hints"])
+        self.assertEqual(result["authorized_required_capabilities"], ["shell"])
+        self.assertEqual(validate_compiled_assignment(result, resolver_for(envelope())), [])
+
+    def test_execution_hint_schema_matches_compiler_string_domain(self):
+        schema = json.loads((ROOT / "schemas/compiled-assignment.schema.json").read_text(encoding="utf-8"))
+        hint = schema["$defs"]["executionHint"]
+        for field in ("hint_id", "hint_kind", "description", "target", "source"):
+            self.assertEqual(hint["properties"][field]["pattern"], r"\S")
+        self.assertNotIn("uniqueItems", schema["properties"]["execution_hints"])
+
     def test_malformed_execution_hints_fail_closed(self):
         malformed = [
             None,
             "try npm test",
             [{"hint_id":"x","hint_kind":"command"}],
             [{"hint_id":"x","hint_kind":"command","description":"try x","required_capabilities":["docker"]}],
-            [{"hint_id":"x","hint_kind":"command","description":"first"},{"hint_id":"x","hint_kind":"command","description":"second"}],
             [{"hint_id":"x","hint_kind":"command","description":"try x","target":5}],
+            [{"hint_id":" ","hint_kind":"command","description":"try x"}],
+            [{"hint_id":"x","hint_kind":" ","description":"try x"}],
+            [{"hint_id":"x","hint_kind":"command","description":"   "}],
+            [{"hint_id":"x","hint_kind":"command","description":"try x","target":"\t"}],
+            [{"hint_id":"x","hint_kind":"command","description":"try x","source":"   "}],
         ]
         for hints in malformed:
             with self.subTest(hints=hints):
