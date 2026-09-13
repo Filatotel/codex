@@ -52,7 +52,6 @@ def _execution_hints(value: object) -> tuple[list[dict[str, object]], list[str]]
         return [], ["execution_hints must be a list"]
     allowed = {"hint_id", "hint_kind", "description", "target", "source"}
     required = {"hint_id", "hint_kind", "description"}
-    seen: set[str] = set()
     hints: list[dict[str, object]] = []
     errors: list[str] = []
     for index, item in enumerate(value):
@@ -75,18 +74,11 @@ def _execution_hints(value: object) -> tuple[list[dict[str, object]], list[str]]
         for field in ("target", "source"):
             if field in item and (not isinstance(item.get(field), str) or not str(item.get(field)).strip()):
                 errors.append(f"execution_hints[{index}].{field} must be a non-empty string when supplied")
-        hint_id = item.get("hint_id")
-        if isinstance(hint_id, str) and hint_id.strip():
-            if hint_id in seen:
-                errors.append(f"execution_hints[{index}] duplicates hint_id {hint_id!r}")
-            else:
-                seen.add(hint_id)
         if not missing and not extra and not invalid_fields and all(
             field not in item or (isinstance(item.get(field), str) and str(item.get(field)).strip())
             for field in ("target", "source")
-        ) and isinstance(hint_id, str) and hint_id.strip() and hint_id in seen:
-            if not any(f"duplicates hint_id {hint_id!r}" in error for error in errors):
-                hints.append(deepcopy(dict(item)))
+        ):
+            hints.append(deepcopy(dict(item)))
     return hints, errors
 
 
