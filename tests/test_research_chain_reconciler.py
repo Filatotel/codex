@@ -118,6 +118,24 @@ def base_reconciliation() -> dict:
     }
 
 
+def reconciliation_bundle() -> dict:
+    value = bundle("research", "reconcile_research_chain", "research_chain_reconciliation")
+    value["artifacts"].extend([
+        {"artifact_id": "RESEARCH-1", "artifact_type": "RESEARCH_FINDING", "provenance": ["RESEARCH-RELEASE-1"]},
+        {"artifact_id": "RESEARCH-2", "artifact_type": "RESEARCH_FINDING", "provenance": ["RESEARCH-RELEASE-2"]},
+    ])
+    value["assignment_draft_semantics"]["research_reconciliation_inputs"] = {
+        "upstream_research_refs": ["RESEARCH-1", "RESEARCH-2"],
+        "downstream_requirement_refs": ["REQ-A", "REQ-B"],
+    }
+    value["selected_prerequisite_actions"] = [{
+        "action_id": "research-chain-reconciliation-durable-output",
+        "required_capabilities": ["durable_artifact_write"],
+        "evidence_path": "RESEARCH_CHAIN_RECONCILIATION",
+    }]
+    return value
+
+
 class ResearchChainReconcilerMaterializationTest(unittest.TestCase):
     def test_capability_is_research_owned_and_deterministically_bound(self) -> None:
         manifest = (ROOT / "engines/research/MANIFEST.yaml").read_text(encoding="utf-8")
@@ -272,10 +290,51 @@ class ResearchChainReconcilerMaterializationTest(unittest.TestCase):
             self.assertIn(token, workflow + "\n" + skill)
 
     def test_reconciler_does_not_require_research_work_package_admission(self) -> None:
-        value = bundle("research", "reconcile_research_chain", "research_chain_reconciliation")
+        value = reconciliation_bundle()
         result = resolve_spawn(value)
         self.assertEqual((result["control_state"], result["status"]), ("ASSIGN", "SPAWN_READY"), result)
         self.assertNotIn("research_admission", result)
+        self.assertEqual(
+            result["assignment"]["research_reconciliation_inputs"],
+            value["assignment_draft_semantics"]["research_reconciliation_inputs"],
+        )
+        self.assertIn("durable_artifact_write", result["assignment_admissibility"]["required_capabilities"])
+        self.assertIn("RESEARCH-1", result["assignment"]["related_artifacts"])
+        self.assertIn("RESEARCH-2", result["assignment"]["related_artifacts"])
+
+    def test_reconciler_missing_exact_inputs_fails_closed(self) -> None:
+        value = bundle("research", "reconcile_research_chain", "research_chain_reconciliation")
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]),
+                         ("ESCALATE", "RESEARCH_RECONCILIATION_INPUT_REQUIRED"), result)
+
+    def test_reconciler_unresolved_upstream_ref_fails_closed(self) -> None:
+        value = reconciliation_bundle()
+        value["assignment_draft_semantics"]["research_reconciliation_inputs"]["upstream_research_refs"] = ["RESEARCH-MISSING"]
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]),
+                         ("ESCALATE", "RESEARCH_RECONCILIATION_UPSTREAM_UNRESOLVED"), result)
+
+    def test_reconciler_missing_upstream_provenance_fails_closed(self) -> None:
+        value = reconciliation_bundle()
+        next(item for item in value["artifacts"] if item.get("artifact_id") == "RESEARCH-1")["provenance"] = []
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]),
+                         ("ESCALATE", "RESEARCH_RECONCILIATION_UPSTREAM_PROVENANCE_MISSING"), result)
+
+    def test_reconciler_requires_durable_output_mechanic(self) -> None:
+        value = reconciliation_bundle()
+        value["selected_prerequisite_actions"] = []
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]),
+                         ("ESCALATE", "RESEARCH_RECONCILIATION_DURABLE_OUTPUT_REQUIRED"), result)
+
+    def test_reconciler_workflow_identity_cannot_bypass_research_admission(self) -> None:
+        value = reconciliation_bundle()
+        value["decision"]["workflow_id"] = "machine-only-execution"
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]),
+                         ("ESCALATE", "RESEARCH_CONTROL_WORKFLOW_IDENTITY_MISMATCH"), result)
 
     def test_default_research_execution_admission_regression(self) -> None:
         value = bundle("research", "execute_research_work", "machine-only-execution")
