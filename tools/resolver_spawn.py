@@ -27,6 +27,7 @@ from tools.workflow_contract import resolve_workflow_contract
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
 SEMANTIC_FIELDS = ("objective", "authority", "scope", "acceptance", "stop_conditions", "result_to")
 RESEARCH_POLICY_SURFACE = "tools.research_policy.admit_work_package"
+RESEARCH_CONTROL_ONLY_CAPABILITIES = {"reconcile_research_chain"}
 RESEARCH_RESULT_FIELDS = {"ADMISSION_STATUS", "ERROR_CODE", "REQUIRE_MACHINE_REDESIGN", "ERRORS"}
 RESEARCH_ADMISSION_FIELDS = {
     "artifact_id", *RESEARCH_RESULT_FIELDS, "WORK_PACKAGE_ID", "QUESTION_ID", "POLICY_SURFACE", "PROVENANCE", "WORK_PACKAGE",
@@ -169,7 +170,8 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
         return _out("ESCALATE", "WORKFLOW_CONTRACT_MALFORMED")
 
     research_admission = None
-    if decision["engine_id"] == "research":
+    if (decision["engine_id"] == "research" and
+            decision["semantic_capability"] not in RESEARCH_CONTROL_ONLY_CAPABILITIES):
         research_admission, research_error = _research_admission(decision, artifacts)
         if research_error is not None:
             return research_error
