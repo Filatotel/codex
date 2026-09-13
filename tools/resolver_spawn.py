@@ -27,7 +27,10 @@ from tools.workflow_contract import resolve_workflow_contract
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
 SEMANTIC_FIELDS = ("objective", "authority", "scope", "acceptance", "stop_conditions", "result_to")
 RESEARCH_POLICY_SURFACE = "tools.research_policy.admit_work_package"
-RESEARCH_CONTROL_ONLY_CAPABILITIES = {"reconcile_research_chain"}
+RESEARCH_CONTROL_ONLY_WORKFLOWS = {"reconcile_research_chain": "research_chain_reconciliation"}
+RESEARCH_CONTROL_ONLY_CAPABILITIES = set(RESEARCH_CONTROL_ONLY_WORKFLOWS)
+RESEARCH_RECONCILIATION_INPUT_FIELD = "research_reconciliation_inputs"
+RESEARCH_RECONCILIATION_REQUIRED_CAPABILITY = "durable_artifact_write"
 RESEARCH_RESULT_FIELDS = {"ADMISSION_STATUS", "ERROR_CODE", "REQUIRE_MACHINE_REDESIGN", "ERRORS"}
 RESEARCH_ADMISSION_FIELDS = {
     "artifact_id", *RESEARCH_RESULT_FIELDS, "WORK_PACKAGE_ID", "QUESTION_ID", "POLICY_SURFACE", "PROVENANCE", "WORK_PACKAGE",
@@ -128,6 +131,41 @@ def _research_admission(
     return admission, None
 
 
+def _research_reconciliation_inputs(
+    semantics: Mapping[str, object],
+    artifacts: Mapping[str, Mapping[str, object]],
+) -> tuple[dict[str, list[str]] | None, dict[str, object] | None]:
+    """Fail closed unless reconciliation receives exact durable Research refs and requirement refs."""
+    value = semantics.get(RESEARCH_RECONCILIATION_INPUT_FIELD)
+    if not isinstance(value, Mapping):
+        return None, _out("ESCALATE", "RESEARCH_RECONCILIATION_INPUT_REQUIRED", engine_id="research")
+    expected = {"upstream_research_refs", "downstream_requirement_refs"}
+    if set(value) != expected:
+        return None, _out("ESCALATE", "RESEARCH_RECONCILIATION_INPUT_MALFORMED", engine_id="research")
+
+    normalized: dict[str, list[str]] = {}
+    for field in ("upstream_research_refs", "downstream_requirement_refs"):
+        refs = value.get(field)
+        if (not isinstance(refs, list) or not refs
+                or not all(isinstance(ref, str) and ref.strip() and ref == ref.strip() for ref in refs)
+                or len(refs) != len(set(refs))):
+            return None, _out("ESCALATE", "RESEARCH_RECONCILIATION_INPUT_MALFORMED",
+                              engine_id="research", field=field)
+        normalized[field] = list(refs)
+
+    for ref in normalized["upstream_research_refs"]:
+        artifact = artifacts.get(ref)
+        if not isinstance(artifact, Mapping):
+            return None, _out("ESCALATE", "RESEARCH_RECONCILIATION_UPSTREAM_UNRESOLVED",
+                              engine_id="research", upstream_ref=ref)
+        provenance = artifact.get("provenance")
+        if (not isinstance(provenance, list) or not provenance
+                or not all(isinstance(item, str) and item.strip() for item in provenance)):
+            return None, _out("ESCALATE", "RESEARCH_RECONCILIATION_UPSTREAM_PROVENANCE_MISSING",
+                              engine_id="research", upstream_ref=ref)
+    return normalized, None
+
+
 def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     """Resolve one already-selected local control bundle to a baton outcome."""
     if not isinstance(control_bundle, Mapping):
@@ -170,8 +208,17 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
         return _out("ESCALATE", "WORKFLOW_CONTRACT_MALFORMED")
 
     research_admission = None
-    if (decision["engine_id"] == "research" and
-            decision["semantic_capability"] not in RESEARCH_CONTROL_ONLY_CAPABILITIES):
+    reconciliation_selected = (
+        decision["engine_id"] == "research"
+        and decision["semantic_capability"] in RESEARCH_CONTROL_ONLY_CAPABILITIES
+    )
+    if reconciliation_selected:
+        expected_workflow = RESEARCH_CONTROL_ONLY_WORKFLOWS[str(decision["semantic_capability"])]
+        if decision["workflow_id"] != expected_workflow:
+            return _out("ESCALATE", "RESEARCH_CONTROL_WORKFLOW_IDENTITY_MISMATCH",
+                        engine_id="research", semantic_capability=decision["semantic_capability"],
+                        workflow_id=decision["workflow_id"], expected_workflow_id=expected_workflow)
+    elif decision["engine_id"] == "research":
         research_admission, research_error = _research_admission(decision, artifacts)
         if research_error is not None:
             return research_error
@@ -190,6 +237,13 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     missing_semantics = [field for field in SEMANTIC_FIELDS if field not in semantics]
     if missing_semantics:
         return _out("ESCALATE", "MISSING_ASSIGNMENT_SEMANTICS", errors=missing_semantics)
+
+    reconciliation_inputs = None
+    if reconciliation_selected:
+        reconciliation_inputs, reconciliation_error = _research_reconciliation_inputs(semantics, artifacts)
+        if reconciliation_error is not None:
+            return reconciliation_error
+
     envelope_ref = control_bundle.get("execution_envelope_ref")
     compiled = compile_assignment(draft, envelope_ref, resolver, resolver) if isinstance(envelope_ref, str) and envelope_ref.strip() else None
     if compiled is None:
@@ -223,6 +277,9 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     if len(action_ids) != len(set(action_ids)):
         return _out("ESCALATE", "CONTRADICTORY_CONTROL_ARTIFACTS", errors=["duplicate final mandatory action id"])
     required = sorted({cap.strip() for action in final_actions for cap in action.get("required_capabilities", [])})
+    if reconciliation_selected and RESEARCH_RECONCILIATION_REQUIRED_CAPABILITY not in required:
+        return _out("ESCALATE", "RESEARCH_RECONCILIATION_DURABLE_OUTPUT_REQUIRED",
+                    engine_id="research", required_capability=RESEARCH_RECONCILIATION_REQUIRED_CAPABILITY)
     paths = sorted({path for action in final_actions if isinstance((path := action.get("evidence_path")), str) and path.strip()})
 
     profile_ref, route_ref = control_bundle.get("capability_profile_ref"), control_bundle.get("route_ref")
@@ -247,7 +304,8 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
 
     subset = evaluate_assignment_admissibility(required, profile.get("available_capabilities", []))
     research_refs = [str(research_admission["artifact_id"])] if isinstance(research_admission, Mapping) else []
-    proof_refs = [*research_refs, *(str(ref) for ref in workflow_refs)]
+    reconciliation_refs = reconciliation_inputs["upstream_research_refs"] if isinstance(reconciliation_inputs, Mapping) else []
+    proof_refs = list(dict.fromkeys([*research_refs, *(str(ref) for ref in workflow_refs), *reconciliation_refs]))
     admissibility = {
         "artifact_type": "ASSIGNMENT_ADMISSIBILITY", "artifact_id": control_bundle.get("admissibility_id"),
         "produced_by_role": "control-director", "assignment_id": control_bundle.get("assignment_id"), "input_state_ref": draft.get("input_state_ref"),
