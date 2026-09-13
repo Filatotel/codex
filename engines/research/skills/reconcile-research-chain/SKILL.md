@@ -40,7 +40,7 @@ Use existing Research artifacts as evidence/findings. Do not invent a second Res
 - `RESEARCH_RECONCILER != RESEARCH_EXECUTOR != CANON_AUTHORITY != CONTROL_DIRECTOR`.
 - A complete result for one requirement never makes another requirement complete.
 - `EVIDENCE_CEILING` never creates a retry candidate.
-- `OWNER_PREFERENCE_OR_AUTHORITY` goes to Owner Interface / Control as a human authority gate, not to Research continuation.
+- `OWNER_PREFERENCE_OR_AUTHORITY` goes to Owner Interface / Control as an Owner authority gate, not to Research continuation.
 - `METHOD_OR_ARTIFACT_DEFECT` is a defect classification, not evidence that more substantive Research is needed.
 - Superseded blockers/requests stay historical and leave the active frontier.
 - This skill never calls `tools.research_policy.admit_work_package()` because it does not execute Research. Any later admitted frontier candidate still uses the normal Research execution admission path.
