@@ -116,6 +116,8 @@ If a weaker layer requests prohibited non-owner human research, reject that meth
 
 Research fields such as `MACHINE_EXECUTABLE=true` and `CAN_EXECUTE_WITH_AVAILABLE_MACHINE_METHODS=true` are method-level machine-only admission claims. They do not replace destination executability preflight. The destination must separately prove the capabilities required by `EXECUTION_SURFACE`, `SOURCE_ACCESS_METHOD`, `COMPUTATION_METHOD`, verification method, and mandatory validators.
 
+`reconcile_research_chain` is read-only Research-domain control interpretation over exact already-durable Research artifacts. It does not itself execute Research or require a Research work-package admission artifact; any candidate next frontier must return to Control and pass the ordinary Research admission path before execution.
+
 ## Current routes
 
 | Capability | Engine | Next surface |
@@ -144,6 +146,7 @@ Research fields such as `MACHINE_EXECUTABLE=true` and `CAN_EXECUTE_WITH_AVAILABL
 | `run_research_experiment` | `research` | use the default computational experiment/freeze contracts plus destination executability proof |
 | `verify_research_work` | `research` | preflight automated Research validators and evidence access before assigning verification |
 | `prepare_research_release` | `research` | freeze verified research and prepare the Canon reconciliation package without Canon mutation; preflight any mandatory validators/output surfaces |
+| `reconcile_research_chain` | `research` | load the Research reconciliation workflow + required skill; resolve exact durable upstream Research refs; emit requirement-specific dependency state and candidate-only frontier without Research execution, direct dispatch, or Canon mutation |
 
 ## Non-materialized engine gate
 
