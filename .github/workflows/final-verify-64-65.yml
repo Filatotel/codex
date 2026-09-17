@@ -1,4 +1,4 @@
-name: Verify Owner Interface structural repair
+name: Final verify PR 64 and 65
 
 on:
   pull_request:
@@ -10,13 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  verify-owner-interface-repair:
+  verify-pr64:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact repair head
+      - name: Checkout exact PR 64 frozen head
         uses: actions/checkout@v4
         with:
-          ref: 673865e166867a1c4ed8790b862bce9d24afc7e8
+          ref: caaccd51cb6f391be0f7d56faff8e25cd06eb251
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,9 +24,48 @@ jobs:
           python-version: '3.12'
       - name: Prove exact head
         run: |
-          test "$(git rev-parse HEAD)" = "673865e166867a1c4ed8790b862bce9d24afc7e8"
+          test "$(git rev-parse HEAD)" = "caaccd51cb6f391be0f7d56faff8e25cd06eb251"
           git rev-parse HEAD
-      - name: Owner Interface bounded tests
-        run: python -m unittest tests.test_owner_interface_skills
-      - name: Structural validation
+      - name: Python compile
+        run: python -m py_compile tools/assignment_compiler.py tests/test_assignment_compiler.py
+      - name: Assignment compiler tests
+        run: python -m unittest tests.test_assignment_compiler
+      - name: Executability structure tests
+        run: python -m unittest tests.test_executability_structure
+      - name: Resolver spawn tests
+        run: python -m unittest tests.test_resolver_spawn
+      - name: Workflow contract tests
+        run: python -m unittest tests.test_workflow_contract
+      - name: Structure validation
+        run: python tools/validate_structure.py
+
+  verify-pr65:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR 65 frozen head
+        uses: actions/checkout@v4
+        with:
+          ref: 508b9b29a392779513207c672fc6673754dd4eec
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove exact head
+        run: |
+          test "$(git rev-parse HEAD)" = "508b9b29a392779513207c672fc6673754dd4eec"
+          git rev-parse HEAD
+      - name: Python compile
+        run: python -m py_compile tools/resolver_spawn.py tests/test_research_chain_reconciler.py
+      - name: Research chain reconciler tests
+        run: python -m unittest tests.test_research_chain_reconciler
+      - name: Resolver spawn tests
+        run: python -m unittest tests.test_resolver_spawn
+      - name: Research spawn admission tests
+        run: python -m unittest tests.test_research_spawn_admission
+      - name: Workflow contract tests
+        run: python -m unittest tests.test_workflow_contract
+      - name: Canon materialization tests
+        run: python -m unittest tests.test_canon_materialization
+      - name: Structure validation
         run: python tools/validate_structure.py
