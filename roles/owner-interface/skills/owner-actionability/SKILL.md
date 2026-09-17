@@ -1,6 +1,6 @@
 ---
 name: owner-actionability
-description: Determine whether the Owner must act now and project the exact next action without leaking internal routing or manufacturing a human gate.
+description: Determine whether the Owner must act now and project the exact next action without leaking internal routing or manufacturing an Owner gate.
 ---
 
 # Owner Actionability

@@ -56,7 +56,7 @@ For #54-A this procedure defines interaction semantics only. Persistent multi-in
 Owner-facing prose and decision-surface labels are presentation, not semantic authority. The accepted Owner choice becomes durable only through the existing `OWNER_DECISION_RECORD`. No `OWNER_INTERFACE_RESPONSE`, `OWNER_DECISION_RECORD_V2`, `LIAISON_DECISION`, or authority-proxy artifact is created by this contract.
 
 ## OUTPUTS
-Actionable Owner projection; genuine human decision surface when required; bounded clarification/schema-limitation result when required; existing `OWNER_DECISION_RECORD` after an exact Owner decision.
+Actionable Owner projection; genuine Owner decision surface when required; bounded clarification/schema-limitation result when required; existing `OWNER_DECISION_RECORD` after an exact Owner decision.
 
 ## HANDOFF
 Control Director receives the durable decision record and exact affected state/control refs. When no Owner action is required, control/system retains the baton for the already-authorized admitted next action rather than manufacturing a human handoff.

@@ -1,6 +1,6 @@
 ---
 name: owner-decision-surface
-description: Transform a genuine Owner/K0 control gate into a usable human decision surface without changing option semantics or creating authority.
+description: Transform a genuine Owner/K0 control gate into a usable Owner decision surface without changing option semantics or creating authority.
 ---
 
 # Owner Decision Surface
@@ -93,7 +93,7 @@ Before presenting any choice, classify each unresolved item:
 | genuine Owner preference/authority choice | yes | present the admissible options and consequences |
 | recovery/escalation condition | not by default | present only if the Owner truly owns a required recovery decision; otherwise keep it in control |
 
-Only the second and third rows enter the human decision set, and only when authority is actually Owner-reserved.
+Only the second and third rows enter the Owner decision set, and only when authority is actually Owner-reserved.
 
 ## Procedure
 
