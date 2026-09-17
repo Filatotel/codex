@@ -1,9 +1,10 @@
 name: Final verify PR 64 and 65
 
 on:
-  push:
+  pull_request:
     branches:
-      - verification/final-gates-64-65
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
