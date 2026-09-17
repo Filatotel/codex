@@ -1,4 +1,4 @@
-name: Final verify PR 64 and 65
+name: Final verify PR 65 after PR 64 merge
 
 on:
   pull_request:
@@ -10,42 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  verify-pr64:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout exact PR 64 frozen head
-        uses: actions/checkout@v4
-        with:
-          ref: caaccd51cb6f391be0f7d56faff8e25cd06eb251
-          persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Prove exact head
-        run: |
-          test "$(git rev-parse HEAD)" = "caaccd51cb6f391be0f7d56faff8e25cd06eb251"
-          git rev-parse HEAD
-      - name: Python compile
-        run: python -m py_compile tools/assignment_compiler.py tests/test_assignment_compiler.py
-      - name: Assignment compiler tests
-        run: python -m unittest tests.test_assignment_compiler
-      - name: Executability structure tests
-        run: python -m unittest tests.test_executability_structure
-      - name: Resolver spawn tests
-        run: python -m unittest tests.test_resolver_spawn
-      - name: Workflow contract tests
-        run: python -m unittest tests.test_workflow_contract
-      - name: Structure validation
-        run: python tools/validate_structure.py
-
-  verify-pr65:
+  verify-pr65-final:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact PR 65 frozen head
         uses: actions/checkout@v4
         with:
-          ref: 508b9b29a392779513207c672fc6673754dd4eec
+          ref: 02cefb4509ff32405e456c82d5103d153e94986a
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -53,10 +24,10 @@ jobs:
           python-version: '3.12'
       - name: Prove exact head
         run: |
-          test "$(git rev-parse HEAD)" = "508b9b29a392779513207c672fc6673754dd4eec"
+          test "$(git rev-parse HEAD)" = "02cefb4509ff32405e456c82d5103d153e94986a"
           git rev-parse HEAD
       - name: Python compile
-        run: python -m py_compile tools/resolver_spawn.py tests/test_research_chain_reconciler.py
+        run: python -m py_compile tools/resolver_spawn.py tests/test_research_chain_reconciler.py tools/assignment_compiler.py tests/test_assignment_compiler.py
       - name: Research chain reconciler tests
         run: python -m unittest tests.test_research_chain_reconciler
       - name: Resolver spawn tests
@@ -67,5 +38,9 @@ jobs:
         run: python -m unittest tests.test_workflow_contract
       - name: Canon materialization tests
         run: python -m unittest tests.test_canon_materialization
+      - name: Assignment compiler regression
+        run: python -m unittest tests.test_assignment_compiler
+      - name: Executability structure regression
+        run: python -m unittest tests.test_executability_structure
       - name: Structure validation
         run: python tools/validate_structure.py
