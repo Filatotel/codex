@@ -58,6 +58,33 @@ authority. Execution-envelope support likewise resolves through an exact local
 `EXECUTION_ENVELOPE` artifact. The compiled artifact retains that envelope ref;
 a caller-supplied capability or obligation set cannot broaden it.
 
+## Semantic contract and execution hints
+
+The frozen semantic contract and environment-local execution mechanics are
+separate surfaces. `COMPILED_ASSIGNMENT.execution_hints` may carry bounded,
+structured executor-local guidance such as a known command, path, wrapper,
+discovery suggestion, or implementation note. Hints are structurally validated
+and preserved, but their contents are not interpreted as authority or semantic
+obligations.
+
+Execution hints contribute zero authority, mandatory actions, evidence
+requirements, required capabilities, acceptance requirements, invariants, or
+semantic stop conditions. In particular, a hint that names a capability or says
+"stop" does not enter capability closure or STOP ownership. Failure or absence
+of a hinted mechanism is therefore not itself compilation failure when the
+semantic contract remains satisfiable by another supported mechanism.
+
+This distinction does not weaken exact mechanics that are already represented
+as real mandatory actions, evidence requirements, invariants, authority gates,
+or acceptance requirements. Those remain inside the existing compilation and
+admissibility closure.
+
+The current resolver spawn result exposes the exact `compiled_assignment`
+alongside the executable `assignment`, so #55-A does not duplicate hints into
+the final `ASSIGNMENT` artifact. The Executor can receive the preserved hints
+from the compiled artifact without expanding the final assignment schema or
+creating a second obligation system.
+
 ## Binding chain
 
 `ASSIGNMENT_ADMISSIBILITY` and executable `ASSIGNMENT` both cite the exact
