@@ -1,4 +1,4 @@
-name: Final verify PR 64 and 65
+name: Verify Owner Interface structural repair
 
 on:
   pull_request:
@@ -10,13 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  verify-pr64:
+  verify-owner-interface-repair:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact PR 64 frozen head
+      - name: Checkout exact repair head
         uses: actions/checkout@v4
         with:
-          ref: f2ef04c3dc71752ad080f304ce5bdff1c60d9220
+          ref: 673865e166867a1c4ed8790b862bce9d24afc7e8
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,46 +24,9 @@ jobs:
           python-version: '3.12'
       - name: Prove exact head
         run: |
-          test "$(git rev-parse HEAD)" = "f2ef04c3dc71752ad080f304ce5bdff1c60d9220"
+          test "$(git rev-parse HEAD)" = "673865e166867a1c4ed8790b862bce9d24afc7e8"
           git rev-parse HEAD
-      - name: Python compile
-        run: python -m py_compile tools/assignment_compiler.py tests/test_assignment_compiler.py
-      - name: Assignment compiler tests
-        run: python -m unittest tests.test_assignment_compiler
-      - name: Executability structure tests
-        run: python -m unittest tests.test_executability_structure
-      - name: Resolver spawn tests
-        run: python -m unittest tests.test_resolver_spawn
-      - name: Workflow contract tests
-        run: python -m unittest tests.test_workflow_contract
-
-  verify-pr65:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout exact PR 65 frozen head
-        uses: actions/checkout@v4
-        with:
-          ref: 5e5eff704ab85d33d2b0a8d240f9a737d2a29281
-          persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Prove exact head
-        run: |
-          test "$(git rev-parse HEAD)" = "5e5eff704ab85d33d2b0a8d240f9a737d2a29281"
-          git rev-parse HEAD
-      - name: Python compile
-        run: python -m py_compile tools/resolver_spawn.py tests/test_research_chain_reconciler.py
-      - name: Research chain reconciler tests
-        run: python -m unittest tests.test_research_chain_reconciler
-      - name: Resolver spawn tests
-        run: python -m unittest tests.test_resolver_spawn
-      - name: Research spawn admission tests
-        run: python -m unittest tests.test_research_spawn_admission
-      - name: Workflow contract tests
-        run: python -m unittest tests.test_workflow_contract
-      - name: Canon materialization tests
-        run: python -m unittest tests.test_canon_materialization
-      - name: Structure validation
+      - name: Owner Interface bounded tests
+        run: python -m unittest tests.test_owner_interface_skills
+      - name: Structural validation
         run: python tools/validate_structure.py
