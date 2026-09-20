@@ -16,6 +16,7 @@ kernel_contracts:
   assignment_compilation: contracts/ASSIGNMENT_COMPILATION_CONTRACT.md
   destination_executability: contracts/EXECUTABILITY_CONTRACT.md
   resource_governance: contracts/RESOURCE_GOVERNANCE_CONTRACT.md
+  owner_resource_authority: contracts/OWNER_RESOURCE_AUTHORITY_CONTRACT.md
 
 shared_namespaces:
   kernel: kernel/
