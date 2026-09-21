@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from copy import deepcopy
+from decimal import Decimal
 import json
 from pathlib import Path
 import sys
@@ -22,6 +23,8 @@ from tools.executability import (
     validate_state_observation,
 )
 from tools.research_policy import admit_work_package
+from tools.resource_admission import ResourceAdmissionError, evaluate_resource_admission
+from tools.resource_ledger import ResourceLedger, ResourceLedgerError
 from tools.workflow_contract import resolve_workflow_contract
 
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
@@ -34,6 +37,10 @@ RESEARCH_RECONCILIATION_REQUIRED_CAPABILITY = "durable_artifact_write"
 RESEARCH_RESULT_FIELDS = {"ADMISSION_STATUS", "ERROR_CODE", "REQUIRE_MACHINE_REDESIGN", "ERRORS"}
 RESEARCH_ADMISSION_FIELDS = {
     "artifact_id", *RESEARCH_RESULT_FIELDS, "WORK_PACKAGE_ID", "QUESTION_ID", "POLICY_SURFACE", "PROVENANCE", "WORK_PACKAGE",
+}
+RESOURCE_GOVERNANCE_FIELDS = {
+    "resource_admission_id", "resource_estimate_ref", "resource_grant_ref",
+    "availability_evidence_refs", "unclassified_metered_side_effect_refs",
 }
 
 
@@ -85,6 +92,24 @@ def _valid_prerequisites(value: object) -> tuple[list[dict[str, object]], list[s
             errors.append(f"selected_prerequisite_actions[{index}].evidence_path must be null or non-empty")
         actions.append(action)
     return actions, errors
+
+
+def _resource_governance(value: object) -> dict[str, object]:
+    if not isinstance(value, Mapping) or set(value) != RESOURCE_GOVERNANCE_FIELDS:
+        raise ResourceAdmissionError("resource_governance must contain the exact frozen RG-04 fields")
+    result = dict(value)
+    for field in ("resource_admission_id", "resource_estimate_ref", "resource_grant_ref"):
+        item = result.get(field)
+        if not isinstance(item, str) or not item.strip() or item != item.strip():
+            raise ResourceAdmissionError(f"resource_governance.{field} must be a non-empty trimmed string")
+    for field in ("availability_evidence_refs", "unclassified_metered_side_effect_refs"):
+        refs = result.get(field)
+        if not isinstance(refs, list) or not all(isinstance(ref, str) and ref.strip() and ref == ref.strip() for ref in refs):
+            raise ResourceAdmissionError(f"resource_governance.{field} must be an array of non-empty trimmed strings")
+        if len(refs) != len(set(refs)):
+            raise ResourceAdmissionError(f"resource_governance.{field} must contain unique refs")
+        result[field] = sorted(refs)
+    return result
 
 
 def _research_admission(
@@ -166,10 +191,16 @@ def _research_reconciliation_inputs(
     return normalized, None
 
 
-def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
+def resolve_spawn(
+    control_bundle: Mapping[str, object],
+    *,
+    resource_state_reader: object | None = None,
+    now: object | None = None,
+) -> dict[str, object]:
     """Resolve one already-selected local control bundle to a baton outcome."""
     if not isinstance(control_bundle, Mapping):
         return _out("ESCALATE", "MALFORMED_CONTROL_ARTIFACT")
+    resource_governed = "resource_governance" in control_bundle
     decision = control_bundle.get("decision")
     if not isinstance(decision, Mapping):
         return _out("ESCALATE", "MALFORMED_CONTROL_ARTIFACT", errors=["decision must be an object"])
@@ -330,16 +361,66 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
                     available_capabilities=subset["available_capabilities"], missing_capabilities=subset["unsatisfied_required_capabilities"],
                     destination_id=profile.get("destination_id"), capability_profile_ref=profile_ref)
 
+    resource_admission = None
+    governance = None
+    if resource_governed:
+        try:
+            governance = _resource_governance(control_bundle.get("resource_governance"))
+            if resource_state_reader is None:
+                raise ResourceAdmissionError("resource_state_reader is required for resource-governed resolution")
+            estimate_ref = str(governance["resource_estimate_ref"])
+            grant_ref = str(governance["resource_grant_ref"])
+            estimate = artifacts.get(estimate_ref)
+            grant = artifacts.get(grant_ref)
+            resource_admission = evaluate_resource_admission(
+                artifact_id=str(governance["resource_admission_id"]),
+                assignment_id=str(control_bundle.get("assignment_id")),
+                input_state_ref=draft.get("input_state_ref") if isinstance(draft.get("input_state_ref"), str) else None,
+                compiled_assignment=compiled,
+                assignment_admissibility=admissibility,
+                route_ref=str(route_ref),
+                state_identity=str(state_observation.get("state_identity")),
+                resource_estimate_ref=estimate_ref,
+                resource_estimate=estimate,
+                resource_grant_ref=grant_ref,
+                resource_grant=grant,
+                resource_state_reader=resource_state_reader,
+                authority_resolver=resolver,
+                availability_evidence_refs=governance["availability_evidence_refs"],
+                unclassified_metered_side_effect_refs=governance["unclassified_metered_side_effect_refs"],
+                now=now,
+            )
+        except ResourceAdmissionError as exc:
+            return _out("ESCALATE", "RESOURCE_ADMISSION_INVALID", errors=[str(exc)], assignment_admissibility=admissibility)
+        if resource_admission.get("status") != "ADMISSIBLE":
+            return _out("WAIT", "RESOURCE_NOT_ADMISSIBLE", assignment_admissibility=admissibility,
+                        resource_admission=resource_admission)
+
     assignment = deepcopy(dict(semantics))
+    assignment_provenance = [str(admissibility["artifact_id"])]
+    assignment_related = [str(admissibility["artifact_id"]), str(profile_ref), str(route_ref), *proof_refs]
+    execution_contract = {
+        "assignment_draft_ref": draft.get("assignment_draft_ref"), "compiled_assignment_ref": compiled.get("artifact_id"),
+        "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"), "capability_profile_ref": profile_ref,
+        "admissibility_ref": admissibility.get("artifact_id"), "route_ref": route_ref, "proof_status": "PROVEN",
+        "required_capabilities": required, "unsatisfied_required_capabilities": [], "mandatory_evidence_paths": paths,
+        "execution_mode": decision.get("execution_mode")}
+    if resource_admission is not None and governance is not None:
+        resource_admission_ref = str(resource_admission["artifact_id"])
+        estimate_ref = str(governance["resource_estimate_ref"])
+        grant_ref = str(governance["resource_grant_ref"])
+        execution_contract.update({
+            "resource_admission_ref": resource_admission_ref,
+            "resource_estimate_ref": estimate_ref,
+            "resource_grant_ref": grant_ref,
+        })
+        assignment_provenance = sorted({str(admissibility["artifact_id"]), resource_admission_ref})
+        assignment_related = sorted(set([*assignment_related, resource_admission_ref, estimate_ref, grant_ref]))
     assignment.update({
         "artifact_type": "ASSIGNMENT", "artifact_id": control_bundle.get("assignment_id"), "produced_by_role": "control-director",
         "assignment_id": control_bundle.get("assignment_id"), "input_state_ref": draft.get("input_state_ref"), "status": "ISSUED",
-        "provenance": [str(admissibility["artifact_id"])], "related_artifacts": [str(admissibility["artifact_id"]), str(profile_ref), str(route_ref), *proof_refs],
-        "execution_contract": {"assignment_draft_ref": draft.get("assignment_draft_ref"), "compiled_assignment_ref": compiled.get("artifact_id"),
-            "destination_id": profile.get("destination_id"), "runtime_identity": profile.get("runtime_identity"), "capability_profile_ref": profile_ref,
-            "admissibility_ref": admissibility.get("artifact_id"), "route_ref": route_ref, "proof_status": "PROVEN",
-            "required_capabilities": required, "unsatisfied_required_capabilities": [], "mandatory_evidence_paths": paths,
-            "execution_mode": decision.get("execution_mode")},
+        "provenance": assignment_provenance, "related_artifacts": assignment_related,
+        "execution_contract": execution_contract,
     })
     proof_errors = validate_assignment_execution_contract(assignment, admissibility, profile, resolver, route, route_profiles,
                                                            compiled, resolver)
@@ -352,6 +433,13 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
               "assignment_admissibility": admissibility, "assignment": assignment,
               "capability_profile": profile, "execution_route": route,
               "input_state_observation": state_observation}
+    if resource_admission is not None and governance is not None:
+        result.update({
+            "resource_admission_ref": resource_admission["artifact_id"],
+            "resource_admission": resource_admission,
+            "resource_estimate_ref": governance["resource_estimate_ref"],
+            "resource_grant_ref": governance["resource_grant_ref"],
+        })
     if workflow_proof.get("status") == "PROVEN":
         result["workflow_contract_source"] = workflow_proof.get("contract_source")
         result["workflow_prerequisite_refs"] = workflow_refs
@@ -361,17 +449,65 @@ def resolve_spawn(control_bundle: Mapping[str, object]) -> dict[str, object]:
     return result
 
 
+def _load_bundle(source: object) -> object:
+    text = source.read()  # type: ignore[attr-defined]
+    probe = json.loads(text)
+    if isinstance(probe, Mapping) and "resource_governance" in probe:
+        return json.loads(text, parse_float=Decimal)
+    return probe
+
+
+def _json_exact(value: object, *, level: int = 0, indent: int = 2) -> str:
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ResourceAdmissionError("non-finite Decimal cannot be serialized as JSON")
+        return str(value)
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return json.dumps(value, ensure_ascii=False, allow_nan=False)
+    if isinstance(value, Mapping):
+        if not all(isinstance(key, str) for key in value):
+            raise ResourceAdmissionError("JSON object keys must be strings")
+        keys = sorted(value)
+        if not keys:
+            return "{}"
+        pad = " " * (indent * (level + 1))
+        close = " " * (indent * level)
+        body = ",\n".join(f"{pad}{json.dumps(key, ensure_ascii=False)}: {_json_exact(value[key], level=level + 1, indent=indent)}" for key in keys)
+        return "{\n" + body + "\n" + close + "}"
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return "[]"
+        pad = " " * (indent * (level + 1))
+        close = " " * (indent * level)
+        body = ",\n".join(f"{pad}{_json_exact(item, level=level + 1, indent=indent)}" for item in value)
+        return "[\n" + body + "\n" + close + "]"
+    raise ResourceAdmissionError(f"unsupported JSON value type: {type(value).__name__}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Resolve one local structured control bundle to a pre-spawn outcome")
     parser.add_argument("bundle", nargs="?", help="JSON bundle path; stdin when omitted")
+    parser.add_argument("--resource-ledger", help="Existing RG authority SQLite file for resource-governed resolution")
     args = parser.parse_args()
     try:
         with (open(args.bundle, encoding="utf-8") if args.bundle else sys.stdin) as source:
-            bundle = json.load(source)
-        result = resolve_spawn(bundle)
-    except (OSError, json.JSONDecodeError) as exc:
+            bundle = _load_bundle(source)
+        reader = None
+        if isinstance(bundle, Mapping) and "resource_governance" in bundle:
+            if not args.resource_ledger:
+                result = _out("ESCALATE", "RESOURCE_ADMISSION_INVALID", errors=["--resource-ledger is required for resource-governed input"])
+            else:
+                ledger_path = Path(args.resource_ledger)
+                if not ledger_path.exists() or not ledger_path.is_file():
+                    result = _out("ESCALATE", "RESOURCE_ADMISSION_INVALID", errors=["resource ledger path must already exist and be a regular file"])
+                else:
+                    reader = ResourceLedger(ledger_path)
+                    result = resolve_spawn(bundle, resource_state_reader=reader)
+        else:
+            result = resolve_spawn(bundle)  # type: ignore[arg-type]
+    except (OSError, json.JSONDecodeError, ResourceLedgerError, ResourceAdmissionError) as exc:
         result = _out("ESCALATE", "MALFORMED_CONTROL_ARTIFACT", errors=[str(exc)])
-    json.dump(result, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write(_json_exact(result, indent=2))
     sys.stdout.write("\n")
     return 0 if result.get("control_state") in {"ASSIGN", "WAIT", "ESCALATE", "COMPLETE"} else 1
 
