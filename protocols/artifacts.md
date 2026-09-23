@@ -13,8 +13,8 @@ There is no universal Artifact Agent. Artifact production is role-native.
 - `CAPABILITY_PROFILE` — freshness-bounded evidence of concrete execution surfaces available to one exact destination/runtime instance; it carries no authority by itself.
 - `COMPILED_ASSIGNMENT` — normalized authority/movability, context-fact authority, responsibility, evidence, envelope, mandatory-action, and capability semantics authorized by deterministic Control-layer compilation.
 - `ASSIGNMENT_ADMISSIBILITY` — pre-assignment control proof comparing mandatory required capabilities/evidence paths with one exact destination capability profile.
-- `ASSIGNMENT` — bounded instruction for current work; executable only when its destination-bound execution contract cites an `ADMISSIBLE` proof and contains no unsatisfied required capability.
-- `EXECUTOR_RESULT` — what the Executor actually did, resulting state, evidence refs, limitations/deferred findings.
+- `ASSIGNMENT` — bounded instruction for current work; executable only when its destination-bound execution contract cites an `ADMISSIBLE` proof and contains no unsatisfied required capability. It may declare `required_durable_outputs` as unique opaque assignment-local output identities.
+- `EXECUTOR_RESULT` — what the Executor actually did, resulting state, evidence refs, limitations/deferred findings. `durable_output_refs`, when present, bind assignment-declared required durable output identities to opaque non-blank artifact refs; `COMPLETE` requires full unique coverage of those declared identities.
 - `VERIFICATION_RESULT` — independent claim-by-claim verification of an exact result/candidate.
 - `DIRECTOR_DECISION` — admissible next transition selected from current state plus relevant results.
 - `OWNER_DECISION_RECORD` — durable materialization of an Owner/K0 choice.
@@ -28,6 +28,8 @@ Every artifact has a stable `artifact_id`, `artifact_type`, `produced_by_role`, 
 Derived artifacts must not erase source identity. A summary cannot silently replace a primary result when the downstream decision requires the primary result.
 
 `CAPABILITY_PROFILE` must identify the exact destination/runtime and freshness boundary. `ASSIGNMENT_ADMISSIBILITY` must bind the assignment draft, exact compiled assignment, destination, and exact capability profile used in the subset decision. An `ASSIGNMENT` must preserve those refs in its execution contract.
+
+For A1 durable-output completeness, a durable artifact ref is only an opaque identity carried by `EXECUTOR_RESULT`. Reference presence establishes neither materialization nor resolvability, readability, freshness, independent readback, or verification. Those claims require their own later governed evidence.
 
 ## Pre-assignment executability separation
 
