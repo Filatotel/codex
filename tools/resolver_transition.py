@@ -11,6 +11,10 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools.durable_output_contract import (
+    validate_assignment_durable_outputs,
+    validate_executor_durable_output_refs,
+)
 from tools.executability import (
     validate_assignment_execution_contract,
     validate_capability_profile,
@@ -147,6 +151,13 @@ def resolve_transition(control_bundle: Mapping[str, object]) -> dict[str, object
             or executor.get("input_state_ref") != assignment.get("input_state_ref")
             or director.get("executor_result_ref") != executor.get("artifact_id")):
         return _out("ESCALATE", "CONTROL_POINT_IDENTITY_MISMATCH")
+
+    durable_assignment_errors = validate_assignment_durable_outputs(assignment)
+    if durable_assignment_errors:
+        return _out("ESCALATE", "INVALID_GOVERNED_ASSIGNMENT", errors=durable_assignment_errors)
+    if errors := validate_executor_durable_output_refs(executor, assignment):
+        return _out("ESCALATE", "MALFORMED_EXECUTOR_RESULT", errors=errors)
+
     if current.get("artifact_id") not in executor.get("resulting_state_refs", []):
         return _out("ESCALATE", "CURRENT_STATE_IDENTITY_MISMATCH")
 
