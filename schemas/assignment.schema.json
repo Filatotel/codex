@@ -103,6 +103,15 @@
         "type": "string"
       }
     },
+    "required_durable_outputs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": ".*\\S.*"
+      }
+    },
     "stop_conditions": {
       "type": "array",
       "items": {
