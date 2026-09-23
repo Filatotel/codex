@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import json
 from pathlib import Path
 import unittest
 
 from tests.test_executability_parity import schema_accepts
+from tests.test_resolver_spawn import bundle as spawn_bundle
 from tests.test_resolver_transition import artifact, transition_bundle
 from tools.durable_output_contract import (
     validate_assignment_durable_outputs,
     validate_executor_durable_output_refs,
 )
+from tools.resolver_spawn import resolve_spawn
 from tools.resolver_transition import resolve_transition
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +36,13 @@ class DurableOutputContractTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.assignment_schema = json.loads((ROOT / "schemas/assignment.schema.json").read_text())
         cls.result_schema = json.loads((ROOT / "schemas/executor-result.schema.json").read_text())
+
+    def test_spawn_carries_required_durable_output_declaration(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["report"]
+        spawned = resolve_spawn(value)
+        self.assertEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["assignment"]["required_durable_outputs"], ["report"])
 
     def test_legacy_assignment_without_durable_outputs_preserves_complete(self) -> None:
         value = transition_bundle()
