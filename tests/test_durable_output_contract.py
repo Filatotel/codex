@@ -44,6 +44,30 @@ class DurableOutputContractTest(unittest.TestCase):
         self.assertEqual(spawned["status"], "SPAWN_READY")
         self.assertEqual(spawned["assignment"]["required_durable_outputs"], ["report"])
 
+    def test_spawn_rejects_duplicate_required_durable_output_ids(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["report", "report"]
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(any("duplicate required durable output id" in error for error in spawned["errors"]), spawned)
+
+    def test_spawn_rejects_blank_required_durable_output_id(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["   "]
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(any("must be a non-blank string" in error for error in spawned["errors"]), spawned)
+
+    def test_spawn_rejects_non_list_required_durable_outputs(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = "report"
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(any("required_durable_outputs must be a list" in error for error in spawned["errors"]), spawned)
+
     def test_legacy_assignment_without_durable_outputs_preserves_complete(self) -> None:
         value = transition_bundle()
         assignment = artifact(value, value["refs"]["assignment_ref"])
