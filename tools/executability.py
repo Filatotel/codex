@@ -13,6 +13,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.assignment_compiler import EnvelopeResolver, validate_compiled_assignment
+from tools.durable_output_contract import validate_assignment_durable_outputs
 
 CapabilityEvidenceResolver = Callable[[str], Mapping[str, object] | None]
 
@@ -379,7 +380,6 @@ def validate_capability_profile(
         if embedded is not None and dict(embedded) != dict(artifact):
             errors.append(f"embedded evidence disagrees with authoritative evidence {evidence_ref!r}")
         errors.extend(f"resolved evidence {evidence_ref!r}.{error}" for error in validate_capability_evidence_artifact(artifact))
-        # Validate the authoritative object with the same structural surface.
         for field in ["produced_by_role", "observation_method", "created_from"]:
             if not isinstance(artifact.get(field), str) or not str(artifact[field]).strip():
                 errors.append(f"resolved evidence {evidence_ref!r}.{field} must be a non-empty string")
@@ -733,6 +733,7 @@ def validate_assignment_artifact(assignment: Mapping[str, object]) -> list[str]:
     required_outputs = assignment.get("required_outputs")
     if required_outputs is not None:
         _string_list(required_outputs, "assignment.required_outputs", errors, non_empty=False)
+    errors.extend(validate_assignment_durable_outputs(assignment))
 
     scope = assignment.get("scope")
     if not isinstance(scope, Mapping):
