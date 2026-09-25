@@ -13,6 +13,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.assignment_compiler import EnvelopeResolver, validate_compiled_assignment
+from tools.durable_output_contract import validate_assignment_durable_outputs
 
 CapabilityEvidenceResolver = Callable[[str], Mapping[str, object] | None]
 
@@ -733,6 +734,7 @@ def validate_assignment_artifact(assignment: Mapping[str, object]) -> list[str]:
     required_outputs = assignment.get("required_outputs")
     if required_outputs is not None:
         _string_list(required_outputs, "assignment.required_outputs", errors, non_empty=False)
+    errors.extend(validate_assignment_durable_outputs(assignment))
 
     scope = assignment.get("scope")
     if not isinstance(scope, Mapping):
