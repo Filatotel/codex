@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -105,6 +106,41 @@ class DurableArtifactPortTest(unittest.TestCase):
             self.assertEqual(report.status, MATERIALIZED)
             self.assertEqual(manifest.status, MATERIALIZED)
             self.assertNotEqual(report.artifact_ref, manifest.artifact_ref)
+
+    def test_unencodable_output_identity_is_malformed_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            port = LocalFileDurableReferencePort(tempdir, "SOR-PRIMARY")
+            result = port.materialize("SOR-PRIMARY", "\ud800", b"x")
+            self.assertEqual(result.status, MALFORMED_INPUT)
+            self.assertIsNone(result.artifact_ref)
+
+    def test_unencodable_materialize_system_of_record_is_malformed_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            port = LocalFileDurableReferencePort(tempdir, "SOR-PRIMARY")
+            result = port.materialize("\ud800", "valid", b"x")
+            self.assertEqual(result.status, MALFORMED_INPUT)
+            self.assertIsNone(result.artifact_ref)
+
+    def test_unencodable_readback_system_of_record_is_malformed_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            port = LocalFileDurableReferencePort(tempdir, "SOR-PRIMARY")
+            observed = port.readback("\ud800", "dar:v1:" + "0" * 64)
+            self.assertEqual(observed.status, MALFORMED_INPUT)
+
+    def test_unencodable_persisted_output_identity_is_backend_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            writer = LocalFileDurableReferencePort(tempdir, "SOR-PRIMARY")
+            materialized = writer.materialize("SOR-PRIMARY", "report", b"payload")
+            artifact_ref = str(materialized.artifact_ref)
+            path = writer._record_path(artifact_ref)
+            record = json.loads(path.read_text(encoding="utf-8"))
+            record["output_identity"] = "\ud800"
+            path.write_text(json.dumps(record), encoding="utf-8")
+
+            reader = LocalFileDurableReferencePort(tempdir, "SOR-PRIMARY")
+            observed = reader.readback("SOR-PRIMARY", artifact_ref)
+            self.assertEqual(observed.status, BACKEND_FAILURE)
+            self.assertIsNone(observed.payload)
 
     def test_a1_no_durable_output_behavior_is_unchanged(self) -> None:
         assignment = {}

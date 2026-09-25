@@ -38,7 +38,13 @@ _RECORD_FIELDS = {
 
 
 def _non_blank(value: object) -> bool:
-    return isinstance(value, str) and bool(value.strip())
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def _content_digest(payload: bytes) -> str:
