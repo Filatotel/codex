@@ -226,13 +226,13 @@ def resolve_transition(
                 or verification.get("executor_result_ref") != executor.get("artifact_id")
                 or verification.get("input_state_ref") != executor.get("input_state_ref")):
             return _out("ESCALATE", "VERIFICATION_RESULT_IDENTITY_MISMATCH")
-        expected_readback_proofs = durable_readback.proofs if durable_readback.status == READBACK_PROVEN else None
-        if errors := validate_verification_durable_readback_proofs(
-            verification,
-            assignment,
-            expected_readback_proofs,
-        ):
-            return _out("ESCALATE", "VERIFICATION_DURABLE_READBACK_MISMATCH", errors=errors)
+        if durable_readback.status == READBACK_PROVEN:
+            if errors := validate_verification_durable_readback_proofs(
+                verification,
+                assignment,
+                durable_readback.proofs,
+            ):
+                return _out("ESCALATE", "VERIFICATION_DURABLE_READBACK_MISMATCH", errors=errors)
 
     claims = {claim["claim_id"]: claim for claim in executor["claims"]}
     factual_requirements_met = True
