@@ -74,6 +74,39 @@ class DurableOutputContractTest(unittest.TestCase):
         self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
         self.assertTrue(any("must be a non-blank string" in error for error in spawned["errors"]), spawned)
 
+    def test_spawn_rejects_unencodable_required_durable_output_id(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["\ud800"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-PRIMARY"
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(
+            any("required_durable_outputs[0] must be UTF-8 encodable" in error for error in spawned["errors"]),
+            spawned,
+        )
+
+    def test_spawn_rejects_unencodable_durable_system_of_record_ref(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["report"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "\ud800"
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(
+            any("durable_system_of_record_ref must be UTF-8 encodable" in error for error in spawned["errors"]),
+            spawned,
+        )
+
+    def test_spawn_accepts_ordinary_utf8_durable_identities(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["отчёт-✓"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-основной-✓"
+        spawned = resolve_spawn(value)
+        self.assertEqual(spawned["status"], "SPAWN_READY", spawned)
+        self.assertEqual(spawned["assignment"]["required_durable_outputs"], ["отчёт-✓"])
+        self.assertEqual(spawned["assignment"]["durable_system_of_record_ref"], "SOR-основной-✓")
+
     def test_spawn_rejects_non_list_required_durable_outputs(self) -> None:
         value = spawn_bundle()
         value["assignment_draft_semantics"]["required_durable_outputs"] = "report"
