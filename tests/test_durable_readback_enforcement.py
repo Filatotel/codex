@@ -150,7 +150,10 @@ class DurableReadbackEnforcementTest(unittest.TestCase):
             resolved = resolve_transition(value, durable_port=port)
             self.assertEqual((resolved["control_state"], resolved["reason"]),
                              ("ESCALATE", "VERIFICATION_DURABLE_READBACK_MISMATCH"))
-            self.assertTrue(any("CONFIRMED" in error for error in resolved["errors"]), resolved)
+            self.assertTrue(
+                any("missing durable readback proofs" in error and "report" in error for error in resolved["errors"]),
+                resolved,
+            )
 
     def test_verifier_bound_to_exact_readback_artifact_can_confirm(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
@@ -193,7 +196,7 @@ class DurableReadbackEnforcementTest(unittest.TestCase):
     def test_noncomplete_executor_results_do_not_fabricate_readback_proofs(self) -> None:
         for status in ("PARTIAL", "BLOCKED", "FAILED"):
             with self.subTest(status=status):
-                value = transition_bundle(verification=False)
+                value = transition_bundle()
                 assignment, result = _declare(value, "report")
                 result["status"] = status
                 result.pop("durable_output_refs", None)
