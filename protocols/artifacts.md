@@ -13,9 +13,9 @@ There is no universal Artifact Agent. Artifact production is role-native.
 - `CAPABILITY_PROFILE` — freshness-bounded evidence of concrete execution surfaces available to one exact destination/runtime instance; it carries no authority by itself.
 - `COMPILED_ASSIGNMENT` — normalized authority/movability, context-fact authority, responsibility, evidence, envelope, mandatory-action, and capability semantics authorized by deterministic Control-layer compilation.
 - `ASSIGNMENT_ADMISSIBILITY` — pre-assignment control proof comparing mandatory required capabilities/evidence paths with one exact destination capability profile.
-- `ASSIGNMENT` — bounded instruction for current work; executable only when its destination-bound execution contract cites an `ADMISSIBLE` proof and contains no unsatisfied required capability. It may declare `required_durable_outputs` as unique opaque assignment-local output identities.
+- `ASSIGNMENT` — bounded instruction for current work; executable only when its destination-bound execution contract cites an `ADMISSIBLE` proof and contains no unsatisfied required capability. It may declare `required_durable_outputs` as unique opaque assignment-local output identities; when that list is non-empty it also declares the opaque `durable_system_of_record_ref` from which those outputs must be independently read back.
 - `EXECUTOR_RESULT` — what the Executor actually did, resulting state, evidence refs, limitations/deferred findings. `durable_output_refs`, when present, bind assignment-declared required durable output identities to opaque non-blank artifact refs; `COMPLETE` requires full unique coverage of those declared identities.
-- `VERIFICATION_RESULT` — independent claim-by-claim verification of an exact result/candidate.
+- `VERIFICATION_RESULT` — independent claim-by-claim verification of an exact result/candidate. For assignments with required durable outputs, `CONFIRMED` additionally carries `durable_readback_proofs` whose assignment/output/system-of-record/ref/content-digest identity must exactly match Control's independent #56-B readback observations.
 - `DIRECTOR_DECISION` — admissible next transition selected from current state plus relevant results.
 - `OWNER_DECISION_RECORD` — durable materialization of an Owner/K0 choice.
 - `STATE_MUTATION_PROPOSAL` — requested governed state change before authority acceptance.
@@ -29,7 +29,9 @@ Derived artifacts must not erase source identity. A summary cannot silently repl
 
 `CAPABILITY_PROFILE` must identify the exact destination/runtime and freshness boundary. `ASSIGNMENT_ADMISSIBILITY` must bind the assignment draft, exact compiled assignment, destination, and exact capability profile used in the subset decision. An `ASSIGNMENT` must preserve those refs in its execution contract.
 
-For A1 durable-output completeness, a durable artifact ref is only an opaque identity carried by `EXECUTOR_RESULT`. Reference presence establishes neither materialization nor resolvability, readability, freshness, independent readback, or verification. Those claims require their own later governed evidence.
+For durable completion, reference coverage and readback are distinct gates. `EXECUTOR_RESULT.durable_output_refs` proves only the A1 mapping. Control independently invokes the provider-neutral #56-B durable port using the assignment's exact `durable_system_of_record_ref` and each exact returned artifact ref. A resolved readback is accepted only when its system-of-record identity, artifact ref, output identity, SHA-256 content identity, and payload all correspond to that exact binding. Executor/session/local copies are not an alternative read source and cannot satisfy this gate.
+
+The Verifier does not authenticate to storage or choose a provider. It consumes the exact independently read-back object and reports `durable_readback_proofs` identifying the exact assignment, output id, system of record, artifact ref, content digest, and `RESOLVED` status that it evaluated. Control matches those proofs against its independent readback observations before honoring `CONFIRMED`. Availability/readback proof remains separate from factual claim verification: a readable artifact can still yield `QUALIFIED`, `NOT_PROVEN`, or `BLOCKED`.
 
 ## Pre-assignment executability separation
 
@@ -43,11 +45,12 @@ Known missing capability before dispatch yields `ASSIGNMENT_NOT_ADMISSIBLE` and 
 
 `EXECUTOR_RESULT != VERIFICATION_RESULT`.
 
-The Executor owns truthful reporting of performed work; the Verifier owns independent assessment of claims. A Verifier report must not rewrite or replace the Executor result. Where verification is required, Control Director receives **both** artifacts.
+The Executor owns truthful reporting of performed work; the Verifier owns independent assessment of claims. A Verifier report must not rewrite or replace the Executor result. Where verification is required, Control Director receives **both** artifacts. For required durable outputs, the Verifier's target is the exact independently read-back payload/identity, not an Executor-provided local copy.
 
 ## Artifact versus evidence
 
 Artifacts can contain evidence references, but artifact existence is not proof. Evidence must be evaluated against the exact claim, state, method, and trust boundary described by the evidence contract. A capability profile is evidence about the runtime surface only; it is neither authorization nor proof of task completion.
+
 # Executability evidence and route trust boundary
 
 `CAPABILITY_EVIDENCE` is structurally valid only when its common artifact identity, runtime, unique non-empty proven capabilities, observation/validity timestamps, observation method, provenance, and created-from lineage are complete. Structural validity is distinct from authoritative resolution: an embedded object cannot resolve itself. `EXECUTION_ROUTE` is the durable assignment-draft-bound proof joining candidate delivery, execution/verification, and durable evidence/control through capability-proven segments and directional handoffs. Cross-surface edges prove export and receive sides independently; same-surface edges prove exact runtime equivalence and internal transfer. Assignment and admissibility artifacts cite its exact identity, the execution segment equals their admitted execution identity, and the structured final-result reference resolves to the durable segment whose destination equals `ASSIGNMENT.result_to`.
