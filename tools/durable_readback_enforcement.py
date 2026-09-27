@@ -241,10 +241,12 @@ def validate_verification_durable_readback_proofs(
                 if expected is None or dict(proof) != expected:
                     errors.append(f"{prefix} does not match the exact independent readback observation")
 
+    if required and expected_by_output is not None:
+        missing = sorted(required - seen)
+        if missing:
+            errors.append(f"verification result is missing durable readback proofs: {missing}")
+
     if verification.get("status") == "CONFIRMED" and required:
         if expected_by_output is None or set(expected_by_output) != required:
             errors.append("CONFIRMED requires proven independent readback for every required durable output")
-        missing = sorted(required - seen)
-        if missing:
-            errors.append(f"CONFIRMED is missing durable readback proofs: {missing}")
     return errors
