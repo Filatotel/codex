@@ -19,6 +19,14 @@ def _non_blank(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _utf8_encodable(value: str) -> bool:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def validate_assignment_durable_outputs(assignment: Mapping[str, object]) -> list[str]:
     """Validate assignment-local durable output identities and readback authority target."""
     errors: list[str] = []
@@ -34,6 +42,11 @@ def validate_assignment_durable_outputs(assignment: Mapping[str, object]) -> lis
             )
             continue
         assert isinstance(output_id, str)
+        if not _utf8_encodable(output_id):
+            errors.append(
+                f"assignment.required_durable_outputs[{index}] must be UTF-8 encodable"
+            )
+            continue
         if output_id in seen:
             errors.append(f"duplicate required durable output id: {output_id}")
         else:
@@ -46,10 +59,23 @@ def validate_assignment_durable_outputs(assignment: Mapping[str, object]) -> lis
                 "assignment.durable_system_of_record_ref must be a non-blank string "
                 "when required durable outputs are declared"
             )
-    elif system_of_record_ref is not None and not _non_blank(system_of_record_ref):
-        errors.append(
-            "assignment.durable_system_of_record_ref must be a non-blank string when present"
-        )
+        else:
+            assert isinstance(system_of_record_ref, str)
+            if not _utf8_encodable(system_of_record_ref):
+                errors.append(
+                    "assignment.durable_system_of_record_ref must be UTF-8 encodable"
+                )
+    elif system_of_record_ref is not None:
+        if not _non_blank(system_of_record_ref):
+            errors.append(
+                "assignment.durable_system_of_record_ref must be a non-blank string when present"
+            )
+        else:
+            assert isinstance(system_of_record_ref, str)
+            if not _utf8_encodable(system_of_record_ref):
+                errors.append(
+                    "assignment.durable_system_of_record_ref must be UTF-8 encodable"
+                )
     return errors
 
 
