@@ -1,7 +1,8 @@
 """A1 structural contract for assignment-required durable output references.
 
-This module proves reference coverage only. It does not resolve, read, or otherwise
-establish durability of any referenced artifact.
+This module proves declaration/reference coverage only. It does not resolve, read,
+or otherwise establish durability of any referenced artifact. 56-C adds only the
+opaque system-of-record target required by later readback enforcement.
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ from collections.abc import Mapping
 
 REQUIRED_DURABLE_OUTPUTS_FIELD = "required_durable_outputs"
 DURABLE_OUTPUT_REFS_FIELD = "durable_output_refs"
+DURABLE_SYSTEM_OF_RECORD_REF_FIELD = "durable_system_of_record_ref"
 _BINDING_FIELDS = {"output_id", "artifact_ref"}
 
 
@@ -17,8 +19,16 @@ def _non_blank(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _utf8_encodable(value: str) -> bool:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def validate_assignment_durable_outputs(assignment: Mapping[str, object]) -> list[str]:
-    """Validate assignment-local identities for required durable outputs."""
+    """Validate assignment-local durable output identities and readback authority target."""
     errors: list[str] = []
     value = assignment.get(REQUIRED_DURABLE_OUTPUTS_FIELD, [])
     if not isinstance(value, list):
@@ -32,10 +42,40 @@ def validate_assignment_durable_outputs(assignment: Mapping[str, object]) -> lis
             )
             continue
         assert isinstance(output_id, str)
+        if not _utf8_encodable(output_id):
+            errors.append(
+                f"assignment.required_durable_outputs[{index}] must be UTF-8 encodable"
+            )
+            continue
         if output_id in seen:
             errors.append(f"duplicate required durable output id: {output_id}")
         else:
             seen.add(output_id)
+
+    system_of_record_ref = assignment.get(DURABLE_SYSTEM_OF_RECORD_REF_FIELD)
+    if value:
+        if not _non_blank(system_of_record_ref):
+            errors.append(
+                "assignment.durable_system_of_record_ref must be a non-blank string "
+                "when required durable outputs are declared"
+            )
+        else:
+            assert isinstance(system_of_record_ref, str)
+            if not _utf8_encodable(system_of_record_ref):
+                errors.append(
+                    "assignment.durable_system_of_record_ref must be UTF-8 encodable"
+                )
+    elif system_of_record_ref is not None:
+        if not _non_blank(system_of_record_ref):
+            errors.append(
+                "assignment.durable_system_of_record_ref must be a non-blank string when present"
+            )
+        else:
+            assert isinstance(system_of_record_ref, str)
+            if not _utf8_encodable(system_of_record_ref):
+                errors.append(
+                    "assignment.durable_system_of_record_ref must be UTF-8 encodable"
+                )
     return errors
 
 

@@ -21,6 +21,8 @@ def _declare(value: dict, *output_ids: str) -> tuple[dict, dict]:
     assignment = artifact(value, value["refs"]["assignment_ref"])
     result = artifact(value, value["refs"]["executor_result_ref"])
     assignment["required_durable_outputs"] = list(output_ids)
+    if output_ids:
+        assignment["durable_system_of_record_ref"] = "SOR-PRIMARY"
     return assignment, result
 
 
@@ -40,13 +42,24 @@ class DurableOutputContractTest(unittest.TestCase):
     def test_spawn_carries_required_durable_output_declaration(self) -> None:
         value = spawn_bundle()
         value["assignment_draft_semantics"]["required_durable_outputs"] = ["report"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-PRIMARY"
         spawned = resolve_spawn(value)
         self.assertEqual(spawned["status"], "SPAWN_READY")
         self.assertEqual(spawned["assignment"]["required_durable_outputs"], ["report"])
+        self.assertEqual(spawned["assignment"]["durable_system_of_record_ref"], "SOR-PRIMARY")
+
+    def test_spawn_rejects_required_durable_output_without_system_of_record(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["report"]
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(any("durable_system_of_record_ref" in error for error in spawned["errors"]), spawned)
 
     def test_spawn_rejects_duplicate_required_durable_output_ids(self) -> None:
         value = spawn_bundle()
         value["assignment_draft_semantics"]["required_durable_outputs"] = ["report", "report"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-PRIMARY"
         spawned = resolve_spawn(value)
         self.assertNotEqual(spawned["status"], "SPAWN_READY")
         self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
@@ -55,14 +68,49 @@ class DurableOutputContractTest(unittest.TestCase):
     def test_spawn_rejects_blank_required_durable_output_id(self) -> None:
         value = spawn_bundle()
         value["assignment_draft_semantics"]["required_durable_outputs"] = ["   "]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-PRIMARY"
         spawned = resolve_spawn(value)
         self.assertNotEqual(spawned["status"], "SPAWN_READY")
         self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
         self.assertTrue(any("must be a non-blank string" in error for error in spawned["errors"]), spawned)
 
+    def test_spawn_rejects_unencodable_required_durable_output_id(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["\ud800"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-PRIMARY"
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(
+            any("required_durable_outputs[0] must be UTF-8 encodable" in error for error in spawned["errors"]),
+            spawned,
+        )
+
+    def test_spawn_rejects_unencodable_durable_system_of_record_ref(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["report"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "\ud800"
+        spawned = resolve_spawn(value)
+        self.assertNotEqual(spawned["status"], "SPAWN_READY")
+        self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
+        self.assertTrue(
+            any("durable_system_of_record_ref must be UTF-8 encodable" in error for error in spawned["errors"]),
+            spawned,
+        )
+
+    def test_spawn_accepts_ordinary_utf8_durable_identities(self) -> None:
+        value = spawn_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = ["отчёт-✓"]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-основной-✓"
+        spawned = resolve_spawn(value)
+        self.assertEqual(spawned["status"], "SPAWN_READY", spawned)
+        self.assertEqual(spawned["assignment"]["required_durable_outputs"], ["отчёт-✓"])
+        self.assertEqual(spawned["assignment"]["durable_system_of_record_ref"], "SOR-основной-✓")
+
     def test_spawn_rejects_non_list_required_durable_outputs(self) -> None:
         value = spawn_bundle()
         value["assignment_draft_semantics"]["required_durable_outputs"] = "report"
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-PRIMARY"
         spawned = resolve_spawn(value)
         self.assertNotEqual(spawned["status"], "SPAWN_READY")
         self.assertEqual(spawned["reason"], "FINAL_ASSIGNMENT_PROOF_FAILED")
@@ -76,14 +124,15 @@ class DurableOutputContractTest(unittest.TestCase):
         self.assertEqual(validate_executor_durable_output_refs(result, assignment), [])
         self.assertEqual(resolve_transition(value)["control_state"], "COMPLETE")
 
-    def test_one_required_output_with_exact_binding_is_complete(self) -> None:
+    def test_one_required_output_with_exact_binding_is_structurally_valid_but_not_readback_proven(self) -> None:
         value = transition_bundle()
         assignment, result = _declare(value, "deliverable")
         _bind(result, ("deliverable", "ARTIFACT-1"))
         self.assertEqual(validate_executor_durable_output_refs(result, assignment), [])
         self.assertTrue(schema_accepts(assignment, self.assignment_schema))
         self.assertTrue(schema_accepts(result, self.result_schema))
-        self.assertEqual(resolve_transition(value)["control_state"], "COMPLETE")
+        resolved = resolve_transition(value)
+        self.assertEqual((resolved["control_state"], resolved["reason"]), ("WAIT", "DURABLE_READBACK_NOT_PROVEN"))
 
     def test_complete_without_binding_fails_closed(self) -> None:
         value = transition_bundle()
@@ -128,8 +177,6 @@ class DurableOutputContractTest(unittest.TestCase):
         _bind(result, ("report", "ARTIFACT-1"), ("report", "ARTIFACT-2"))
         errors = validate_executor_durable_output_refs(result, assignment)
         self.assertTrue(any("duplicate durable output binding id" in error for error in errors), errors)
-        # JSON Schema cannot express uniqueness projected only on output_id;
-        # runtime validation owns that cross-item semantic invariant.
         self.assertTrue(schema_accepts(result, self.result_schema))
         self.assertEqual(resolve_transition(value)["reason"], "MALFORMED_EXECUTOR_RESULT")
 

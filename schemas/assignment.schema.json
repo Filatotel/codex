@@ -112,6 +112,11 @@
         "pattern": ".*\\S.*"
       }
     },
+    "durable_system_of_record_ref": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": ".*\\S.*"
+    },
     "stop_conditions": {
       "type": "array",
       "items": {
@@ -207,5 +212,25 @@
       "additionalProperties": true
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "required_durable_outputs"
+        ],
+        "properties": {
+          "required_durable_outputs": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "durable_system_of_record_ref"
+        ]
+      }
+    }
+  ],
   "additionalProperties": true
 }

@@ -11,9 +11,17 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools.durable_artifact_port import DurableArtifactPort
 from tools.durable_output_contract import (
     validate_assignment_durable_outputs,
     validate_executor_durable_output_refs,
+)
+from tools.durable_readback_enforcement import (
+    READBACK_INVALID,
+    READBACK_NOT_PROVEN,
+    READBACK_PROVEN,
+    evaluate_required_durable_readback,
+    validate_verification_durable_readback_proofs,
 )
 from tools.executability import (
     validate_assignment_execution_contract,
@@ -116,7 +124,11 @@ def _effective_verification_outcome(
     return max(outcomes, key=VERIFICATION_SEVERITY.__getitem__)
 
 
-def resolve_transition(control_bundle: Mapping[str, object]) -> dict[str, object]:
+def resolve_transition(
+    control_bundle: Mapping[str, object],
+    *,
+    durable_port: DurableArtifactPort | None = None,
+) -> dict[str, object]:
     """Reconcile one structured local post-spawn bundle to exactly one baton."""
     if not isinstance(control_bundle, Mapping):
         return _out("ESCALATE", "MALFORMED_CONTROL_ARTIFACT")
@@ -195,6 +207,12 @@ def resolve_transition(control_bundle: Mapping[str, object]) -> dict[str, object
         if missing:
             return _out("WAIT", "BLOCKED_RUNTIME_DRIFT", missing_capabilities=missing)
 
+    durable_readback = evaluate_required_durable_readback(assignment, executor, durable_port)
+    if durable_readback.status == READBACK_INVALID:
+        return _out("ESCALATE", "DURABLE_READBACK_INVALID", errors=list(durable_readback.errors))
+    if durable_readback.status == READBACK_NOT_PROVEN:
+        return _out("WAIT", "DURABLE_READBACK_NOT_PROVEN", errors=list(durable_readback.errors))
+
     verification = None
     if authority.get("verification_required"):
         verification_ref = refs.get("verification_result_ref")
@@ -208,6 +226,13 @@ def resolve_transition(control_bundle: Mapping[str, object]) -> dict[str, object
                 or verification.get("executor_result_ref") != executor.get("artifact_id")
                 or verification.get("input_state_ref") != executor.get("input_state_ref")):
             return _out("ESCALATE", "VERIFICATION_RESULT_IDENTITY_MISMATCH")
+        if durable_readback.status == READBACK_PROVEN:
+            if errors := validate_verification_durable_readback_proofs(
+                verification,
+                assignment,
+                durable_readback.proofs,
+            ):
+                return _out("ESCALATE", "VERIFICATION_DURABLE_READBACK_MISMATCH", errors=errors)
 
     claims = {claim["claim_id"]: claim for claim in executor["claims"]}
     factual_requirements_met = True
