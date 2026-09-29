@@ -33,6 +33,10 @@ def valid_chain() -> tuple[dict[str, object], dict[str, object], dict[str, objec
         "related_artifacts": ["EVIDENCE-1"],
         "destination_id": "agent-1",
         "runtime_identity": "runtime-1",
+        "surface_class": "REMOTE_DEV_ENV",
+        "workspace_scope_ref": "ext-scope:runtime:test",
+        "readiness": "READY",
+        "evidence_channels": ["terminal_stdout", "unit_test_result", "durable_artifact_ref"],
         "available_capabilities": ["shell", "python_runtime", "repository_remote_read", "durable_artifact_write"],
         "unavailable_capabilities": ["outbound_network"],
         "capability_evidence": [
@@ -407,6 +411,10 @@ class ExecutabilityContractTest(unittest.TestCase):
             "provenance",
             "related_artifacts",
             "runtime_identity",
+            "surface_class",
+            "workspace_scope_ref",
+            "readiness",
+            "evidence_channels",
             "freshness_boundary",
             "limitations",
         ]:
