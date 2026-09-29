@@ -110,6 +110,16 @@ class ExecutionSurfaceProfileTest(unittest.TestCase):
                 self.assertFalse(schema_accepts(candidate, schema))
                 self.assertTrue(validate_capability_profile(candidate, _resolver(candidate)))
 
+    def test_unhashable_readiness_fails_closed_in_validator_and_schema(self) -> None:
+        schema = json.loads((ROOT / "schemas/capability-profile.schema.json").read_text(encoding="utf-8"))
+        for readiness in [[], {}]:
+            with self.subTest(readiness=readiness):
+                _, _, profile = deepcopy(valid_chain())
+                profile["readiness"] = readiness
+                errors = validate_capability_profile(profile, _resolver(profile))
+                self.assertIn("readiness is invalid", errors)
+                self.assertFalse(schema_accepts(profile, schema))
+
     def test_workspace_scope_and_exact_profile_binding_remain_deterministic(self) -> None:
         _, record, profile = deepcopy(valid_chain())
         resolver = _resolver(profile)
@@ -151,6 +161,21 @@ class ExecutionSurfaceProfileTest(unittest.TestCase):
         self.assertTrue(any("missing evidence" in error for error in errors), errors)
         self.assertEqual(profile["evidence_channels"], ["terminal_stdout", "unit_test_result"])
 
+    def test_usable_readiness_strings_remain_admissible(self) -> None:
+        for readiness in ["READY", "DEGRADED"]:
+            with self.subTest(readiness=readiness):
+                _, record, profile = deepcopy(valid_chain())
+                profile["readiness"] = readiness
+                resolver = _resolver(profile)
+                self.assertEqual(validate_capability_profile(profile, resolver), [])
+                self.assertEqual(validate_admissibility_against_profile(record, profile, resolver), [])
+
+                value = spawn_bundle()
+                cited = next(item for item in value["artifacts"] if item.get("artifact_type") == "CAPABILITY_PROFILE")
+                cited["readiness"] = readiness
+                result = resolve_spawn(value)
+                self.assertEqual(result.get("status"), "SPAWN_READY", result)
+
     def test_nonusable_readiness_is_structurally_valid_but_cannot_admit(self) -> None:
         for readiness in ["PROVISIONING_REQUIRED", "AUTH_REQUIRED", "UNAVAILABLE"]:
             with self.subTest(readiness=readiness):
@@ -165,6 +190,21 @@ class ExecutionSurfaceProfileTest(unittest.TestCase):
                 cited = next(item for item in value["artifacts"] if item.get("artifact_type") == "CAPABILITY_PROFILE")
                 cited["readiness"] = readiness
                 result = resolve_spawn(value)
+                self.assertNotEqual(result.get("status"), "SPAWN_READY", result)
+                self.assertNotIn("assignment", result)
+
+    def test_spawn_rejects_unhashable_readiness_without_raising(self) -> None:
+        for readiness in [[], {}]:
+            with self.subTest(readiness=readiness):
+                value = spawn_bundle()
+                cited = next(item for item in value["artifacts"] if item.get("artifact_type") == "CAPABILITY_PROFILE")
+                cited["readiness"] = readiness
+                result = resolve_spawn(value)
+                self.assertEqual(
+                    (result.get("control_state"), result.get("reason")),
+                    ("ESCALATE", "MALFORMED_CAPABILITY_PROFILE"),
+                    result,
+                )
                 self.assertNotEqual(result.get("status"), "SPAWN_READY", result)
                 self.assertNotIn("assignment", result)
 
@@ -216,6 +256,30 @@ class ExecutionSurfaceProfileTest(unittest.TestCase):
                 profile["readiness"] = readiness
                 evidence = deepcopy(profile["evidence_artifacts"][0])
                 evidence["artifact_id"] = f"EVIDENCE-NOW-{readiness}"
+                profile["evidence_artifacts"] = [evidence]
+                profile["related_artifacts"] = [evidence["artifact_id"]]
+                for claim in profile["capability_evidence"]:
+                    claim["evidence_ref"] = evidence["artifact_id"]
+                value["artifacts"].extend([profile, evidence])
+                value["refs"]["current_capability_profile_ref"] = profile["artifact_id"]
+                artifact(value, "DIRECTOR-POST")["transition_authority"]["requires_current_executability"] = True
+                result = resolve_transition(value)
+                self.assertEqual(
+                    (result.get("control_state"), result.get("reason")),
+                    ("WAIT", "CURRENT_EXECUTABILITY_REVALIDATION_REQUIRED"),
+                    result,
+                )
+
+    def test_transition_revalidation_rejects_unhashable_readiness_without_raising(self) -> None:
+        for readiness in [[], {}]:
+            with self.subTest(readiness=readiness):
+                value = transition_bundle()
+                old = artifact(value, value["spawned"]["capability_profile_ref"])
+                profile = deepcopy(old)
+                profile["artifact_id"] = "PROFILE-NOW-MALFORMED"
+                profile["readiness"] = readiness
+                evidence = deepcopy(profile["evidence_artifacts"][0])
+                evidence["artifact_id"] = "EVIDENCE-NOW-MALFORMED"
                 profile["evidence_artifacts"] = [evidence]
                 profile["related_artifacts"] = [evidence["artifact_id"]]
                 for claim in profile["capability_evidence"]:
