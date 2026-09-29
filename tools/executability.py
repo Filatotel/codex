@@ -256,7 +256,7 @@ def validate_capability_profile(
         if not isinstance(profile.get(field), str) or not str(profile[field]).strip():
             errors.append(f"{field} must be a non-empty string")
     readiness = profile.get("readiness")
-    if readiness not in CAPABILITY_PROFILE_READINESS:
+    if not isinstance(readiness, str) or readiness not in CAPABILITY_PROFILE_READINESS:
         errors.append("readiness is invalid")
     elif require_usable and readiness not in EXECUTION_USABLE_READINESS:
         errors.append(f"capability profile readiness does not permit current execution: {readiness}")
