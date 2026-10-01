@@ -198,7 +198,7 @@ def resolve_transition(
     if authority.get("requires_current_executability"):
         current_profile_ref = refs.get("current_capability_profile_ref")
         current_profile = artifacts.get(current_profile_ref) if isinstance(current_profile_ref, str) else None
-        if not isinstance(current_profile, Mapping) or (errors := validate_capability_profile(current_profile, artifacts.get)):
+        if not isinstance(current_profile, Mapping) or (errors := validate_capability_profile(current_profile, artifacts.get, require_usable=True)):
             return _out("WAIT", "CURRENT_EXECUTABILITY_REVALIDATION_REQUIRED", errors=errors if isinstance(current_profile, Mapping) else [])
         if (current_profile.get("destination_id") != contract.get("destination_id")
                 or current_profile.get("runtime_identity") != contract.get("runtime_identity")):

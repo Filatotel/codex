@@ -17,6 +17,15 @@ from tools.durable_output_contract import validate_assignment_durable_outputs
 
 CapabilityEvidenceResolver = Callable[[str], Mapping[str, object] | None]
 
+CAPABILITY_PROFILE_READINESS = {
+    "READY",
+    "DEGRADED",
+    "PROVISIONING_REQUIRED",
+    "AUTH_REQUIRED",
+    "UNAVAILABLE",
+}
+EXECUTION_USABLE_READINESS = {"READY", "DEGRADED"}
+
 
 def validate_state_observation(artifact: Mapping[str, object]) -> list[str]:
     """Validate the bounded Control-owned relevant-state observation contract."""
@@ -226,18 +235,34 @@ def validate_capability_evidence_artifact(artifact: Mapping[str, object]) -> lis
 def validate_capability_profile(
     profile: Mapping[str, object],
     evidence_resolver: CapabilityEvidenceResolver | None = None,
+    *,
+    require_usable: bool = False,
 ) -> list[str]:
-    """Validate internal consistency, freshness, runtime binding, and evidence coverage."""
+    """Validate one canonical, freshness-bounded execution-surface advertisement."""
     errors: list[str] = []
     if profile.get("artifact_type") != "CAPABILITY_PROFILE":
         errors.append("artifact_type must be CAPABILITY_PROFILE")
     if profile.get("status") != "CURRENT":
         errors.append("capability profile status must be CURRENT")
-    for field in ["artifact_id", "produced_by_role", "status", "destination_id", "runtime_identity"]:
+    for field in [
+        "artifact_id",
+        "produced_by_role",
+        "status",
+        "destination_id",
+        "runtime_identity",
+        "surface_class",
+        "workspace_scope_ref",
+    ]:
         if not isinstance(profile.get(field), str) or not str(profile[field]).strip():
             errors.append(f"{field} must be a non-empty string")
+    readiness = profile.get("readiness")
+    if not isinstance(readiness, str) or readiness not in CAPABILITY_PROFILE_READINESS:
+        errors.append("readiness is invalid")
+    elif require_usable and readiness not in EXECUTION_USABLE_READINESS:
+        errors.append(f"capability profile readiness does not permit current execution: {readiness}")
     for field in ["provenance", "related_artifacts", "limitations"]:
         _string_list(profile.get(field), field, errors, non_empty=False)
+    _string_list(profile.get("evidence_channels"), "evidence_channels", errors, unique=True, min_items=1)
     for field in ["assignment_id", "input_state_ref"]:
         if field not in profile:
             errors.append(f"{field} is required")
@@ -555,8 +580,8 @@ def validate_admissibility_against_profile(
     profile: Mapping[str, object],
     evidence_resolver: CapabilityEvidenceResolver | None = None,
 ) -> list[str]:
-    """Bind an admissibility record to the exact capability profile it cites."""
-    errors = validate_capability_profile(profile, evidence_resolver) + validate_admissibility_record(record)
+    """Bind an admissibility record to the exact, currently usable capability profile it cites."""
+    errors = validate_capability_profile(profile, evidence_resolver, require_usable=True) + validate_admissibility_record(record)
 
     profile_id = profile.get("artifact_id")
     record_profile_ref = record.get("capability_profile_ref")
@@ -634,7 +659,7 @@ def validate_execution_route(
         profile = profiles.get(str(profile_ref))
         if profile is None:
             errors.append(f"{prefix}.capability_profile_ref is unresolved: {profile_ref!r}"); continue
-        errors.extend(validate_capability_profile(profile, evidence_resolver))
+        errors.extend(validate_capability_profile(profile, evidence_resolver, require_usable=True))
         if profile.get("destination_id") != segment.get("destination_id"): errors.append(f"{prefix}.destination_id mismatch")
         if profile.get("runtime_identity") != segment.get("runtime_identity"): errors.append(f"{prefix}.runtime_identity mismatch")
         available = set(_normalize(profile.get("available_capabilities", [])))

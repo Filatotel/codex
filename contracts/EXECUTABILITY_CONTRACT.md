@@ -29,17 +29,37 @@ If the subset relation is not proven, the work is **not an executable assignment
 
 All three must pass. Semantic capability never implies runtime capability.
 
+The execution-surface advertisement is likewise not authority:
+
+```text
+SURFACE/CAPABILITY ADVERTISEMENT != SEMANTIC AUTHORITY
+SURFACE/CAPABILITY ADVERTISEMENT != ASSIGNMENT AUTHORITY
+SURFACE/CAPABILITY ADVERTISEMENT != RESOURCE AUTHORITY
+SURFACE/CAPABILITY ADVERTISEMENT != AUTONOMY AUTHORITY
+```
+
 ## CAPABILITY_PROFILE
 
-A `CAPABILITY_PROFILE` is a freshness-bounded observation of the execution surfaces available to one exact destination instance.
+A `CAPABILITY_PROFILE` is the canonical, freshness-bounded advertisement/observation of one execution surface available to one exact destination instance. It is the existing executability owner and MUST be extended rather than shadowed by a second execution-surface profile artifact.
 
 It records:
 
+- stable profile identity in the existing `artifact_id`; there is no second `surface_id`;
 - destination/runtime identity;
+- provider-neutral `surface_class`;
+- opaque `workspace_scope_ref` identifying the usable workspace scope without making provider/session/browser/tab IDs semantic authority;
+- readiness/provisioning state in `readiness`, separate from lifecycle `status=CURRENT`;
 - observed available capabilities;
 - unavailable or explicitly excluded capabilities;
+- provider-neutral `evidence_channels` through which factual evidence may be obtained;
 - evidence/source for capability claims;
 - freshness boundary and limitations.
+
+Reference surface-class families include `CHATGPT_CHAT`, `REMOTE_DEV_ENV`, `CODEX_CLOUD`, `BROWSER_CONSOLE`, `DEPLOYMENT_RUNTIME`, and `MANUAL_OPERATOR`. The vocabulary is extensible and provider-neutral; these labels are not provider account IDs and consumers MUST NOT require a commercial provider name as a universal surface identifier.
+
+`readiness` is one of `READY`, `DEGRADED`, `PROVISIONING_REQUIRED`, `AUTH_REQUIRED`, or `UNAVAILABLE`. `READY` and `DEGRADED` may participate in current admission only when the exact required capabilities are proven. `PROVISIONING_REQUIRED`, `AUTH_REQUIRED`, and `UNAVAILABLE` are valid advertisement states but MUST NOT satisfy current assignment admission, an `ADMISSIBLE` execution route, `SPAWN_READY`, or current-executability revalidation. Task 57-A does not select, rank, provision, authenticate, or recover a surface.
+
+Common provider-neutral evidence-channel identifiers include `connector_result`, `terminal_stdout`, `unit_test_result`, `build_log`, `deployment_status`, `durable_artifact_ref`, and `chat_completion`. `evidence_channels` advertise where evidence can be observed; they do not themselves prove a capability or create a parallel evidence authority. Capability truth remains owned by governed `CAPABILITY_EVIDENCE` resolution.
 
 A capability profile is evidence about a runtime, not authority to use that capability.
 
@@ -52,9 +72,21 @@ for the whole profile freshness boundary. It also binds common artifact identity
 
 Timestamps use the reference validator's strict RFC3339/Python-datetime subset: full date and seconds, optional non-empty fractional seconds, ordinary clock minutes/seconds from 00–59, and `Z` or a numeric `HH:MM` offset whose hour is 00–23 and minute is 00–59. The schema pattern enforces that shared structural subset; calendar validity and UTC-normalization overflow are reference/runtime-domain validation errors, never exceptions.
 
+### Resource and connector boundary
+
+Resources and connectors are not execution surfaces merely because they exist:
+
+```text
+GOOGLE DRIVE RESOURCE != EXECUTION SURFACE
+GITHUB REPOSITORY != EXECUTION SURFACE
+CONNECTOR/PLUGIN = CAPABILITY/EVIDENCE CHANNEL ON A SURFACE
+```
+
+A connector may expose a capability such as `connector:<name>` or provide an evidence channel, but it does not become a separate surface unless a real destination/runtime/workspace surface is independently advertised. A repository, document store, database, deployment target, or other resource remains a resource governed by its own authority model.
+
 ## End-to-end EXECUTION_ROUTE
 
-**NO EXECUTABLE ASSIGNMENT WITHOUT AN ADMISSIBLE END-TO-END EXECUTION ROUTE.** Destination proof alone is insufficient. A schema-backed `EXECUTION_ROUTE` binds the exact assignment draft and a structured final-result endpoint, and contains exactly identified `CANDIDATE_DELIVERY`, `EXECUTION_VERIFICATION`, and `DURABLE_EVIDENCE_CONTROL` roles. Every segment binds its destination, runtime, capability profile, requirements, and mode. Every cross-surface handoff separately proves source export/publish capabilities and target receive/read capabilities; capabilities on the wrong side cannot satisfy the edge. A same-surface handoff instead requires exact destination/runtime equivalence plus an internal-transfer capability on that runtime. All segment and directional edge requirements must be proven. The structured `final_result.segment_ref` must resolve to the durable segment and its `destination_id` must equal both that segment's destination and `ASSIGNMENT.result_to`. Missing delivery, execution, publication/readback, or final durable reachability returns `ASSIGNMENT_NOT_ADMISSIBLE`; capability loss after valid admission remains `BLOCKED_RUNTIME_DRIFT`.
+**NO EXECUTABLE ASSIGNMENT WITHOUT AN ADMISSIBLE END-TO-END EXECUTION ROUTE.** Destination proof alone is insufficient. A schema-backed `EXECUTION_ROUTE` binds the exact assignment draft and a structured final-result endpoint, and contains exactly identified `CANDIDATE_DELIVERY`, `EXECUTION_VERIFICATION`, and `DURABLE_EVIDENCE_CONTROL` roles. Every segment binds its destination, runtime, capability profile, requirements, and mode. Profile-owned surface class, workspace scope, readiness, evidence channels, and capability facts are not duplicated into route segments when the exact `capability_profile_ref` is sufficient. Every cross-surface handoff separately proves source export/publish capabilities and target receive/read capabilities; capabilities on the wrong side cannot satisfy the edge. A same-surface handoff instead requires exact destination/runtime equivalence plus an internal-transfer capability on that runtime. All segment and directional edge requirements must be proven. The structured `final_result.segment_ref` must resolve to the durable segment and its `destination_id` must equal both that segment's destination and `ASSIGNMENT.result_to`. Missing delivery, execution, publication/readback, or final durable reachability returns `ASSIGNMENT_NOT_ADMISSIBLE`; capability loss after valid admission remains `BLOCKED_RUNTIME_DRIFT`.
 
 ## ASSIGNMENT_ADMISSIBILITY
 
@@ -67,7 +99,7 @@ An `ASSIGNMENT_ADMISSIBILITY` record binds an assignment draft to an exact desti
 - selected execution mode/fallback, if any;
 - `ADMISSIBLE` or `NOT_ADMISSIBLE`.
 
-`ADMISSIBLE` is valid only when the unsatisfied set is empty. The deterministic reference implementation lives at `tools/executability.py`.
+`ADMISSIBLE` means only **CAN EXECUTE ON THE CITED SURFACE**. It does not grant resource, semantic, claim, owner, assignment, or autonomy authority. It is valid only when the cited profile is structurally valid, fresh, currently usable, exactly bound, and the unsatisfied set is empty. The deterministic reference implementation lives at `tools/executability.py`.
 
 An executable assignment carries `execution_contract.assignment_draft_ref` equal
 to the cited admissibility record's `assignment_draft_id`, plus the same exact
@@ -99,6 +131,8 @@ Capability IDs describe concrete execution surfaces, not broad claims such as "c
 
 Capabilities may be narrower when necessary, for example `database_read:staging` or `deployment_access:preview`.
 
+Capability IDs are exact facts, not prefixes or implication rules. Read does not imply mutation, and mutation does not follow from surface presence. In particular `repository_remote_read` does not imply `repository_remote_write`, `ci_read` does not imply `ci_trigger`, and a provider/log read capability does not imply production mutation. Consumers compare required IDs against advertised IDs exactly; they MUST NOT infer broader authority from prefixes, provider names, or prose.
+
 ## Mandatory-action derivation
 
 Required capabilities are the union of capabilities needed by:
@@ -124,7 +158,7 @@ Examples:
 
 ## Runtime drift after assignment
 
-Executability proof is freshness-bounded. A capability may disappear after a valid assignment. In that case the Executor/Verifier truthfully returns `BLOCKED_RUNTIME_DRIFT` with evidence. Control then re-runs admissibility before reassignment.
+Executability proof is freshness-bounded. A capability or readiness state may change after a valid assignment. Current-executability revalidation MUST validate the newly cited current profile, including readiness, exact destination/runtime identity, freshness, and required capabilities. A non-usable current readiness fails closed before continuation. Capability loss after valid admission returns `BLOCKED_RUNTIME_DRIFT`; a profile that cannot be validated for current use requires current executability revalidation before continuation.
 
 This is distinct from an assignment that was never admissible in the first place.
 
