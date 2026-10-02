@@ -2,6 +2,10 @@
 
 This repository is the **Project Resolver / Agent Project Operating System**. It is a modular monorepo of bounded engines, shared contracts, durable roles, protocols, skills, and evidence rules.
 
+## Fresh Liaison bootstrap
+
+A fresh human-facing Liaison starts at `BOOTSTRAP.md`. Absence of explicit SBC runtime context is valid `ORDINARY_CHAT` mode; do not infer browser automation, provider state, or external-dispatch capability. After bootstrap, use the ordinary intake below.
+
 ## Ordinary runtime intake
 
 For ordinary execution, read only:

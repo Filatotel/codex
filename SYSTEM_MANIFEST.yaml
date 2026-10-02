@@ -2,6 +2,7 @@ system_id: project-resolver
 system_class: agent_project_operating_system
 version: "0.1.0-migration-wave-1"
 status: structural_baseline_candidate
+bootstrap_entry: BOOTSTRAP.md
 
 root_control_files:
   - AGENTS.md

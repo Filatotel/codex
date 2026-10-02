@@ -6,7 +6,9 @@ The system is intended to carry a project through a state graph that can include
 
 ## Runtime entry
 
-Ordinary agents use progressive disclosure:
+A fresh Liaison starts at `BOOTSTRAP.md`. It recognizes SBC only from an explicitly supplied `SBC_RUNTIME_CONTEXT`; otherwise it continues in ordinary ChatGPT Web mode.
+
+After bootstrap, ordinary agents use progressive disclosure:
 
 ```text
 AGENTS.md
@@ -17,7 +19,7 @@ AGENTS.md
 → bounded Skill namespace
 ```
 
-Ordinary execution does not scan the whole skill library.
+Ordinary execution does not scan the whole skill library. Final SBC/PAK transport is not required for this manual bootstrap path.
 
 ## Current materialized engines
 
