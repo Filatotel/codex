@@ -98,8 +98,8 @@ class OwnerInterfaceCoreSkillsTest(unittest.TestCase):
         text = self.skills["owner-actionability"]
         self.assertIn("`SYSTEM_OWNED_NEXT_ACTION` | false | system/control", text)
         self.assertIn("retain the baton", text.lower())
-        self.assertIn("Do you want ChatGPT, Codex Cloud, or Agent System to do this?", text)
-        self.assertIn("when Control can route", text)
+        self.assertIn("asking the Owner to choose among internal execution surfaces when Control can route", text)
+        self.assertNotIn("Do you want ChatGPT, Codex Cloud, or Agent System to do this?", text)
         self.assertIn("VERIFICATION PASS != RETURN BATON TO OWNER", text)
         self.assertIn("promotion is already authorized and admitted", text)
 
