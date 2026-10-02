@@ -127,11 +127,55 @@ Capability IDs describe concrete execution surfaces, not broad claims such as "c
 - `database_access`
 - `ci_trigger`
 - `ci_read`
+- `external_task_submit`
+- `external_task_ack_or_discover`
+- `external_task_status_read`
+- `external_task_result_read`
+- `exact_target_bind`
+- `pull_request_create`
+- `remote_branch_write`
 - `connector:<name>`
 
 Capabilities may be narrower when necessary, for example `database_read:staging` or `deployment_access:preview`.
 
-Capability IDs are exact facts, not prefixes or implication rules. Read does not imply mutation, and mutation does not follow from surface presence. In particular `repository_remote_read` does not imply `repository_remote_write`, `ci_read` does not imply `ci_trigger`, and a provider/log read capability does not imply production mutation. Consumers compare required IDs against advertised IDs exactly; they MUST NOT infer broader authority from prefixes, provider names, or prose.
+Capability IDs are exact facts, not prefixes or implication rules. Read does not imply mutation, and mutation does not follow from surface presence. In particular `repository_remote_read` does not imply `repository_remote_write`, `ci_read` does not imply `ci_trigger`, and a provider/log read capability does not imply production mutation. External execution is decomposed the same way: local or remote code execution does not imply task submission; submission does not imply acknowledgement/discovery, status read, result read, exact target binding, pull-request creation, or remote-branch mutation. Consumers compare required IDs against advertised IDs exactly; they MUST NOT infer broader authority from prefixes, provider names, prompts, or prose.
+
+For work against an exact candidate, `exact_target_bind` must be independently
+advertised and evidenced when the mandatory claim requires the adapter to prove
+repository, pull request, branch, commit, or workspace binding. An instruction in
+a remote prompt to discover or switch context is not evidence of that binding.
+Likewise, `pull_request_create` and `remote_branch_write` are optional mutation
+capabilities; neither follows from an external task reaching a completed state.
+
+### Provider adapter boundary
+
+A provider-specific adapter may map its physical operations and observations to
+these provider-neutral capability IDs. For example, a currently documented
+machine CLI may provide separate task submission and machine-readable discovery
+or status observations, while a browser/UI relay may provide only the observations
+that its runtime can prove. Command names, project URLs, recent-task navigation,
+tabs, and DOM selectors remain private adapter physics. They MUST NOT become
+universal `CAPABILITY_PROFILE` fields or portable capability semantics.
+
+An adapter advertisement records observed current reality, not a permanent fact
+about the provider. Experimental commands, optional provider permissions, and
+provider support for opening a pull request or writing a branch must each be
+freshly evidenced before the corresponding exact capability can participate in
+admission.
+
+Non-normative current example (2026-10-01): OpenAI documents
+`codex cloud exec --env ENV_ID <query>` as a direct submission path whose
+submission failure exits non-zero, and `codex cloud list --json` as a
+machine-readable source containing task `id`, `url`, `status`, `environment_id`,
+`summary`, and `attempt_total`. That is current evidence for a potential Codex
+Cloud adapter's submit/discovery/status advertisement, not proof of result-read,
+exact-target, pull-request, or branch-write capabilities and not universal Codex
+semantics. The command remains documented as Experimental. A browser/UI adapter
+may remain a physical fallback when it is the only advertised observation or
+continuation path. Provider documentation:
+<https://learn.chatgpt.com/docs/developer-commands?surface=cli>,
+<https://learn.chatgpt.com/docs/cloud>, and
+<https://learn.chatgpt.com/docs/third-party/github>.
 
 ## Mandatory-action derivation
 

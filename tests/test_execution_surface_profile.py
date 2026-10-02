@@ -65,7 +65,14 @@ class ExecutionSurfaceProfileTest(unittest.TestCase):
             ),
             (
                 "CODEX_CLOUD",
-                ["repository_local_checkout", "shell", "python_runtime"],
+                [
+                    "external_task_submit",
+                    "external_task_ack_or_discover",
+                    "external_task_status_read",
+                    "repository_local_checkout",
+                    "shell",
+                    "python_runtime",
+                ],
                 ["terminal_stdout", "unit_test_result", "durable_artifact_ref"],
             ),
             (
@@ -148,6 +155,32 @@ class ExecutionSurfaceProfileTest(unittest.TestCase):
         self.assertEqual(validate_capability_profile(profile, resolver), [])
         for mutation in ["repository_remote_write", "ci_trigger", "production_mutation"]:
             self.assertNotIn(mutation, profile["available_capabilities"])
+
+    def test_external_task_dispatch_readback_target_and_promotion_are_independent(self) -> None:
+        capabilities = [
+            "external_task_submit",
+            "external_task_ack_or_discover",
+            "external_task_status_read",
+            "external_task_result_read",
+            "exact_target_bind",
+            "pull_request_create",
+            "remote_branch_write",
+        ]
+        for available in [[], ["shell"], ["external_task_submit"]]:
+            for required in capabilities:
+                with self.subTest(available=available, required=required):
+                    expected = "ADMISSIBLE" if required in available else "NOT_ADMISSIBLE"
+                    result = evaluate_assignment_admissibility([required], available)
+                    self.assertEqual(result["status"], expected)
+
+        dispatch_only, resolver = _surface(
+            "CODEX_CLOUD",
+            capabilities=["external_task_submit"],
+            evidence_channels=["connector_result"],
+        )
+        self.assertEqual(validate_capability_profile(dispatch_only, resolver), [])
+        for absent in capabilities[1:]:
+            self.assertNotIn(absent, dispatch_only["available_capabilities"])
 
     def test_evidence_channels_do_not_replace_capability_evidence_authority(self) -> None:
         profile, resolver = _surface(

@@ -41,7 +41,17 @@ Examples of concrete capability IDs include:
 - `python_runtime`, `node_runtime`, `php_runtime`, `package_install`;
 - `interactive_browser`, `playwright_runtime`;
 - `database_access`, `deployment_access`, `outbound_network`;
-- `ci_trigger`, `ci_read`, `connector:<name>`.
+- `ci_trigger`, `ci_read`, `connector:<name>`;
+- `external_task_submit`, `external_task_ack_or_discover`,
+  `external_task_status_read`, `external_task_result_read`, `exact_target_bind`;
+- optional external mutation capabilities such as `pull_request_create` and
+  `remote_branch_write`.
+
+External execution capabilities are not interchangeable. A runtime that can
+execute code is not thereby able to submit a task, prove that submission, read
+status or results, bind the task to an exact repository/PR/branch/commit/workspace,
+create a pull request, or write a remote branch. Derive and match each mandatory
+operation independently.
 
 If any mandatory capability is not proven available, do not issue an executable assignment. Return:
 
