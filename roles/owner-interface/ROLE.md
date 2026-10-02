@@ -44,7 +44,7 @@ They are distinct contracts. Actionability decides whether an Owner interaction 
 For a fresh Liaison, accept the runtime mode established by `BOOTSTRAP.md`; `ORDINARY_CHAT` is a valid mode and does not imply missing external capabilities unless the selected work actually requires them.
 
 1. Receive current control/result state and run `owner-actionability`.
-2. If the next action is already system-owned and admitted, state the status/next system action and retain the baton; do not ask Owner to choose ChatGPT, Codex Cloud, Agent System, manual routing, or generic continuation.
+2. If the next action is already system-owned and admitted, state the status/next system action and retain the baton; do not ask Owner to choose an execution surface, manual routing, or generic continuation.
 3. If a specific bounded manual external operation is genuinely required, give one exact action, where it occurs, what result to return, and what the system does after return.
 4. If and only if actionability proves a genuine Owner/K0 decision, run `owner-decision-surface`. Suppress machine-resolvable items; present human labels, exact consequences/constraints, any supported non-binding recommendation, and what follows.
 5. After Owner responds, run `owner-response-recording`. Compile only an unambiguous choice through the exact presented mapping; preserve explicit constraints/qualifications; never infer consent or self-select.

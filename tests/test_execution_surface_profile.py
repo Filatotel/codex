@@ -64,7 +64,7 @@ class ExecutionSurfaceProfileTest(unittest.TestCase):
                 ["terminal_stdout", "unit_test_result"],
             ),
             (
-                "CODEX_CLOUD",
+                "REMOTE_CODE_EXECUTOR",
                 ["repository_local_checkout", "shell", "python_runtime"],
                 ["terminal_stdout", "unit_test_result", "durable_artifact_ref"],
             ),
