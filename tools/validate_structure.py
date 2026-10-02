@@ -13,15 +13,19 @@ ROOT_REQUIRED = [
     "README.md",
     "SYSTEM_MANIFEST.yaml",
     "ROUTER.md",
+    "BOOTSTRAP.md",
     "ARCHITECTURE_MIGRATION_MAP.md",
     "kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md",
     "contracts/EXECUTABILITY_CONTRACT.md",
     "contracts/ASSIGNMENT_COMPILATION_CONTRACT.md",
+    "contracts/SBC_RUNTIME_CONTEXT_CONTRACT.md",
     "schemas/compiled-assignment.schema.json",
     "schemas/execution-envelope.schema.json",
     "schemas/state-observation.schema.json",
+    "schemas/sbc-runtime-context.schema.json",
     "tools/assignment_compiler.py",
     "tools/executability.py",
+    "tools/bootstrap_runtime.py",
 ]
 
 ROLE_REQUIRED_SECTIONS = [
@@ -275,6 +279,15 @@ def validate() -> list[str]:
     for rel in re.findall(r"manifest_path:\s*([^\s]+)", system_manifest):
         if not (ROOT / rel).is_file():
             fail(errors, f"root manifest references missing engine manifest: {rel}")
+
+    for marker, message in [
+        ("bootstrap_entry: BOOTSTRAP.md", "root manifest does not register Liaison bootstrap entry"),
+        ("contract: contracts/SBC_RUNTIME_CONTEXT_CONTRACT.md", "root manifest does not register SBC runtime context contract"),
+        ("schema: schemas/sbc-runtime-context.schema.json", "root manifest does not register SBC runtime context schema"),
+        ("validator: tools/bootstrap_runtime.py", "root manifest does not register SBC runtime context validator"),
+    ]:
+        if marker not in system_manifest:
+            fail(errors, message)
 
     if "global_skill_discovery: forbidden_during_ordinary_execution" not in system_manifest:
         fail(errors, "root manifest does not explicitly forbid ordinary global skill discovery")
