@@ -55,7 +55,7 @@ It records:
 - evidence/source for capability claims;
 - freshness boundary and limitations.
 
-Reference surface-class families include `CHATGPT_CHAT`, `REMOTE_DEV_ENV`, `CODEX_CLOUD`, `BROWSER_CONSOLE`, `DEPLOYMENT_RUNTIME`, and `MANUAL_OPERATOR`. The vocabulary is extensible and provider-neutral; these labels are not provider account IDs and consumers MUST NOT require a commercial provider name as a universal surface identifier.
+Reference surface-class families include `CHATGPT_CHAT`, `REMOTE_DEV_ENV`, `REMOTE_CODE_EXECUTOR`, `BROWSER_CONSOLE`, `DEPLOYMENT_RUNTIME`, and `MANUAL_OPERATOR`. The vocabulary is extensible and provider-neutral; these labels are not provider account IDs and consumers MUST NOT require a commercial provider name as a universal surface identifier. A concrete provider product, including OpenAI Codex Web, may be mapped by an adapter to one of these generic families but is not itself a universal surface class.
 
 `readiness` is one of `READY`, `DEGRADED`, `PROVISIONING_REQUIRED`, `AUTH_REQUIRED`, or `UNAVAILABLE`. `READY` and `DEGRADED` may participate in current admission only when the exact required capabilities are proven. `PROVISIONING_REQUIRED`, `AUTH_REQUIRED`, and `UNAVAILABLE` are valid advertisement states but MUST NOT satisfy current assignment admission, an `ADMISSIBLE` execution route, `SPAWN_READY`, or current-executability revalidation. Task 57-A does not select, rank, provision, authenticate, or recover a surface.
 

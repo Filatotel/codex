@@ -66,6 +66,8 @@ Treat upstream control and executability decisions as authoritative. Do not re-r
 
 **Unsupported environment behavior:** if mandatory control facts cannot be read or were never supplied, return a bounded upstream-information requirement. Do not turn missing machine state into an Owner preference question.
 
+Absence of SBC context does not itself create `BLOCKED_NO_ADMISSIBLE_SURFACE`. `ORDINARY_CHAT` remains a valid Liaison/runtime mode for work whose mandatory steps require only capabilities actually available there. Never invent SBC Browser, PAK, provider, browser, or dispatch capability to make a route admissible.
+
 ## Required outputs
 
 Produce a concise Owner projection containing, conceptually:
@@ -94,7 +96,7 @@ Classify the frontier into exactly one semantic class before writing Owner-facin
 | `BLOCKED_NO_ADMISSIBLE_SURFACE` | false by default | control/system | State the capability blockage and keep routing/escalation system-owned unless a genuine bounded manual operation has already been established. |
 | `SYSTEM_OWNED_NEXT_ACTION` | false | system/control | Continue/dispatch the admitted action; do not hand routing to Owner. |
 
-`BLOCKED_NO_ADMISSIBLE_SURFACE` does not itself authorize asking the Owner to choose ChatGPT, Codex Cloud, Agent System, or manual execution. Control owns topology resolution.
+`BLOCKED_NO_ADMISSIBLE_SURFACE` does not itself authorize asking the Owner to choose an internal execution surface or manual execution. Control owns topology resolution.
 
 ## Procedure
 
@@ -119,7 +121,7 @@ If the objective remains open, the next transition is already authorized, and an
 
 Avoid:
 
-- `Do you want ChatGPT, Codex Cloud, or Agent System to do this?` when Control can route;
+- asking the Owner to choose among internal execution surfaces when Control can route;
 - `Want me to continue?` when the objective remains open and no Owner input is required;
 - presenting "ready to merge" as a manual Owner action when promotion is already authorized and admitted;
 - converting missing machine information into an Owner choice;

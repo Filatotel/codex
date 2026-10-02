@@ -4,6 +4,10 @@ These are lightweight standalone JSON Schemas for role-native and shared control
 
 Every schema includes the common envelope: `artifact_type`, `artifact_id`, `produced_by_role`, `assignment_id`, `input_state_ref`, `status`, `provenance`, and `related_artifacts`. Pre-assignment artifacts may use `assignment_id: null`. Role/control-specific fields are added by each artifact type.
 
+## Bootstrap runtime observation
+
+`schemas/sbc-runtime-context.schema.json` is intentionally not a role-native durable control artifact and does not use the common artifact envelope. It is a closed V0 observation injected by the future SBC Browser only to distinguish `SBC_BROWSER` from absent-context `ORDINARY_CHAT`. It does not replace `CAPABILITY_PROFILE`, carry semantic authority, or advertise provider/tab/session identity.
+
 Assignment compilation and destination executability use four linked artifacts:
 
 1. `COMPILED_ASSIGNMENT` — authority/movability, authorized claim bindings, context authority, responsibility partition, exact execution-envelope ref/result, and authorized action-plus-evidence capability closure;

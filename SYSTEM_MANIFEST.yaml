@@ -2,11 +2,17 @@ system_id: project-resolver
 system_class: agent_project_operating_system
 version: "0.1.0-migration-wave-1"
 status: structural_baseline_candidate
+bootstrap_entry: BOOTSTRAP.md
 
 root_control_files:
   - AGENTS.md
   - SYSTEM_MANIFEST.yaml
   - ROUTER.md
+
+bootstrap_runtime_context:
+  contract: contracts/SBC_RUNTIME_CONTEXT_CONTRACT.md
+  schema: schemas/sbc-runtime-context.schema.json
+  validator: tools/bootstrap_runtime.py
 
 kernel_constitutions:
   research_machine_only: kernel/RESEARCH_MACHINE_ONLY_CONSTITUTION.md
