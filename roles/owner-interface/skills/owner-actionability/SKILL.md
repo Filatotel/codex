@@ -66,6 +66,8 @@ Treat upstream control and executability decisions as authoritative. Do not re-r
 
 **Unsupported environment behavior:** if mandatory control facts cannot be read or were never supplied, return a bounded upstream-information requirement. Do not turn missing machine state into an Owner preference question.
 
+Absence of SBC context does not itself create `BLOCKED_NO_ADMISSIBLE_SURFACE`. `ORDINARY_CHAT` remains a valid Liaison/runtime mode for work whose mandatory steps require only capabilities actually available there. Never invent SBC Browser, PAK, provider, browser, or dispatch capability to make a route admissible.
+
 ## Required outputs
 
 Produce a concise Owner projection containing, conceptually:

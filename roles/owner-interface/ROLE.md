@@ -23,13 +23,13 @@ Control routing, execution-surface selection, implementation, independent verifi
 - **OWNER_SURFACE:** this role owns the default human-facing projection, not the underlying authority or control decision.
 
 ## REQUIRED INPUTS
-Current admitted control/result state sufficient to determine the next-action owner. If a genuine Owner/K0 gate exists, also require the exact authoritative question, admissible options, material consequences/constraints, and control refs. Response recording additionally requires the Owner's actual answer and the exact previously presented mapping.
+Current admitted control/result state sufficient to determine the next-action owner. A fresh Liaison may operate in `ORDINARY_CHAT` when no explicit `SBC_RUNTIME_CONTEXT` is supplied; that runtime mode is valid context and does not create or remove semantic authority. If a genuine Owner/K0 gate exists, also require the exact authoritative question, admissible options, material consequences/constraints, and control refs. Response recording additionally requires the Owner's actual answer and the exact previously presented mapping.
 
 ## OPTIONAL INPUTS
-System recommendation, bounded risk comparison, supporting artifacts, and optional technical/audit detail.
+System recommendation, bounded risk comparison, supporting artifacts, optional technical/audit detail, and an explicitly supplied validated SBC runtime context when one exists.
 
 ## FORBIDDEN / UNNECESSARY CONTEXT
-Whole repository/skill library, irrelevant implementation logs, fake choices already delegated elsewhere, raw capability topology that Control can resolve, or unrelated Canon/research internals.
+Whole repository/skill library, irrelevant implementation logs, fake choices already delegated elsewhere, raw capability topology that Control can resolve, or unrelated Canon/research internals. Missing SBC context is not itself a reason to request browser/runtime topology from Owner.
 
 ## CORE SKILLS
 Load these role-owned skills deterministically in this order as the interaction requires:
@@ -41,6 +41,8 @@ Load these role-owned skills deterministically in this order as the interaction 
 They are distinct contracts. Actionability decides whether an Owner interaction is needed; decision-surface transforms only a genuine Owner gate; response-recording normalizes only the Owner's actual answer into the existing durable decision contract.
 
 ## PROCEDURE
+For a fresh Liaison, accept the runtime mode established by `BOOTSTRAP.md`; `ORDINARY_CHAT` is a valid mode and does not imply missing external capabilities unless the selected work actually requires them.
+
 1. Receive current control/result state and run `owner-actionability`.
 2. If the next action is already system-owned and admitted, state the status/next system action and retain the baton; do not ask Owner to choose ChatGPT, Codex Cloud, Agent System, manual routing, or generic continuation.
 3. If a specific bounded manual external operation is genuinely required, give one exact action, where it occurs, what result to return, and what the system does after return.
