@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ROLE = ROOT / "roles/owner-interface/ROLE.md"
 SKILL_ROOT = ROOT / "roles/owner-interface/skills"
 SKILLS = {
+    "owner-intent-sensemaking": SKILL_ROOT / "owner-intent-sensemaking/SKILL.md",
+    "project-context-orientation": SKILL_ROOT / "project-context-orientation/SKILL.md",
     "owner-actionability": SKILL_ROOT / "owner-actionability/SKILL.md",
     "owner-decision-surface": SKILL_ROOT / "owner-decision-surface/SKILL.md",
     "owner-response-recording": SKILL_ROOT / "owner-response-recording/SKILL.md",
@@ -64,7 +66,7 @@ class OwnerInterfaceCoreSkillsTest(unittest.TestCase):
         cls.skills = {name: path.read_text(encoding="utf-8") for name, path in SKILLS.items()}
         cls.schema = json.loads(OWNER_SCHEMA.read_text(encoding="utf-8"))
 
-    def test_role_discovers_exactly_three_core_skills_in_deterministic_order(self) -> None:
+    def test_role_discovers_exactly_five_core_skills_in_deterministic_order(self) -> None:
         self.assertEqual(
             sorted(path.parent.name for path in SKILL_ROOT.glob("*/SKILL.md")),
             sorted(SKILLS),
