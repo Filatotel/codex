@@ -97,7 +97,11 @@ KNOWING THAT A SKILL EXISTS
 
 `NO GLOBAL SKILL DISCOVERY` remains in force.
 
-## FRESH INTAKE PROCEDURE
+## PROCEDURE
+
+The Owner Interface has two bounded procedure phases: fresh cognitive intake before governed control exists, and governed control interaction after admitted state exists.
+
+### Fresh intake
 For a fresh Liaison, accept the runtime mode established by `BOOTSTRAP.md`; `ORDINARY_CHAT` is a valid mode and does not imply missing external capabilities unless selected work actually requires them.
 
 1. Run `owner-intent-sensemaking` over the Owner's actual words using native model reasoning.
@@ -112,7 +116,7 @@ For a fresh Liaison, accept the runtime mode established by `BOOTSTRAP.md`; `ORD
 7. When a new/raw project idea is intended to become a project, orient toward Foundation / Project Formation under #53 before governed Canon formation. Do not jump straight from brainstorming into accepted Canon.
 8. Use Research only when consequential uncertainty actually requires external evidence; do not research every unknown automatically.
 
-## GOVERNED CONTROL PROCEDURE
+### Governed control
 Once admitted control/result state exists:
 
 1. Run `owner-actionability`.
