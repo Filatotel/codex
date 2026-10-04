@@ -10,8 +10,11 @@ from tests.test_executability_parity import schema_accepts
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_DIR = ROOT / "engines/foundation/schemas"
-SKILL_DIR = ROOT / "engines/foundation/skills"
+FOUNDATION_DIR = ROOT / "engines/foundation"
+SCHEMA_DIR = FOUNDATION_DIR / "schemas"
+SKILL_DIR = FOUNDATION_DIR / "skills"
+MANIFEST_PATH = FOUNDATION_DIR / "MANIFEST.yaml"
+WORKFLOW_PATH = FOUNDATION_DIR / "workflows/form-project-foundation.md"
 ENVELOPE = {
     "artifact_type",
     "artifact_id",
@@ -36,6 +39,7 @@ FOUNDATION_SKILLS = (
     "classify-consequential-unknowns",
     "design-discovery",
 )
+REQUIRED_FOUNDATION_SKILLS = FOUNDATION_SKILLS[:3]
 
 
 def load_schema(name: str) -> dict:
@@ -49,6 +53,12 @@ def load_skill(name: str) -> str:
     path = SKILL_DIR / name / "SKILL.md"
     if not path.is_file():
         raise AssertionError(f"missing Foundation skill: {path.relative_to(ROOT)}")
+    return path.read_text(encoding="utf-8")
+
+
+def load_text(path: Path, label: str) -> str:
+    if not path.is_file():
+        raise AssertionError(f"missing {label}: {path.relative_to(ROOT)}")
     return path.read_text(encoding="utf-8")
 
 
@@ -199,6 +209,63 @@ class FoundationMaterializationTest(unittest.TestCase):
         self.assertIn("architecture", lower)
         self.assertIn("does not create a `design_discovery_result`", lower)
         self.assertNotIn("artifact_type: DESIGN_DISCOVERY_RESULT", text)
+
+    def test_foundation_manifest_declares_one_workflow_and_bounded_ownership(self) -> None:
+        manifest = load_text(MANIFEST_PATH, "Foundation manifest")
+        self.assertIn("engine_id: foundation", manifest)
+        self.assertIn("status: available", manifest)
+        capability_block = manifest.split("capabilities:\n", 1)[1]
+        mapped = re.findall(r"^  ([a-z0-9_]+):\s+([a-z0-9_]+)$", capability_block, re.M)
+        self.assertEqual(mapped, [("form_project_foundation", "form_project_foundation")])
+        self.assertIn("form_project_foundation: engines/foundation/workflows/form-project-foundation.md", manifest)
+
+        for boundary in (
+            "owner_authority",
+            "canon_acceptance",
+            "canon_mutation",
+            "substantive_research",
+            "production_planning",
+            "production_implementation",
+            "generic_independent_verification",
+            "generic_orchestration",
+            "physical_transport",
+        ):
+            self.assertIn(f"  - {boundary}", manifest)
+
+    def test_foundation_workflow_skill_composition_and_roles_are_explicit(self) -> None:
+        manifest = load_text(MANIFEST_PATH, "Foundation manifest")
+        workflow = load_text(WORKFLOW_PATH, "Foundation formation workflow")
+        self.assertIn("executing_role: `roles/executor/ROLE.md`", workflow)
+        self.assertIn("consuming_role: `roles/control-director/ROLE.md`", workflow)
+
+        required_block = manifest.split("required_skills:\n", 1)[1].split("optional_skills:\n", 1)[0]
+        optional_block = manifest.split("optional_skills:\n", 1)[1].split("upstream_requirements:\n", 1)[0]
+        for skill_name in REQUIRED_FOUNDATION_SKILLS:
+            path = f"engines/foundation/skills/{skill_name}/SKILL.md"
+            self.assertIn(path, required_block)
+            self.assertIn(path, workflow)
+        design_path = "engines/foundation/skills/design-discovery/SKILL.md"
+        self.assertNotIn(design_path, required_block)
+        self.assertIn(design_path, optional_block)
+        self.assertIn(design_path, workflow)
+        self.assertIn("optional", workflow.lower())
+        self.assertIn("global_skill_discovery: forbidden", manifest)
+
+    def test_foundation_workflow_readiness_requires_generic_durable_completion_and_stops_before_authority(self) -> None:
+        workflow = load_text(WORKFLOW_PATH, "Foundation formation workflow")
+        lower = workflow.lower()
+        for artifact_type in ("PROJECT_SEED", "PROJECT_OUTCOME", "CONSEQUENTIAL_UNKNOWN_MAP"):
+            self.assertIn(artifact_type, workflow)
+        self.assertIn("FOUNDATION_READY_FOR_OWNER_GATE", workflow)
+        self.assertIn("required_durable_outputs", workflow)
+        self.assertIn("durable_output_refs", workflow)
+        self.assertIn("independent readback", lower)
+        self.assertIn("zero clarification questions is valid", lower)
+        self.assertIn("stop", lower)
+        for forbidden_transition in ("owner foundation gate", "canon acceptance", "research dispatch", "production"):
+            self.assertIn(forbidden_transition, lower)
+        self.assertIn("does not create owner/k0 authority", lower)
+        self.assertIn("does not create canon authority", lower)
 
 
 if __name__ == "__main__":
