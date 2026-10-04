@@ -114,7 +114,9 @@ class FoundationMaterializationTest(unittest.TestCase):
         self.assertIn("PROJECT_OUTCOME", protocol)
         self.assertIn("CONSEQUENTIAL_UNKNOWN_MAP", protocol)
         self.assertIn("non-authoritative", protocol.lower())
-        common_types = protocol.split("## Required common artifact types", 1)[1].split("## Identity and provenance", 1)[0]
+        common_types = protocol.split("## Required common artifact types", 1)[1].split(
+            "## Engine-owned Foundation working artifacts", 1
+        )[0]
         for artifact_type in ("PROJECT_SEED", "PROJECT_OUTCOME", "CONSEQUENTIAL_UNKNOWN_MAP"):
             self.assertNotIn(f"`{artifact_type}`", common_types)
 
