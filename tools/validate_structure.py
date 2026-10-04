@@ -26,6 +26,11 @@ ROOT_REQUIRED = [
     "tools/assignment_compiler.py",
     "tools/executability.py",
     "tools/bootstrap_runtime.py",
+    "engines/foundation/MANIFEST.yaml",
+    "engines/foundation/workflows/form-project-foundation.md",
+    "engines/foundation/schemas/project-seed.schema.json",
+    "engines/foundation/schemas/project-outcome.schema.json",
+    "engines/foundation/schemas/consequential-unknown-map.schema.json",
 ]
 
 ROLE_REQUIRED_SECTIONS = [
@@ -51,6 +56,7 @@ ACTIVE_SKILL_NAMESPACES = [
     ROOT / "engines/verification/skills",
     ROOT / "engines/production/software/skills",
     ROOT / "engines/production/software/patterns",
+    ROOT / "engines/foundation/skills",
     ROOT / "library/skills",
 ]
 
@@ -285,6 +291,8 @@ def validate() -> list[str]:
         ("contract: contracts/SBC_RUNTIME_CONTEXT_CONTRACT.md", "root manifest does not register SBC runtime context contract"),
         ("schema: schemas/sbc-runtime-context.schema.json", "root manifest does not register SBC runtime context schema"),
         ("validator: tools/bootstrap_runtime.py", "root manifest does not register SBC runtime context validator"),
+        ("manifest_path: engines/foundation/MANIFEST.yaml", "root manifest does not register Foundation manifest"),
+        ("form_project_foundation", "root manifest does not register Foundation formation capability"),
     ]:
         if marker not in system_manifest:
             fail(errors, message)
@@ -307,6 +315,7 @@ def validate() -> list[str]:
         ROOT / "engines/production/software/MANIFEST.yaml",
         ROOT / "engines/verification/MANIFEST.yaml",
         ROOT / "engines/research/MANIFEST.yaml",
+        ROOT / "engines/foundation/MANIFEST.yaml",
     ]
     for manifest in engine_manifests:
         if not manifest.is_file():
@@ -370,6 +379,24 @@ def validate() -> list[str]:
             json.loads(schema.read_text(encoding="utf-8"))
         except Exception as exc:
             fail(errors, f"invalid JSON schema syntax {schema.relative_to(ROOT)}: {exc}")
+
+    foundation_schemas = [
+        "engines/foundation/schemas/project-seed.schema.json",
+        "engines/foundation/schemas/project-outcome.schema.json",
+        "engines/foundation/schemas/consequential-unknown-map.schema.json",
+    ]
+    for rel in foundation_schemas:
+        try:
+            schema = _load_schema(ROOT, rel)
+            if schema.get("additionalProperties") is not False:
+                fail(errors, f"foundation schema is not closed: {rel}")
+            properties = schema.get("properties", {})
+            if properties.get("status", {}).get("const") != "WORKING":
+                fail(errors, f"foundation schema does not require WORKING status: {rel}")
+            if properties.get("authoritative", {}).get("const") is not False:
+                fail(errors, f"foundation schema is not machine-checkably non-authoritative: {rel}")
+        except Exception as exc:
+            fail(errors, f"foundation schema validation unavailable {rel}: {exc}")
 
     required_research_schemas = [
         "schemas/research-question.schema.json",

@@ -73,6 +73,24 @@ Remote repository state cannot silently substitute for local-worktree assertions
 
 An active skill/pattern migrated before the executability contract may not yet contain a dedicated execution-prerequisite section. Missing metadata means **UNKNOWN prerequisites, not zero prerequisites**. When such a legacy item is actually selected, inspect only that selected item's mandatory procedure/evidence steps and derive concrete required capabilities before assignment. If any mandatory prerequisite cannot be derived confidently, return `ASSIGNMENT_NOT_ADMISSIBLE` pending bounded clarification/annotation. Do not perform a repository-wide compatibility scan during ordinary routing.
 
+## Foundation progressive disclosure
+
+Foundation is an active engine only after Liaison cognitive intake has selected `ROUTE` because governed project formation is actually intended. Ordinary questions and useful in-chat reasoning may still terminate before any Engine is loaded.
+
+For a Foundation route:
+
+1. load `engines/foundation/MANIFEST.yaml`;
+2. select the exact `form_project_foundation` workflow declared by the capability mapping;
+3. load every item in `workflow_contracts.<workflow>.required_skills`;
+4. load optional `engines/foundation/skills/design-discovery/SKILL.md` only when bounded exploration materially improves the seed, outcome, or consequential-unknown map;
+5. bind the workflow's explicit roles and upstream provenance requirement;
+6. feed all mandatory operations/evidence requirements into the normal compiler/capability/admissibility chain;
+7. require the ordinary durable-output/reference/readback contract for the three declared Foundation outputs before readiness can be claimed.
+
+There is no global skill discovery for Foundation. Do not recursively scan `engines/foundation/skills/` and do not load Canon merely because a raw idea is being formed.
+
+Foundation artifacts are durable working state, not Owner/K0 authority and not Canon truth. The V0 Foundation workflow stops at `FOUNDATION_READY_FOR_OWNER_GATE`; a later separately governed transition owns the Owner Foundation Gate and Canon handoff.
+
 ## Canon progressive disclosure
 
 Canon is an active engine only after `SYSTEM_MANIFEST.yaml` identifies `engine_id: canon` as `available`. For a Canon route:
@@ -122,6 +140,7 @@ Research fields such as `MACHINE_EXECUTABLE=true` and `CAN_EXECUTE_WITH_AVAILABL
 
 | Capability | Engine | Next surface |
 |---|---|---|
+| `form_project_foundation` | `foundation` | load Foundation manifest + `form_project_foundation` workflow + all required skills; load optional `design-discovery` only when selected; then generic executability preflight |
 | `establish_canon_foundation` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + all declared required skills; then generic executability preflight |
 | `register_canon_fact` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the fact-registration skill as the selected semantic operation |
 | `register_canon_assumption` | `canon` | load Canon manifest + `establish_canon_foundation` workflow + required skills; add the assumption-registration skill as the selected semantic operation |
@@ -150,7 +169,7 @@ Research fields such as `MACHINE_EXECUTABLE=true` and `CAN_EXECUTE_WITH_AVAILABL
 
 ## Non-materialized engine gate
 
-If the required semantic capability belongs to Foundation or another engine whose status is `not_materialized`, return:
+If the required semantic capability belongs to another engine whose status is `not_materialized`, return:
 
 ```text
 ENGINE_NOT_MATERIALIZED / OWNER_OR_SYSTEM_GATE
@@ -159,7 +178,7 @@ required_engine: <engine>
 reason: <why this engine owns the task>
 ```
 
-Do not simulate a missing engine by borrowing Software skills or inventing new authority.
+For example, `production/other-domains` remains unavailable until its own Engine is materialized. Do not simulate a missing engine by borrowing Software skills or inventing new authority.
 
 ## Role activation
 
