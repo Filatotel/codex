@@ -267,6 +267,39 @@ class FoundationMaterializationTest(unittest.TestCase):
         self.assertIn("does not create owner/k0 authority", lower)
         self.assertIn("does not create canon authority", lower)
 
+    def test_root_registry_and_router_activate_foundation_without_global_discovery(self) -> None:
+        system = (ROOT / "SYSTEM_MANIFEST.yaml").read_text(encoding="utf-8")
+        router = (ROOT / "ROUTER.md").read_text(encoding="utf-8")
+
+        registry = re.search(
+            r"^  - engine_id: foundation\n(?P<body>.*?)(?=^  - engine_id: |^planned_engines:)",
+            system,
+            re.M | re.S,
+        )
+        self.assertIsNotNone(registry)
+        body = registry.group("body")
+        self.assertIn("manifest_path: engines/foundation/MANIFEST.yaml", body)
+        self.assertIn("status: available", body)
+        capabilities = re.findall(r"^      - ([a-z0-9_]+)$", body, re.M)
+        self.assertIn("form_project_foundation", capabilities)
+        self.assertEqual(capabilities.count("form_project_foundation"), 1)
+
+        planned = system.split("planned_engines:\n", 1)[1]
+        self.assertNotIn("engine_id: foundation", planned)
+
+        self.assertIn("## Foundation progressive disclosure", router)
+        foundation_section = router.split("## Foundation progressive disclosure", 1)[1].split("## Canon progressive disclosure", 1)[0]
+        self.assertIn("engines/foundation/MANIFEST.yaml", foundation_section)
+        self.assertIn("workflow_contracts.<workflow>.required_skills", foundation_section)
+        self.assertIn("design-discovery", foundation_section)
+        self.assertIn("optional", foundation_section.lower())
+        self.assertIn("no global skill discovery", foundation_section.lower())
+        self.assertIn("| `form_project_foundation` | `foundation` |", router)
+
+        non_materialized = router.split("## Non-materialized engine gate", 1)[1].split("## Role activation", 1)[0]
+        self.assertNotIn("Foundation", non_materialized)
+        self.assertNotIn("foundation", non_materialized)
+
 
 if __name__ == "__main__":
     unittest.main()
