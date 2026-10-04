@@ -57,6 +57,18 @@ engine_registry:
       - selected_workflow_upstream_requirements_are_present
       - destination_executability_preflight_passes
 
+  - engine_id: foundation
+    manifest_path: engines/foundation/MANIFEST.yaml
+    status: available
+    capabilities:
+      - form_project_foundation
+    entry_conditions:
+      - task_semantically_belongs_to_foundation_engine
+      - exact_owner_material_or_provenance_is_present
+      - exact_assignment_exists
+      - selected_workflow_upstream_requirements_are_present
+      - destination_executability_preflight_passes
+
   - engine_id: production/software
     manifest_path: engines/production/software/MANIFEST.yaml
     status: available
@@ -105,8 +117,6 @@ engine_registry:
       - destination_executability_preflight_passes_for_execution_assignment
 
 planned_engines:
-  - engine_id: foundation
-    status: not_materialized
   - engine_id: production/other-domains
     status: not_materialized
 
