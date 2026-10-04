@@ -6,7 +6,7 @@
 
 **Architecture:** Add one `foundation` Engine with one `form_project_foundation` workflow, four cognitive skills, and three Foundation-owned durable artifact schemas. Reuse the existing Router, Assignment Compiler, executability/admissibility chain, durable-output/readback contract, shared Executor/Control Director roles, and common artifact envelope; do not create a Foundation-specific runtime or second control plane.
 
-**Tech Stack:** Markdown skill/workflow contracts, YAML engine registry/manifest, JSON Schema Draft 2020-12, Python `unittest` regression tests, existing `tools/resolver_spawn.py` and GitHub Actions `Project Resolver CI`.
+**Tech Stack:** Markdown skill/workflow contracts, YAML engine registry/manifest, JSON Schema Draft 2020-12, Python `unittest` regression tests, existing `tools/resolver_spawn.py`, GitHub Actions `Project Resolver CI`.
 
 **Spec:** `docs/superpowers/specs/2026-10-04-foundation-v0-design.md`
 
@@ -20,6 +20,7 @@
 - Skills are guidance-first; hard invariants are reserved for authority/evidence/provenance boundaries.
 - Foundation MUST NOT invent Owner intent, accept/mutate Canon, auto-dispatch Research, start Production, freeze architecture, or treat model memory as external evidence.
 - Foundation V0 creates exactly three Engine-owned durable artifact types: `PROJECT_SEED`, `PROJECT_OUTCOME`, `CONSEQUENTIAL_UNKNOWN_MAP`.
+- Every Foundation artifact has `status: WORKING` and `authoritative: false`; no Foundation schema contains an Owner/Canon authority field.
 - `FOUNDATION_READY_FOR_OWNER_GATE` is a workflow/result status, not a fourth durable artifact type and not an Owner decision.
 - `FOUNDATION_READY_FOR_OWNER_GATE` is allowed only after the assignment-declared three durable outputs are materialized and satisfy the existing durable-output/reference/readback contract.
 - Reuse `roles/executor/ROLE.md` and `roles/control-director/ROLE.md`; do not create a Foundation persona.
@@ -40,25 +41,25 @@
 ## File Structure
 
 **Create**
-- `engines/foundation/MANIFEST.yaml` — Foundation ownership, workflow composition, capability mapping, execution boundaries.
-- `engines/foundation/workflows/form-project-foundation.md` — single V0 formation workflow and STOP boundary.
-- `engines/foundation/skills/develop-project-seed/SKILL.md` — working project concept formation.
-- `engines/foundation/skills/define-project-outcome/SKILL.md` — desired completion/outcome reasoning.
-- `engines/foundation/skills/classify-consequential-unknowns/SKILL.md` — bounded uncertainty classification.
-- `engines/foundation/skills/design-discovery/SKILL.md` — optional exploratory reasoning before Canon.
-- `engines/foundation/schemas/project-seed.schema.json` — non-authoritative `PROJECT_SEED` schema.
-- `engines/foundation/schemas/project-outcome.schema.json` — non-authoritative `PROJECT_OUTCOME` schema.
-- `engines/foundation/schemas/consequential-unknown-map.schema.json` — non-authoritative unknown-map schema.
-- `tests/test_foundation_materialization.py` — Foundation registry, schema, skill, workflow, routing, authority and durable-output integration tests.
+- `engines/foundation/MANIFEST.yaml`
+- `engines/foundation/workflows/form-project-foundation.md`
+- `engines/foundation/skills/develop-project-seed/SKILL.md`
+- `engines/foundation/skills/define-project-outcome/SKILL.md`
+- `engines/foundation/skills/classify-consequential-unknowns/SKILL.md`
+- `engines/foundation/skills/design-discovery/SKILL.md`
+- `engines/foundation/schemas/project-seed.schema.json`
+- `engines/foundation/schemas/project-outcome.schema.json`
+- `engines/foundation/schemas/consequential-unknown-map.schema.json`
+- `tests/test_foundation_materialization.py`
 
 **Modify**
-- `SYSTEM_MANIFEST.yaml` — move `foundation` from `planned_engines` to `engine_registry: available` with `form_project_foundation`.
-- `ROUTER.md` — add Foundation progressive-disclosure route and remove Foundation from the generic non-materialized gate wording.
-- `protocols/artifacts.md` — document the three Engine-owned Foundation durable types without adding them to the universal required-common-type ontology.
-- `tools/validate_structure.py` — structurally require the active Foundation manifest/workflow/schemas and root registration once the Engine becomes available.
-- `tests/test_v0_structure.py` or `tests/test_structure.py` — extend structural regression coverage for Foundation registration as appropriate to the existing validator test split.
+- `SYSTEM_MANIFEST.yaml`
+- `ROUTER.md`
+- `protocols/artifacts.md`
+- `tools/validate_structure.py`
+- `tests/test_v0_structure.py` or `tests/test_structure.py` only where the existing validator split requires it.
 
-No production Python module is added for Foundation-specific orchestration. `tools/resolver_spawn.py` remains the generic spawn path.
+No Foundation-specific production Python module is planned. `tools/resolver_spawn.py` remains the generic spawn path unless a test proves a genuine generic hard-coded Engine defect.
 
 ---
 
@@ -72,21 +73,23 @@ No production Python module is added for Foundation-specific orchestration. `too
 - Modify: `protocols/artifacts.md`
 
 **Interfaces:**
-- Consumes: common envelope fields defined by `protocols/artifacts.md`: `artifact_id`, `artifact_type`, `produced_by_role`, `assignment_id`, `input_state_ref`, `status`, `provenance`, `related_artifacts`.
-- Produces: closed JSON Schemas for `PROJECT_SEED`, `PROJECT_OUTCOME`, `CONSEQUENTIAL_UNKNOWN_MAP`, each with a machine-checkable non-authority field fixed to `false`.
+- Consumes: common envelope fields from `protocols/artifacts.md`: `artifact_id`, `artifact_type`, `produced_by_role`, `assignment_id`, `input_state_ref`, `status`, `provenance`, `related_artifacts`.
+- Produces: three closed JSON Schemas with `status: {"const": "WORKING"}` and `authoritative: {"const": false}`.
 
 - [ ] **Step 1: Write failing schema/envelope tests**
 
-Add `FoundationMaterializationTest` cases that assert:
+Add `FoundationMaterializationTest` cases asserting:
 
 ```python
 ENVELOPE.issubset(set(schema["required"]))
 schema["properties"]["artifact_type"]["const"] == expected_type
+schema["properties"]["status"]["const"] == "WORKING"
+schema["properties"]["authoritative"]["const"] is False
 schema_accepts(valid_artifact, schema)
 not schema_accepts({**valid_artifact, "authoritative": True}, schema)
 ```
 
-Also assert the unknown-map classification enum is exactly:
+Assert the unknown-map classification enum is exactly:
 
 ```python
 {
@@ -99,9 +102,9 @@ Also assert the unknown-map classification enum is exactly:
 }
 ```
 
-and that schemas are closed with `additionalProperties: false`.
+Assert all three schemas are closed with `additionalProperties: false` and expose no field named `authority`, `authority_ref`, `owner_authority`, or `canon_authority`.
 
-- [ ] **Step 2: Run the focused test to prove RED**
+- [ ] **Step 2: Run focused test to prove RED**
 
 Run: `python -m unittest tests.test_foundation_materialization.FoundationMaterializationTest -v`
 
@@ -109,32 +112,17 @@ Expected: FAIL because the three Foundation schema files do not exist.
 
 - [ ] **Step 3: Implement the three schemas**
 
-Use JSON Schema Draft 2020-12. Each schema MUST require the common envelope plus:
+Use JSON Schema Draft 2020-12.
 
-`PROJECT_SEED`:
-- `authoritative: {"const": false}`
-- non-empty `working_summary`
-- bounded arrays for `protected_owner_intent`, `constraints`, `non_goals`, `known_decisions`, `working_interpretations`, `model_proposals`, `material_question_refs`; arrays may be empty and most semantic dimensions remain optional rather than mandatory form fields.
+`PROJECT_SEED` requires common envelope + `authoritative`, `working_summary`; optional bounded fields may include `protected_owner_intent`, `constraints`, `non_goals`, `known_decisions`, `working_interpretations`, `model_proposals`, `material_question_refs`. Do not require empty form fields merely for completeness.
 
-`PROJECT_OUTCOME`:
-- `authoritative: {"const": false}`
-- non-empty `target_outcome`
-- `completion_condition` as non-empty string or explicit null/open representation
-- `required_deliverables` array
-- optional `optional_deliverables`, `audience`, `non_goals`
-- `requires_downstream_realization` as boolean or explicit unknown enum/string consistent with the schema design.
+`PROJECT_OUTCOME` requires common envelope + `authoritative`, `target_outcome`, `completion_condition`, `required_deliverables`, `requires_downstream_realization`. Define `completion_condition` as either a non-empty string or `null` for explicitly open; define `requires_downstream_realization` as one of `true`, `false`, or the string `UNKNOWN`. Optional fields may include `optional_deliverables`, `audience`, `non_goals`.
 
-`CONSEQUENTIAL_UNKNOWN_MAP`:
-- `authoritative: {"const": false}`
-- `items` array of closed objects requiring `id`, `question`, `classification`, `why_it_matters`, `state`
-- `classification` exact V0 enum above
-- `state` bounded to `OPEN | DEFERRED` for V0.
+`CONSEQUENTIAL_UNKNOWN_MAP` requires common envelope + `authoritative`, `items`; each closed item requires `id`, `question`, `classification`, `why_it_matters`, `state`, with `state` exactly `OPEN | DEFERRED` for V0.
 
-Do not add Owner/Canon authority fields that could imply acceptance.
+- [ ] **Step 4: Document the three Engine-owned artifact types**
 
-- [ ] **Step 4: Document Engine-owned artifact types without universalizing them**
-
-In `protocols/artifacts.md`, add a short section stating that Foundation owns the three artifact types and that they use the common envelope but are not universal required common artifact types and carry no semantic authority.
+In `protocols/artifacts.md`, add a bounded Foundation section: the three types use the common envelope but are Engine-owned, non-authoritative working artifacts and are not added to the universal required-common-type ontology.
 
 - [ ] **Step 5: Run focused tests to prove GREEN**
 
@@ -161,25 +149,25 @@ git commit -m "feat: define Foundation working-state artifacts"
 - Modify: `tests/test_foundation_materialization.py`
 
 **Interfaces:**
-- Consumes: Liaison bounded routing frame, explicit Owner material, native LLM reasoning, and only directly relevant project context.
-- Produces: cognitive instructions that populate/refine the three Foundation working artifacts while preserving Owner/model/proposal/evidence distinctions; no separate durable result for `design-discovery`.
+- Consumes: Liaison bounded routing frame, explicit Owner material, native LLM reasoning, directly relevant project context.
+- Produces: guidance that populates/refines the three Foundation working artifacts while preserving Owner/model/proposal/evidence distinctions; no `DESIGN_DISCOVERY_RESULT` artifact.
 
 - [ ] **Step 1: Write failing skill-contract tests**
 
-Add tests asserting all four skill files:
-- have unique frontmatter `name` values matching their directory names;
+Assert all four skill files:
+- have unique frontmatter `name` values matching directory names;
 - contain `## Execution contract`, `## Thinking guidance`, `## Hard invariants`, `## Procedure`;
-- explicitly preserve native model reasoning / judgment;
+- explicitly preserve native model reasoning/judgment;
 - explicitly state that durable output does not create Canon/Owner authority.
 
-Add behavior assertions:
+Assert cognitive freedom:
 
 ```python
 self.assertNotRegex(all_skill_text, r"(?i)(ask|require).*(at least|minimum)\s+[1-9][0-9]*\s+(questions|fields)")
-self.assertIn("zero clarification", seed_or_workflow_text.lower())
+self.assertIn("zero clarification", all_skill_text.lower())
 ```
 
-and assert `design-discovery` states it is optional and creates no `DESIGN_DISCOVERY_RESULT` artifact.
+Assert `design-discovery` is optional and explicitly creates no `DESIGN_DISCOVERY_RESULT`.
 
 - [ ] **Step 2: Run focused tests to prove RED**
 
@@ -189,14 +177,7 @@ Expected: FAIL because Foundation skill files do not exist.
 
 - [ ] **Step 3: Implement `develop-project-seed`**
 
-Follow the approved spec. It MUST distinguish:
-- explicit Owner statement;
-- strongly implied context;
-- model working interpretation;
-- model proposal;
-- unresolved material question.
-
-Thinking guidance should encourage inference/reframing/judgment. Hard invariants should be limited to Owner intent, evidence, Canon, authority, provenance, and global-discovery boundaries.
+It MUST distinguish explicit Owner statement, strongly implied context, model working interpretation, model proposal, and unresolved material question. Thinking guidance should encourage inference/reframing/judgment. Hard invariants are limited to Owner intent, evidence, Canon, authority, provenance, and global-discovery boundaries.
 
 - [ ] **Step 4: Implement `define-project-outcome`**
 
@@ -204,17 +185,17 @@ Guide reasoning about target outcome, completion condition, deliverables, audien
 
 - [ ] **Step 5: Implement `classify-consequential-unknowns`**
 
-Use exactly the six V0 classes. State explicitly that classification is not resolution, Research dispatch, Owner decision, or architecture authority. Non-consequential unknowns need not be materialized.
+Use exactly the six V0 classes. State that classification is not resolution, Research dispatch, Owner decision, or architecture authority. Non-consequential unknowns need not be materialized.
 
 - [ ] **Step 6: Implement optional `design-discovery`**
 
-Allow proposal/comparison/reframing/scope simplification/trade-off exploration. Explicitly preserve proposal status and prohibit architecture freeze by plausibility. Do not define a fourth durable artifact.
+Allow proposal/comparison/reframing/scope simplification/trade-off exploration. Preserve proposal status, prohibit architecture freeze by plausibility, and create no fourth durable artifact.
 
 - [ ] **Step 7: Run focused tests to prove GREEN**
 
 Run: `python -m unittest tests.test_foundation_materialization.FoundationMaterializationTest -v`
 
-Expected: all skill-contract and cognitive-freedom tests PASS.
+Expected: skill-contract and cognitive-freedom tests PASS.
 
 - [ ] **Step 8: Commit**
 
@@ -234,64 +215,57 @@ git commit -m "feat: add Foundation cognitive skills"
 
 **Interfaces:**
 - Consumes: generic `exact_assignment`, destination `CAPABILITY_PROFILE`, `ASSIGNMENT_ADMISSIBILITY`, Liaison route frame, Owner material/provenance.
-- Produces: Engine capability mapping `form_project_foundation -> form_project_foundation`; required skill set of three skills plus optional `design-discovery`; workflow terminal status `FOUNDATION_READY_FOR_OWNER_GATE` only after generic durable completion/readback requirements are satisfied.
+- Produces: capability mapping `form_project_foundation -> form_project_foundation`; exactly three required skills plus optional `design-discovery`; terminal status `FOUNDATION_READY_FOR_OWNER_GATE` only after generic durable completion/readback requirements.
 
 - [ ] **Step 1: Write failing manifest/workflow tests**
 
-Assert:
+Assert manifest/workflow:
+- `engine_id: foundation`, `status: available`;
+- capability set exactly `{form_project_foundation}`;
+- executing role `roles/executor/ROLE.md`;
+- consuming role `roles/control-director/ROLE.md`;
+- required skills exactly `develop-project-seed`, `define-project-outcome`, `classify-consequential-unknowns`;
+- optional skills exactly `design-discovery`;
+- `does_not_own` includes Owner authority, Canon acceptance/mutation, substantive Research, Production, independent Verification, generic orchestration, transport;
+- no Foundation-specific spawn/runtime tool is declared.
 
-```python
-manifest contains "engine_id: foundation"
-manifest contains "status: available"
-capability mapping is exactly {"form_project_foundation"}
-workflow names roles/executor/ROLE.md and roles/control-director/ROLE.md
-required skills are exactly the three required Foundation skills
-optional skills contain exactly design-discovery
-```
+Add readiness assertions that the workflow requires all three declared durable outputs with exact refs/readback before `FOUNDATION_READY_FOR_OWNER_GATE`, and STOPs before Owner gate, Canon, Research dispatch, Production.
 
-Also assert `does_not_own` includes Owner authority, Canon acceptance/mutation, substantive Research, Production, independent Verification, generic orchestration and transport.
-
-- [ ] **Step 2: Add RED tests for readiness/durability wording**
-
-The workflow test MUST assert that `FOUNDATION_READY_FOR_OWNER_GATE` requires all three declared durable outputs to have exact refs/readback under the existing generic durable contract, and that the workflow STOPs before Owner gate, Canon, Research dispatch and Production.
-
-- [ ] **Step 3: Run focused tests to prove RED**
+- [ ] **Step 2: Run focused tests to prove RED**
 
 Run: `python -m unittest tests.test_foundation_materialization.FoundationMaterializationTest -v`
 
 Expected: FAIL because manifest/workflow do not exist.
 
-- [ ] **Step 4: Implement `engines/foundation/MANIFEST.yaml`**
+- [ ] **Step 3: Implement `engines/foundation/MANIFEST.yaml`**
 
-Follow existing Engine manifest conventions. Define:
-- ownership and explicit non-ownership boundaries;
-- shared Executor/Control Director roles;
-- one workflow;
-- one capability mapping;
-- `workflow_contracts.form_project_foundation.required_skills` with the three required skills;
-- `optional_skills` with `design-discovery` only;
-- generic executability contract reference;
-- `global_skill_discovery: forbidden`;
-- outputs listing the three Foundation artifacts plus ordinary executor/workflow result.
+Follow existing Engine manifest conventions. Reuse the generic executability contract; set `global_skill_discovery: forbidden`; list the three Foundation artifacts plus ordinary executor/workflow result as outputs; bind required and optional skills exactly as above.
 
-Do not add a Foundation-specific spawn tool.
+- [ ] **Step 4: Implement `form-project-foundation.md`**
 
-- [ ] **Step 5: Implement `form-project-foundation.md`**
+Encode:
 
-Encode the approved reasoning sequence and allow internal iteration without questionnaire behavior. The workflow MUST require assignment declaration/materialization/readback of:
-- `PROJECT_SEED`;
-- `PROJECT_OUTCOME`;
-- `CONSEQUENTIAL_UNKNOWN_MAP`.
+```text
+Liaison route frame
+→ develop project seed
+→ define project outcome
+→ classify consequential unknowns
+→ optional design discovery only when useful
+→ reconcile three working artifacts
+→ generic durable materialization/readback
+→ FOUNDATION_READY_FOR_OWNER_GATE | bounded clarification/blocker
+→ STOP
+```
 
-The status `FOUNDATION_READY_FOR_OWNER_GATE` is permitted only after those outputs satisfy generic durable completion/readback rules. Otherwise return the smallest bounded clarification/blocker. STOP before the future Owner Foundation Gate.
+Zero clarification questions MUST remain valid. No Canon/Research/Production transition occurs here.
 
-- [ ] **Step 6: Run focused tests to prove GREEN**
+- [ ] **Step 5: Run focused tests to prove GREEN**
 
 Run: `python -m unittest tests.test_foundation_materialization.FoundationMaterializationTest -v`
 
 Expected: manifest/workflow composition and boundary tests PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add engines/foundation/MANIFEST.yaml engines/foundation/workflows tests/test_foundation_materialization.py
@@ -300,89 +274,39 @@ git commit -m "feat: materialize Foundation formation workflow"
 
 ---
 
-### Task 4: Root Registry and Router Activation
+### Task 4: Root Registry, Router Activation, and Generic Spawn Proof
 
 **Files:**
 - Modify: `SYSTEM_MANIFEST.yaml`
 - Modify: `ROUTER.md`
 - Modify: `tests/test_foundation_materialization.py`
+- Modify only if proven necessary: `tools/resolver_spawn.py`
 
 **Interfaces:**
-- Consumes: `form_project_foundation` semantic capability selected after Liaison `ROUTE`.
-- Produces: root Engine registration pointing at `engines/foundation/MANIFEST.yaml` and Router route to the Foundation workflow through the existing compiler/executability chain.
+- Consumes: `form_project_foundation` selected after Liaison `ROUTE`, generic test helper `bundle(engine_id, capability, workflow)`, `durable_artifact_write`, assignment `required_durable_outputs`, `durable_system_of_record_ref`.
+- Produces: active Foundation root registration and proof that the existing generic resolver can reach `SPAWN_READY` for Foundation without a Foundation-specific runtime.
 
-- [ ] **Step 1: Write failing registry/router tests**
+- [ ] **Step 1: Write failing root registry/router tests**
 
 Assert Foundation:
 - exists once in `engine_registry`;
 - has `status: available`;
-- points at `engines/foundation/MANIFEST.yaml`;
+- points to `engines/foundation/MANIFEST.yaml`;
 - advertises only `form_project_foundation`;
 - no longer appears under `planned_engines`;
-- has a Router current-route row `form_project_foundation | foundation`;
-- is excluded from the `ENGINE_NOT_MATERIALIZED` example/gate wording.
+- has a Router current-route row for `form_project_foundation | foundation`;
+- is excluded from the `ENGINE_NOT_MATERIALIZED` Foundation wording;
+- uses progressive disclosure and optional `design-discovery`, not global skill discovery.
 
-Also assert Router says Foundation loads its manifest/workflow/required skills and optional `design-discovery` only when selected, with no global discovery.
+- [ ] **Step 2: Write representative generic-spawn RED test before activation**
 
-- [ ] **Step 2: Run focused tests to prove RED**
-
-Run: `python -m unittest tests.test_foundation_materialization.FoundationMaterializationTest -v`
-
-Expected: FAIL because root registry still marks Foundation `not_materialized` and Router has no active route.
-
-- [ ] **Step 3: Update `SYSTEM_MANIFEST.yaml`**
-
-Move Foundation from `planned_engines` into `engine_registry` with:
-
-```yaml
-- engine_id: foundation
-  manifest_path: engines/foundation/MANIFEST.yaml
-  status: available
-  capabilities:
-    - form_project_foundation
-```
-
-Entry conditions must preserve the generic authority/state/assignment/executability chain without inventing Canon authority.
-
-- [ ] **Step 4: Update `ROUTER.md`**
-
-Add Foundation progressive-disclosure guidance and a current route for `form_project_foundation`. Preserve the generic compiler, destination preflight and role activation chain. Update the non-materialized gate so it refers only to still-unmaterialized engines such as `production/other-domains`.
-
-- [ ] **Step 5: Run focused tests to prove GREEN**
-
-Run: `python -m unittest tests.test_foundation_materialization.FoundationMaterializationTest -v`
-
-Expected: registry/router activation tests PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add SYSTEM_MANIFEST.yaml ROUTER.md tests/test_foundation_materialization.py
-git commit -m "feat: activate Foundation Engine routing"
-```
-
----
-
-### Task 5: Generic Resolver and Durable-Output Integration
-
-**Files:**
-- Modify: `tests/test_foundation_materialization.py`
-- Reference only: `tools/resolver_spawn.py`
-- Reference only: existing durable-output/readback tests and contracts
-
-**Interfaces:**
-- Consumes: existing `bundle(engine_id, capability, workflow)` test helper / generic resolver inputs, selected prerequisite capability `durable_artifact_write`, assignment `required_durable_outputs`, and `durable_system_of_record_ref`.
-- Produces: proof that Foundation reaches generic `SPAWN_READY` without a Foundation-specific runtime and that incomplete durable output coverage cannot count as complete/readback-proven formation.
-
-- [ ] **Step 1: Write representative generic-spawn RED test**
-
-Create a Foundation bundle using the existing test helper pattern:
+Create:
 
 ```python
 value = bundle("foundation", "form_project_foundation", "form_project_foundation")
 ```
 
-Declare the mandatory durable-write prerequisite and the three required durable output identities. Assert expected result:
+Declare the mandatory `durable_artifact_write` prerequisite and the three required durable output identities. Assert the eventual target:
 
 ```python
 (result["control_state"], result["status"]) == ("ASSIGN", "SPAWN_READY")
@@ -391,19 +315,21 @@ result["assignment_admissibility"]["status"] == "ADMISSIBLE"
 "durable_artifact_write" in result["assignment_admissibility"]["required_capabilities"]
 ```
 
-Before Task 4 activation this test must fail with `ENGINE_NOT_MATERIALIZED` or equivalent route-state mismatch.
+- [ ] **Step 3: Run focused tests to prove RED**
 
-- [ ] **Step 2: Add fail-closed tests for generic durability**
+Run: `python -m unittest tests.test_foundation_materialization.FoundationMaterializationTest -v`
 
-Using the existing durable-output contract helpers/patterns, assert:
-- missing one of the three required output identities cannot produce generic `COMPLETE`;
-- duplicate/wrong output identity cannot satisfy the assignment;
-- a returned artifact ref without independent readback does not establish readback proof;
-- local/session copy cannot replace system-of-record readback.
+Expected: root tests fail because Foundation is still `not_materialized`; representative spawn fails with `ENGINE_NOT_MATERIALIZED` or the corresponding old-route state.
 
-Do not add Foundation-specific production logic for behavior already enforced by generic contracts.
+- [ ] **Step 4: Update `SYSTEM_MANIFEST.yaml`**
 
-- [ ] **Step 3: Run focused Foundation + durable tests**
+Move Foundation from `planned_engines` into `engine_registry` with only `form_project_foundation`. Preserve generic authority/state/assignment/executability entry conditions; do not invent Canon authority.
+
+- [ ] **Step 5: Update `ROUTER.md`**
+
+Add Foundation progressive-disclosure guidance and current route. Preserve the generic compiler, destination preflight, assignment admissibility and role activation chain. The non-materialized gate now refers only to still-unmaterialized engines such as `production/other-domains`.
+
+- [ ] **Step 6: Run Foundation + generic durable regression tests**
 
 Run:
 
@@ -414,53 +340,52 @@ python -m unittest \
   tests.test_durable_readback_enforcement -v
 ```
 
-Expected: PASS after root activation, with no modification required to `tools/resolver_spawn.py` unless a genuine generic bug is exposed.
+Expected: PASS. Existing generic tests prove that missing/wrong/duplicate durable output identities, unresolved readback, or local/session copies cannot satisfy durable completion/readback.
 
-- [ ] **Step 4: If the generic resolver fails only because it hard-codes the old Engine set, fix the smallest generic defect**
+- [ ] **Step 7: Fix generic resolver only if Step 6 proves a genuine hard-coded Engine defect**
 
-Only if Step 3 proves a real generic blocker, update the existing generic registry/selection code rather than creating `resolve_foundation_spawn()`. Add the regression to the Foundation test. If no blocker exists, leave production Python unchanged.
+If and only if `tools/resolver_spawn.py` rejects the now-valid manifest/route because of a hard-coded old Engine set, make the smallest generic fix and add the exact regression. Do NOT create `resolve_foundation_spawn()`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add tests/test_foundation_materialization.py
-git commit -m "test: prove Foundation generic resolver integration"
+git add SYSTEM_MANIFEST.yaml ROUTER.md tests/test_foundation_materialization.py
+git commit -m "feat: activate Foundation Engine routing"
 ```
 
-If a generic production fix was required, include only the exact affected generic file in the same commit.
+If Step 7 required a generic fix, add only the exact affected generic file.
 
 ---
 
-### Task 6: Structural Registration Gate
+### Task 5: Structural Registration Gate
 
 **Files:**
 - Modify: `tools/validate_structure.py`
-- Modify: `tests/test_v0_structure.py` or `tests/test_structure.py`
-- Modify: `tests/test_foundation_materialization.py` only if Foundation-specific structural assertions belong there.
+- Modify: `tests/test_v0_structure.py` or `tests/test_structure.py` according to the existing validator split.
 
 **Interfaces:**
 - Consumes: active Foundation registration from Tasks 1-4.
-- Produces: repository structural validation that fails if the active Foundation manifest/workflow/schemas disappear or the root manifest points to the wrong paths.
+- Produces: structural validation that fails if active Foundation manifest/workflow/schemas or root registration disappear.
 
 - [ ] **Step 1: Write failing structural tests**
 
-Add assertions that validator source/runtime structurally requires at least:
+Require at least:
 - `engines/foundation/MANIFEST.yaml`;
 - `engines/foundation/workflows/form-project-foundation.md`;
 - all three Foundation schema paths;
 - root manifest registration `manifest_path: engines/foundation/MANIFEST.yaml` and `form_project_foundation`.
 
-Do not structurally require every skill body by hard-coded global scan if the manifest/workflow already owns exact required/optional skill paths; validate those declared paths through bounded Foundation-specific checks.
+Validate declared required/optional skill paths through bounded Foundation-specific checks; do not introduce repository-wide skill scanning.
 
-- [ ] **Step 2: Run structural test to prove RED**
+- [ ] **Step 2: Run structural tests to prove RED**
 
-Run: `python -m unittest tests.test_v0_structure tests.test_structure -v`
+Run the exact existing structural test modules that own `tools/validate_structure.py` (currently `tests.test_v0_structure` and `tests.test_structure`).
 
-Expected: FAIL because validator does not yet protect Foundation registration.
+Expected: FAIL because the validator does not yet protect Foundation registration.
 
 - [ ] **Step 3: Extend `tools/validate_structure.py` minimally**
 
-Add Foundation active-surface/path/registration checks while preserving all existing validator behavior. Do not replace or weaken prior structural checks.
+Add Foundation active-surface/path/registration checks while preserving every existing validator rule.
 
 - [ ] **Step 4: Run structural tests to prove GREEN**
 
@@ -470,23 +395,22 @@ Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
-```bash
-git add tools/validate_structure.py tests/test_v0_structure.py tests/test_structure.py
-git commit -m "test: protect Foundation structural registration"
-```
+Commit only the validator and structural test files actually changed with message:
 
-Add only files actually changed.
+```text
+test: protect Foundation structural registration
+```
 
 ---
 
-### Task 7: Full Regression, Diff Audit, and PR
+### Task 6: Full Regression, Diff Audit, and PR
 
 **Files:**
 - No planned new product files.
-- Update the PR body only after verification evidence exists.
+- PR body only after verification evidence exists.
 
 **Interfaces:**
-- Consumes: all previous tasks.
+- Consumes: Tasks 1-5.
 - Produces: one reviewable Foundation V0 PR against exact current `main`, with full CI evidence and no Owner Foundation Gate/Canon/Research/Production scope creep.
 
 - [ ] **Step 1: Run Foundation-focused suite**
@@ -507,35 +431,20 @@ Run: `python tools/validate_structure.py`
 
 Expected: `Project Resolver structural validation: PASS`.
 
-- [ ] **Step 4: Audit the branch diff against the exact base**
+- [ ] **Step 4: Audit branch diff against exact base**
 
-Confirm only approved Foundation V0 surfaces changed. Specifically verify there is no:
-- Owner Foundation Gate implementation;
-- Canon mutation/acceptance change;
-- automatic Research dispatch;
-- Production work;
-- PAK/SBC/provider transport work;
-- Foundation-specific resolver/runtime fork;
-- fourth Foundation durable artifact.
+Verify there is no Owner Foundation Gate implementation, Canon mutation/acceptance change, automatic Research dispatch, Production work, PAK/SBC/provider transport work, Foundation-specific resolver/runtime fork, or fourth Foundation durable artifact.
 
 - [ ] **Step 5: Open a draft PR against `main`**
 
-PR title: `Foundation V0: materialize pre-Canon project formation`
+Title: `Foundation V0: materialize pre-Canon project formation`
 
-PR body must include:
-- issue #53 and spec/plan paths;
-- exact base/head SHA;
-- the three durable artifact types;
-- four skills with `design-discovery` marked optional;
-- explicit non-authority/STOP boundary;
-- TDD evidence;
-- full suite + structural validator evidence;
-- explicit statement that Owner Foundation Gate → Canon remains a later wave.
+Body includes issue #53, spec/plan paths, exact base/head SHA, three durable artifact types, four skills with `design-discovery` optional, non-authority/STOP boundary, TDD evidence, full suite + structural validator evidence, and explicit statement that Owner Foundation Gate → Canon is a later wave.
 
-- [ ] **Step 6: Verify GitHub Actions on the exact PR HEAD/merge ref**
+- [ ] **Step 6: Verify GitHub Actions on exact PR HEAD/merge ref**
 
-Require `Project Resolver CI` success for the exact head being proposed. If the PR head moves, use the latest run only.
+Require `Project Resolver CI` success for the exact head being proposed; if HEAD moves, only the latest exact run counts.
 
 - [ ] **Step 7: Do not merge without separate Owner/K0 authorization**
 
-Return the exact PR/head/CI status to Owner. Merge only after an explicit Owner/K0 instruction.
+Return exact PR/head/CI status to Owner. Merge only after explicit Owner/K0 instruction.
