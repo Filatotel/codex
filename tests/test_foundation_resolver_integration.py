@@ -15,9 +15,23 @@ FOUNDATION_OUTPUTS = [
 ]
 
 
+def foundation_bundle() -> dict:
+    value = bundle("foundation", "form_project_foundation", "form_project_foundation")
+    owner_material = {
+        "artifact_type": "OWNER_SUPPLIED_PROJECT_MATERIAL",
+        "artifact_id": "OWNER-MATERIAL-1",
+        "provenance": ["OWNER/K0"],
+    }
+    value["artifacts"].append(owner_material)
+    value["workflow_prerequisite_bindings"] = {
+        "exact_owner_or_supplied_project_material": owner_material["artifact_id"]
+    }
+    return value
+
+
 class FoundationResolverIntegrationTest(unittest.TestCase):
     def test_foundation_uses_generic_spawn_with_three_durable_outputs(self) -> None:
-        value = bundle("foundation", "form_project_foundation", "form_project_foundation")
+        value = foundation_bundle()
         value["selected_prerequisite_actions"] = [
             {
                 "action_id": "foundation-durable-working-state",
@@ -33,10 +47,26 @@ class FoundationResolverIntegrationTest(unittest.TestCase):
         self.assertEqual((result["control_state"], result["status"]), ("ASSIGN", "SPAWN_READY"), result)
         self.assertEqual(result["engine_id"], "foundation")
         self.assertEqual(result["workflow_id"], "form_project_foundation")
+        self.assertEqual(result["workflow_prerequisite_refs"], ["OWNER-MATERIAL-1"])
         self.assertEqual(result["assignment_admissibility"]["status"], "ADMISSIBLE")
+        self.assertIn("OWNER-MATERIAL-1", result["assignment_admissibility"]["related_artifacts"])
         self.assertIn("durable_artifact_write", result["assignment_admissibility"]["required_capabilities"])
         self.assertEqual(result["assignment"]["required_durable_outputs"], FOUNDATION_OUTPUTS)
         self.assertEqual(result["assignment"]["durable_system_of_record_ref"], "SOR-FOUNDATION-V0")
+
+    def test_foundation_prerequisite_is_real_and_cannot_be_masked_by_durable_action(self) -> None:
+        value = bundle("foundation", "form_project_foundation", "form_project_foundation")
+        value["selected_prerequisite_actions"] = [
+            {
+                "action_id": "foundation-durable-working-state",
+                "required_capabilities": ["durable_artifact_write"],
+                "evidence_path": "three Foundation working artifacts via declared durable system of record",
+            }
+        ]
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]), ("ESCALATE", "WORKFLOW_PREREQUISITE_REQUIRED"))
+        self.assertEqual(result["workflow_contract_details"]["missing_requirement"], "exact_owner_or_supplied_project_material")
+        self.assertNotIn("assignment", result)
 
     def test_foundation_has_no_special_spawn_runtime(self) -> None:
         source = (ROOT / "tools/resolver_spawn.py").read_text(encoding="utf-8")
