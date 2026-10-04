@@ -214,7 +214,7 @@ class FoundationMaterializationTest(unittest.TestCase):
         manifest = load_text(MANIFEST_PATH, "Foundation manifest")
         self.assertIn("engine_id: foundation", manifest)
         self.assertIn("status: available", manifest)
-        capability_block = manifest.split("capabilities:\n", 1)[1]
+        capability_block = manifest.split("capabilities:\n", 1)[1].split("execution_contract:\n", 1)[0]
         mapped = re.findall(r"^  ([a-z0-9_]+):\s+([a-z0-9_]+)$", capability_block, re.M)
         self.assertEqual(mapped, [("form_project_foundation", "form_project_foundation")])
         self.assertIn("form_project_foundation: engines/foundation/workflows/form-project-foundation.md", manifest)
