@@ -7,11 +7,11 @@ Baseline: `main` at `65476b45d420d025506fa87b6c41ddb380ce698e` after Liaison cog
 
 ## 1. Purpose
 
-Materialize the currently planned but unavailable `foundation` Engine as the governed project-formation layer between Liaison cognitive intake and Canon.
+Materialize the planned but unavailable `foundation` Engine as the governed project-formation layer between Liaison cognitive intake and Canon.
 
-Foundation V0 exists for the case where an Owner has more than an ordinary question but less than an already-governed project truth: a raw idea, early concept, partially understood project, or project-formation conversation that should become durable working state without silently becoming Canon.
+Foundation V0 handles the case where the Owner has more than an ordinary question but less than governed project truth: a raw idea, early concept, partially understood project, or project-formation conversation that should become durable working state without silently becoming Canon.
 
-The target path is:
+Target path:
 
 ```text
 OWNER RAW IDEA
@@ -28,6 +28,7 @@ OWNER RAW IDEA
 → PROJECT_SEED
 → PROJECT_OUTCOME
 → CONSEQUENTIAL_UNKNOWN_MAP
+→ durable refs + exact readback of all declared outputs
 → FOUNDATION_READY_FOR_OWNER_GATE
 → STOP
 ```
@@ -35,8 +36,6 @@ OWNER RAW IDEA
 Foundation V0 does not accept Canon, mutate Canon, start Research automatically, start Production, or decide on behalf of Owner.
 
 ## 2. Architectural position
-
-The semantic boundaries are:
 
 ```text
 NATIVE LLM REASONING
@@ -64,13 +63,13 @@ DURABLE
 != AUTHORITATIVE
 ```
 
-The Foundation Engine is therefore not a weaker Canon Engine and not a second Liaison. It owns durable non-authoritative project-formation state.
+Foundation is not a weaker Canon Engine and not a second Liaison. It owns durable non-authoritative project-formation state.
 
-The Canon Engine remains the sole owner of governed Canon truth lifecycle. The Liaison remains the human-facing cognitive intake and Owner projection role.
+Canon remains the sole owner of governed Canon truth lifecycle. Liaison remains the human-facing cognitive intake and Owner projection role.
 
-## 3. Why an Engine rather than Liaison-only skills
+## 3. Why Foundation is an Engine
 
-The Liaison cognitive base added by #97 answers:
+The Liaison cognitive base from #97 answers:
 
 ```text
 RAW OWNER REQUEST
@@ -79,14 +78,14 @@ RAW OWNER REQUEST
 
 It intentionally does not own durable project formation.
 
-When `ROUTE` is selected because a raw idea is intended to become a project, the work needs a semantic owner with explicit outputs, workflow composition, durable artifact rules, Router capability ownership, and execution/admissibility semantics. That owner is Foundation.
+After `ROUTE` selects project formation, the work needs a semantic owner with explicit outputs, workflow composition, artifact rules, Router capability ownership, and assignment/executability semantics. That owner is Foundation.
 
-Keeping project formation only inside Liaison would collapse two different responsibilities:
+Keeping formation inside Liaison would collapse two responsibilities:
 
-- understanding what the Owner is asking;
-- building durable but still non-authoritative project working state.
+- understand what the Owner is asking;
+- build durable but still non-authoritative project working state.
 
-Foundation V0 preserves that boundary while still allowing the same physical ChatGPT conversation to perform Liaison and Foundation as separate logical phases.
+The same physical ChatGPT conversation may perform Liaison and Foundation as separate logical phases. Physical co-location does not merge roles or authority.
 
 ## 4. V0 scope
 
@@ -101,9 +100,9 @@ It composes four cognitive skills:
 1. `develop-project-seed` — required;
 2. `define-project-outcome` — required;
 3. `classify-consequential-unknowns` — required;
-4. `design-discovery` — optional and loaded only when problem/solution exploration materially improves the working foundation.
+4. `design-discovery` — optional and loaded only when exploration materially improves the working foundation.
 
-The workflow produces exactly three Foundation-owned durable artifact types:
+It produces exactly three Foundation-owned durable artifact types:
 
 ```text
 PROJECT_SEED
@@ -111,27 +110,19 @@ PROJECT_OUTCOME
 CONSEQUENTIAL_UNKNOWN_MAP
 ```
 
-`FOUNDATION_READY_FOR_OWNER_GATE` is a workflow/result status, not a fourth durable artifact type.
+`FOUNDATION_READY_FOR_OWNER_GATE` is a workflow/result status, not a fourth durable artifact.
 
 ## 5. Engine registration
 
-`SYSTEM_MANIFEST.yaml` currently declares:
+`SYSTEM_MANIFEST.yaml` currently declares Foundation under `planned_engines` with `status: not_materialized`.
 
-```yaml
-planned_engines:
-  - engine_id: foundation
-    status: not_materialized
-```
-
-Foundation V0 moves `foundation` into `engine_registry` with `status: available` and the minimum semantic capability:
+Foundation V0 moves it into `engine_registry` with `status: available` and one root semantic capability:
 
 ```text
 form_project_foundation
 ```
 
-V0 should not expose every internal cognitive skill as a separate root capability unless a concrete routing need appears later. The Router selects project formation; the Foundation manifest owns composition of its internal skills.
-
-This keeps the root routing vocabulary smaller than the skill library.
+V0 does not expose every internal cognitive skill as a root capability. Router selects project formation; the Foundation manifest owns internal composition. This keeps root routing vocabulary smaller than the skill library.
 
 ## 6. Foundation manifest contract
 
@@ -141,7 +132,7 @@ Create:
 engines/foundation/MANIFEST.yaml
 ```
 
-The manifest owns:
+Foundation owns:
 
 - raw-to-working project formation after Liaison routes into governed project formation;
 - working project seed creation/refinement;
@@ -150,37 +141,37 @@ The manifest owns:
 - optional bounded design discovery before Canon;
 - production of the three non-authoritative durable Foundation artifacts.
 
-It does not own:
+Foundation does not own:
 
 - Owner/K0 authority;
 - Liaison intent interpretation before route selection;
 - accepted Canon truth;
 - Canon mutation/freeze/reopen;
-- substantive external Research;
-- evidence collection for external factual claims;
+- substantive external Research or evidence collection;
 - Production planning or implementation;
 - independent Verification;
 - generic routing/orchestration;
-- physical SBC/PAK/provider transport.
+- SBC/PAK/provider transport.
 
-Suggested V0 inputs:
+V0 inputs include, as applicable:
 
-- exact Owner request / supplied project material preserved as provenance;
+- exact Owner request / supplied material preserved as provenance;
 - Liaison bounded routing frame;
-- relevant pre-existing project state when one exists;
+- relevant existing state when one exists;
 - exact assignment;
-- destination capability profile and assignment admissibility where required by the generic execution chain.
+- destination capability profile and assignment admissibility;
+- declared durable output requirements/system-of-record when durable materialization is requested.
 
-Suggested V0 outputs:
+Outputs:
 
 - `PROJECT_SEED`;
 - `PROJECT_OUTCOME`;
 - `CONSEQUENTIAL_UNKNOWN_MAP`;
-- ordinary `executor_result` / workflow result with terminal status or blocker.
+- ordinary `EXECUTOR_RESULT` / workflow result containing terminal status or blocker.
 
-The manifest should reuse existing shared execution roles instead of creating a Foundation persona. The executing role is `roles/executor/ROLE.md`; the consuming/control role remains `roles/control-director/ROLE.md` where governed control is active.
+Reuse shared roles rather than create a Foundation persona. The executing role is `roles/executor/ROLE.md`; the consuming/control role remains `roles/control-director/ROLE.md` when governed control is active.
 
-In manual V0 the same physical ChatGPT chat may perform the logical role transition, consistent with the Liaison contract:
+Manual V0 may use:
 
 ```text
 Liaison
@@ -190,48 +181,77 @@ Liaison
 → Owner
 ```
 
-Same physical chat does not imply same semantic role or authority.
-
 ## 7. Workflow contract
 
-Create one workflow:
+Create:
 
 ```text
 engines/foundation/workflows/form-project-foundation.md
 ```
 
-The workflow should be iterative in reasoning but bounded in durable outputs.
-
 Conceptual procedure:
 
 ```text
-1. consume the Liaison routing frame and exact supplied Owner material
-2. develop a useful PROJECT_SEED working interpretation
-3. establish PROJECT_OUTCOME sufficiently for the current formation stage
+1. consume Liaison routing frame and exact supplied Owner material
+2. develop PROJECT_SEED working interpretation
+3. establish PROJECT_OUTCOME sufficiently for current formation stage
 4. identify consequential unresolved items
-5. use design-discovery only if exploration is needed to make seed/outcome coherent
+5. use design-discovery only if needed for coherence/problem-space exploration
 6. classify unresolved items into CONSEQUENTIAL_UNKNOWN_MAP
-7. reconcile the three artifacts for contradictions and provenance loss
-8. if materially sufficient for an Owner Foundation Gate:
-      return FOUNDATION_READY_FOR_OWNER_GATE
-   else:
-      return the smallest bounded clarification/blocker needed
-9. stop; do not invoke Canon acceptance, Research execution, or Production
+7. reconcile all three for contradiction and provenance loss
+8. materialize all assignment-declared required Foundation outputs
+9. require exact durable refs/readback under the existing durable-output contract
+10. if semantically sufficient for an Owner Foundation Gate:
+       return FOUNDATION_READY_FOR_OWNER_GATE
+    else:
+       return the smallest bounded clarification/blocker needed
+11. stop; do not invoke Canon acceptance, Research execution, or Production
 ```
 
 The workflow may iterate internally among the four skills. It must not create a procedural interrogation loop with the Owner.
 
-The workflow should prefer a reasonable working interpretation the Owner can correct over asking for exhaustive formalization.
+A reasonable working interpretation the Owner can correct is preferred over exhaustive formalization.
 
-## 8. Cognitive skill design law
+## 8. Durability and readiness gate
 
-Foundation skills guide an intelligent LLM; they do not replace model intelligence with a deterministic questionnaire.
+Foundation artifacts are durable working state. They must use the existing Common Artifact Protocol and durable-output/readback semantics; Foundation does not invent a parallel durability model.
 
-Each Foundation cognitive skill should separate:
+For a durable Foundation assignment, the three outputs are declared through the existing assignment durable-output contract. Completion must return stable output refs, and Control performs the existing provider-neutral exact readback.
+
+Required distinction:
+
+```text
+DURABLE OUTPUT REF
++ READBACK
+= proof that the working artifact exists at the declared durable identity
+
+BUT
+
+DURABLE OUTPUT REF
++ READBACK
+!= semantic correctness
+!= Owner acceptance
+!= Canon authority
+```
+
+`FOUNDATION_READY_FOR_OWNER_GATE` may be emitted only when:
+
+- the required Foundation artifacts for that formation assignment exist;
+- the assignment-required durable output identities are fully covered;
+- the exact durable objects are independently readable under the existing readback law;
+- the working state is coherent enough to present to Owner without inventing missing intent.
+
+It does not mean the Owner accepted the project meaning.
+
+If durable materialization is unavailable, Foundation may still reason conversationally, but it must not claim durable Foundation completion/readiness.
+
+## 9. Cognitive skill design law
+
+Foundation skills guide an intelligent LLM; they do not replace intelligence with a deterministic questionnaire.
 
 ### Thinking guidance
 
-Use judgment-oriented language such as:
+Prefer judgment-oriented instructions such as:
 
 - consider;
 - look for;
@@ -245,19 +265,19 @@ Use judgment-oriented language such as:
 
 ### Hard invariants
 
-Use strict requirements only for real authority/evidence boundaries, including:
+Strict requirements remain narrow and authority/evidence-bearing:
 
 - do not invent Owner intent;
-- do not silently promote a proposal or working interpretation into Canon;
+- do not silently promote a proposal/working interpretation into Canon;
 - do not claim external factual/feasibility evidence that was not obtained;
 - do not automatically start Research because an unknown exists;
-- do not freeze architecture merely because one plausible implementation was proposed;
-- do not turn a working Foundation artifact into Owner/K0 authority;
-- preserve explicit Owner constraints and disagreement.
+- do not freeze architecture because a plausible implementation was proposed;
+- do not treat a Foundation artifact as Owner/K0 authority;
+- preserve explicit Owner constraints, corrections, and disagreement.
 
-The skills must not require a fixed questionnaire or arbitrary completeness score.
+No Foundation cognitive skill may require a fixed questionnaire or arbitrary completeness score.
 
-## 9. Skill: `develop-project-seed`
+## 10. `develop-project-seed`
 
 Create:
 
@@ -265,9 +285,9 @@ Create:
 engines/foundation/skills/develop-project-seed/SKILL.md
 ```
 
-Purpose: turn a raw idea or incomplete project concept into a coherent working interpretation that is useful enough to reason about and correct.
+Purpose: turn a raw idea or incomplete concept into a coherent working interpretation useful enough to reason about and correct.
 
-The skill should use native model reasoning aggressively and look for, when material:
+When material, look for:
 
 - underlying objective;
 - intended user/beneficiary/value;
@@ -275,12 +295,12 @@ The skill should use native model reasoning aggressively and look for, when mate
 - hard constraints;
 - non-goals;
 - explicitly known decisions;
-- obvious contradictions;
+- contradictions;
 - hidden assumptions;
 - important missing decisions;
-- project identity candidate or useful working name where available.
+- project identity candidate / useful working name when available.
 
-It should separate:
+Preserve distinctions among:
 
 ```text
 EXPLICIT OWNER STATEMENT
@@ -292,15 +312,9 @@ UNRESOLVED MATERIAL QUESTION
 
 The artifact must not erase those distinctions.
 
-The preferred interaction style is:
+Preferred interaction style is a correctable working interpretation rather than an exhaustive form.
 
-```text
-"I understand the project approximately as ..."
-```
-
-followed by correction when needed, rather than an exhaustive form.
-
-## 10. Skill: `define-project-outcome`
+## 11. `define-project-outcome`
 
 Create:
 
@@ -308,34 +322,25 @@ Create:
 engines/foundation/skills/define-project-outcome/SKILL.md
 ```
 
-Purpose: establish what the Owner actually wants to exist when the current project is complete, before Research or Production is planned.
+Purpose: establish what the Owner wants to exist at completion before Research or Production is planned.
 
-It should reason about:
+Reason about:
 
 - target outcome;
 - completion condition;
 - required deliverables;
-- optional deliverables when already relevant;
-- intended audience/user where material;
+- optional deliverables when relevant;
+- audience/user where material;
 - non-goals;
 - whether downstream realization is required at all.
 
-It must not assume that every project ends in software or Production.
+Do not assume every project ends in software or Production.
 
-Valid outcomes may include:
+Valid outcomes include concept/Canon, evidence-backed plan, research result, document/presentation, website, software product, operating process, or multi-deliverable program.
 
-- a concept/Canon itself;
-- an evidence-backed plan;
-- research result;
-- document/presentation;
-- website;
-- software product;
-- operating process;
-- multi-deliverable program.
+Output remains working Foundation state until later Owner/Canon acceptance.
 
-The output remains working Foundation state until later Owner/Canon acceptance.
-
-## 11. Skill: `classify-consequential-unknowns`
+## 12. `classify-consequential-unknowns`
 
 Create:
 
@@ -343,9 +348,9 @@ Create:
 engines/foundation/skills/classify-consequential-unknowns/SKILL.md
 ```
 
-Purpose: keep unresolved uncertainty explicit and decide what kind of uncertainty it is without automatically resolving it.
+Purpose: keep unresolved uncertainty explicit and classify what kind of uncertainty it is without automatically resolving it.
 
-V0 classification vocabulary:
+V0 vocabulary:
 
 ```text
 OWNER_PREFERENCE
@@ -359,17 +364,17 @@ NICE_TO_KNOW
 Interpretation:
 
 - `OWNER_PREFERENCE`: belongs to Owner; Research cannot answer it for them;
-- `EXTERNAL_FACT`: may later become a Research candidate if consequential;
+- `EXTERNAL_FACT`: may later become Research candidate if consequential;
 - `FEASIBILITY`: may later require evidence/prototype/research;
 - `ARCHITECTURE_DECISION`: may require exploration/evidence and later authority, but is not automatically Canon;
-- `IMPLEMENTATION_DEPENDENT`: defer until the relevant implementation context exists;
-- `NICE_TO_KNOW`: keep off the critical path unless its consequence changes.
+- `IMPLEMENTATION_DEPENDENT`: defer until relevant implementation context exists;
+- `NICE_TO_KNOW`: keep off critical path unless consequence changes.
 
-Classification itself does not dispatch Research, create an Owner decision record, or authorize architecture.
+Classification does not dispatch Research, create Owner authority, or authorize architecture.
 
-Unknowns that are not consequential for the declared outcome need not be materialized merely for completeness.
+Unknowns that are not consequential to the declared outcome need not be materialized for completeness.
 
-## 12. Skill: `design-discovery`
+## 13. `design-discovery`
 
 Create:
 
@@ -377,7 +382,7 @@ Create:
 engines/foundation/skills/design-discovery/SKILL.md
 ```
 
-Purpose: help the Owner and model explore problem/solution space before Canon without prematurely freezing architecture.
+Purpose: explore problem/solution space before Canon without prematurely freezing architecture.
 
 It may:
 
@@ -385,68 +390,68 @@ It may:
 - compare solution shapes;
 - simplify scope;
 - expose contradictions;
-- test whether a proposed feature actually serves the outcome;
-- propose different project boundaries;
+- test whether features serve the outcome;
+- propose project boundaries;
 - surface trade-offs;
 - identify assumptions that should remain open.
 
-It must remain optional. The workflow should not load it for a straightforward project seed just because the skill exists.
+It remains optional. Straightforward formation must not load it just because it exists.
 
-V0 creates no separate `DESIGN_DISCOVERY_RESULT` durable artifact. Materially useful discovery is folded into the current working seed/outcome/unknown map while preserving proposal versus Owner-statement provenance.
+V0 creates no `DESIGN_DISCOVERY_RESULT` artifact. Material discovery is folded into current seed/outcome/unknown map while preserving proposal vs Owner-statement provenance.
 
-## 13. Artifact model
+## 14. Artifact model
 
-Foundation artifacts are durable working state, not semantic authority.
+All three durable artifacts use the existing common artifact identity/provenance envelope (`artifact_id`, `artifact_type`, `produced_by_role`, assignment/input-state/provenance/related-artifact fields as required by the Common Artifact Protocol).
 
-They should use the repository's existing common durable artifact envelope where applicable rather than create a parallel envelope.
+They additionally expose a machine-checkable non-authority marker. The implementation may choose the exact local field name, but all three schemas must make the equivalent of `authoritative: false` invariant.
 
 ### `PROJECT_SEED`
 
-Create schema:
+Schema:
 
 ```text
 engines/foundation/schemas/project-seed.schema.json
 ```
 
-Required semantic payload should stay small. At minimum it needs:
+Minimum semantic payload:
 
 - `artifact_type: PROJECT_SEED`;
-- working interpretation / project summary;
-- explicit non-authoritative status;
+- working interpretation/project summary;
+- machine-checkable non-authoritative status;
 - preservation of material Owner constraints/protected intent when supplied;
-- unresolved material questions or clear references to the unknown map;
-- provenance through the common envelope.
+- unresolved material questions or refs to unknown map;
+- common-envelope provenance.
 
-Dimensions such as intended users, constraints, non-goals, known decisions, assumptions, and project identity candidate should be optional/bounded rather than mandatory empty form fields.
+Dimensions such as intended users, constraints, non-goals, known decisions, assumptions, and identity candidate are optional/bounded, not mandatory empty form fields.
 
 ### `PROJECT_OUTCOME`
 
-Create schema:
+Schema:
 
 ```text
 engines/foundation/schemas/project-outcome.schema.json
 ```
 
-At minimum:
+Minimum semantic payload:
 
 - `artifact_type: PROJECT_OUTCOME`;
 - working target outcome;
 - completion condition or explicit unresolved completion condition;
 - required deliverables known at this stage;
 - optional deliverables only when meaningful;
-- relevant audience/user and non-goals when material;
-- explicit non-authoritative status;
-- provenance through the common envelope.
+- audience/user and non-goals when material;
+- machine-checkable non-authoritative status;
+- common-envelope provenance.
 
 ### `CONSEQUENTIAL_UNKNOWN_MAP`
 
-Create schema:
+Schema:
 
 ```text
 engines/foundation/schemas/consequential-unknown-map.schema.json
 ```
 
-Each materialized item should include at least:
+Each materialized item contains at least:
 
 - stable bounded item identity within the artifact;
 - unknown/question statement;
@@ -454,15 +459,11 @@ Each materialized item should include at least:
 - why it matters / downstream consequence;
 - current state such as open or deferred.
 
-The map does not need to contain every unknown thought. It contains unknowns consequential to current project formation/outcome.
+The map contains consequential unknowns, not every unknown thought. Its schema must not encode automatic Research dispatch authority.
 
-The schema must not encode automatic Research dispatch authority.
+## 15. Non-authority law
 
-## 14. Non-authority law
-
-Foundation durability exists so project formation can survive across chats and later stages. Durability must not be confused with authority.
-
-Required law:
+Required semantics:
 
 ```text
 PROJECT_SEED.authoritative = false
@@ -470,15 +471,13 @@ PROJECT_OUTCOME.authoritative = false
 CONSEQUENTIAL_UNKNOWN_MAP.authoritative = false
 ```
 
-Exact schema expression may use a status/authority field consistent with repository conventions, but V0 must make the non-authoritative nature machine-checkable rather than relying only on prose.
+No Foundation artifact may satisfy a Canon mutation/freeze authority requirement merely because it is durable, read back successfully, or produced by a valid assignment.
 
-No Foundation artifact may satisfy a Canon mutation authority requirement merely because it is durable or produced by a valid assignment.
+A later Owner Foundation Gate may authorize selected Foundation meaning to enter Canon. That gate is outside this wave.
 
-A later Owner Foundation Gate may authorize selected Foundation meaning to enter Canon. That gate is outside this V0 implementation wave.
+## 16. Clarification policy
 
-## 15. Clarification policy
-
-The Liaison and Foundation layers share the same cognitive principle:
+Liaison and Foundation share this law:
 
 ```text
 ASK ONLY WHEN DIFFERENT PLAUSIBLE ANSWERS
@@ -488,19 +487,19 @@ THE PROJECT, ROUTE, AUTHORITY, OUTPUT, OR NEXT ACTION.
 
 Foundation V0 has no mandatory minimum question count.
 
-Zero clarification questions is valid when the supplied request/material is already sufficient to produce useful working Foundation state.
+Zero clarification questions is valid when supplied material is sufficient for useful working Foundation state.
 
-This resolves the older bootstrap guidance that mentioned an adaptive `3–20` question range: that range must not be interpreted as a protocol requirement or minimum. The newer Liaison/Foundation cognitive law governs V0 behavior.
+This resolves older bootstrap guidance mentioning an adaptive `3–20` question range: it is not a protocol requirement or minimum. The newer Liaison/Foundation cognitive law governs V0.
 
-Questions should be one bounded material question at a time when interaction is required. The model may instead state a working interpretation and allow Owner correction when that is safer and more efficient.
+When interaction is required, ask the smallest bounded material question. A model may instead state a working interpretation and allow correction when that is safer and more efficient.
 
-## 16. External facts and Research boundary
+## 17. External facts and Research boundary
 
-Foundation may use ordinary model knowledge for ideation and explanation, but it must distinguish general reasoning from evidence-backed external project facts.
+Foundation may use general model reasoning for ideation/explanation, but it must distinguish reasoning from evidence-backed external project facts.
 
-If project formation depends on a factual or feasibility claim that requires current/external verification, Foundation classifies the uncertainty but does not silently treat model memory as evidence.
+When formation depends on a current/external factual or feasibility claim, Foundation classifies the uncertainty but does not treat model memory as evidence.
 
-Required chain after this V0 wave remains conceptually:
+Later chain:
 
 ```text
 CONSEQUENTIAL_UNKNOWN_MAP
@@ -511,19 +510,13 @@ CONSEQUENTIAL_UNKNOWN_MAP
 
 Foundation V0 stops before Research dispatch.
 
-## 17. Canon boundary
+## 18. Canon boundary
 
-The existing Canon Engine already owns:
+The existing Canon Engine owns `CANON_FOUNDATION`, Canon state registration, reconciliation/change classification, validation, freeze, and reopen.
 
-- `CANON_FOUNDATION`;
-- Canon state registration;
-- Canon change/reconciliation;
-- validation;
-- freeze/reopen.
+Foundation V0 duplicates none of those artifacts or skills.
 
-Foundation V0 must not duplicate those artifacts or skills.
-
-The Foundation workflow ends at:
+The workflow ends at:
 
 ```text
 FOUNDATION_READY_FOR_OWNER_GATE
@@ -535,15 +528,15 @@ not:
 CANON_FOUNDATION_CREATED
 ```
 
-A later separate #53 wave will define the exact Owner Foundation Gate and handoff from accepted Foundation meaning into the existing `establish_canon_foundation` Canon workflow.
+A later #53 wave defines the exact Owner Foundation Gate and handoff from accepted Foundation meaning into existing `establish_canon_foundation`.
 
-Until that later wave exists, `FOUNDATION_READY_FOR_OWNER_GATE` is an explicit stop boundary.
+Until then, readiness is an explicit stop boundary.
 
-## 18. Router changes
+## 19. Router changes
 
-`ROUTER.md` currently has a non-materialized Foundation gate. Foundation V0 replaces only the Foundation part of that behavior.
+`ROUTER.md` currently has a non-materialized Foundation gate. V0 replaces only that Foundation path.
 
-Add a route for:
+Add:
 
 ```text
 form_project_foundation → foundation
@@ -551,21 +544,21 @@ form_project_foundation → foundation
 
 Routing behavior:
 
-1. Liaison must already have selected `ROUTE` because governed project formation is intended.
+1. Liaison has selected `ROUTE` because governed project formation is intended.
 2. Router selects Foundation by semantic capability/authority boundary.
 3. Load only `engines/foundation/MANIFEST.yaml`.
 4. Select `form_project_foundation`.
-5. Load its required skills plus `design-discovery` only if selected by the workflow/assignment.
-6. Apply the existing compiler/executability/admissibility chain where an executable assignment is required.
-7. Activate the declared role without granting Owner or Canon authority.
+5. Load three required skills plus `design-discovery` only when selected/needed.
+6. Apply existing compiler/executability/admissibility and durable-output laws.
+7. Activate declared role without granting Owner or Canon authority.
 
-The Router must not send a raw project idea directly to Canon merely because `establish_canon_foundation` exists.
+Do not route raw project formation straight to Canon because `establish_canon_foundation` exists.
 
-The Router must not borrow Software skills to simulate Foundation.
+Do not borrow Software skills to simulate Foundation.
 
-## 19. Progressive disclosure
+## 20. Progressive disclosure
 
-The #97 loading law remains unchanged:
+#97 law remains:
 
 ```text
 AWARE
@@ -575,34 +568,32 @@ AWARE
 → MATERIALIZE
 ```
 
-For a raw idea:
+For raw project formation:
 
-- `AWARE`: Liaison/root manifest knows Foundation exists;
-- `INSPECT`: only after `ROUTE` to project formation, inspect Foundation manifest/workflow;
-- `LOAD`: load the three required Foundation skills and optional `design-discovery` only when materially needed;
+- `AWARE`: root manifest says Foundation exists;
+- `INSPECT`: after Liaison `ROUTE`, inspect only Foundation manifest/workflow;
+- `LOAD`: load required skills and optional discovery only when relevant;
 - `APPLY`: skills guide native reasoning;
-- `MATERIALIZE`: write the three working artifacts only under valid assignment/durable-output conditions.
+- `MATERIALIZE`: create durable Foundation outputs only under valid assignment/durable-output conditions.
 
 No global skill discovery.
 
-## 20. Error and stop conditions
+## 21. Error and stop conditions
 
-Foundation V0 should fail or stop explicitly for bounded reasons rather than fabricate project certainty.
+Foundation stops or reports bounded blockers rather than fabricating certainty for:
 
-Expected classes/conditions include:
-
-- materially ambiguous Owner intent that cannot be preserved faithfully;
-- contradiction between supplied Owner constraints that changes the project;
+- material Owner-intent ambiguity that cannot be preserved faithfully;
+- contradictory Owner constraints that materially change the project;
 - insufficient information to define even a working outcome;
-- external fact/feasibility dependency incorrectly presented as established evidence;
+- external fact/feasibility dependency presented as established evidence without proof;
 - attempt to treat Foundation output as accepted Canon;
-- attempt to auto-dispatch Research from the unknown map;
+- attempt to auto-dispatch Research;
 - attempt to auto-enter Production;
-- missing generic execution/durable-write prerequisites when materialization is required.
+- missing assignment/executability/durable-write/readback prerequisites for claimed durable completion.
 
-Where a useful non-authoritative working interpretation is possible, uncertainty should remain explicit instead of becoming a blocker merely because the project is incomplete.
+Where a useful non-authoritative working interpretation is possible, explicit uncertainty is preferred over unnecessary blocking.
 
-## 21. Structural files expected in the implementation wave
+## 22. Expected implementation surfaces
 
 The implementation plan may refine exact test filenames, but the architecture expects approximately:
 
@@ -618,88 +609,83 @@ engines/foundation/skills/design-discovery/SKILL.md
 engines/foundation/schemas/project-seed.schema.json
 engines/foundation/schemas/project-outcome.schema.json
 engines/foundation/schemas/consequential-unknown-map.schema.json
-schemas/README.md [only if shared schema index requires it]
-tools/validate_structure.py [only enough to register/protect the new Engine surfaces]
-tests/... Foundation behavioural/structure/schema/route coverage
+schemas/README.md [only if shared index requires it]
+tools/validate_structure.py [only enough to register/protect new Engine surfaces]
+tests/... Foundation behavioral/structure/schema/route coverage
 ```
 
 No unrelated Canon, Research, Software, Verification, SBC, PAK, provider, or resource-governance rewrite belongs in this wave.
 
-## 22. Testing strategy
+## 23. Testing strategy
 
-Implementation must use TDD and prove both semantics and boundaries.
+Implementation uses TDD and proves semantics plus boundaries.
 
-Minimum behavioral cases:
+Minimum cases:
 
-1. raw project idea routed from Liaison reaches Foundation, not Canon or Software;
-2. already-sufficient project description may produce Foundation working state with zero forced clarification questions;
-3. material ambiguity produces a bounded clarification rather than invented Owner intent;
-4. `design-discovery` remains optional, not globally loaded;
-5. Foundation outputs are durable but machine-checkably non-authoritative;
-6. `PROJECT_SEED`, `PROJECT_OUTCOME`, and `CONSEQUENTIAL_UNKNOWN_MAP` validate against their schemas/common envelope requirements;
-7. unknown classification accepts exactly the V0 vocabulary and rejects undeclared classes;
-8. `OWNER_PREFERENCE` is not converted into Research work;
-9. `EXTERNAL_FACT`/`FEASIBILITY` may be represented as candidates/unknowns but do not dispatch Research;
-10. no Foundation output can satisfy Canon mutation/freeze authority by itself;
-11. workflow stops at `FOUNDATION_READY_FOR_OWNER_GATE` and does not create `CANON_FOUNDATION`;
-12. existing Software/Research/Verification/Canon representative routes remain unchanged;
-13. root structural validator recognizes Foundation as a materialized Engine;
-14. global skill discovery remains forbidden.
+1. raw project idea routed from Liaison reaches Foundation, not Canon/Software;
+2. sufficient description may produce working state with zero forced clarification questions;
+3. material ambiguity produces bounded clarification rather than invented Owner intent;
+4. `design-discovery` remains optional;
+5. Foundation outputs are durable and machine-checkably non-authoritative;
+6. all three artifacts validate against their schemas/common envelope;
+7. durable assignment declares and covers required Foundation output identities;
+8. exact readback is required before `FOUNDATION_READY_FOR_OWNER_GATE`;
+9. unknown classification accepts exactly V0 vocabulary and rejects undeclared classes;
+10. `OWNER_PREFERENCE` is not converted into Research work;
+11. `EXTERNAL_FACT`/`FEASIBILITY` may remain Research candidates/unknowns but do not dispatch Research;
+12. no Foundation output satisfies Canon mutation/freeze authority by itself;
+13. workflow stops at readiness and does not create `CANON_FOUNDATION`;
+14. existing Software/Research/Verification/Canon representative routes remain unchanged;
+15. structural validator recognizes Foundation as materialized;
+16. global skill discovery remains forbidden.
 
-Full repository suite and `tools/validate_structure.py` must pass on the exact PR head/merge ref before merge.
+Full repository suite and `tools/validate_structure.py` must pass on exact PR head/merge ref before merge.
 
-## 23. Acceptance criteria
+## 24. Acceptance criteria
 
-Foundation V0 is accepted when all of the following are true:
+Foundation V0 is accepted when:
 
-1. `foundation` is `available` in the root engine registry rather than `not_materialized`.
-2. Router can select `form_project_foundation` from a Liaison `ROUTE` decision.
-3. One Foundation manifest/workflow composes the four approved cognitive skills with `design-discovery` optional.
-4. A raw Owner idea can become durable `PROJECT_SEED`, `PROJECT_OUTCOME`, and `CONSEQUENTIAL_UNKNOWN_MAP` without becoming Canon.
-5. The three artifacts preserve provenance and explicit non-authority.
-6. The model can use native reasoning and working interpretations rather than a fixed intake form.
-7. No mandatory minimum number of Owner questions exists.
-8. Consequential unknowns are classified without automatic Research dispatch.
-9. Foundation stops at `FOUNDATION_READY_FOR_OWNER_GATE`.
-10. Canon Engine remains the sole owner of governed Canon Foundation/truth lifecycle.
-11. Existing root Router/compiler/executability laws remain in force rather than being duplicated inside Foundation.
-12. Existing Engines continue to pass regression coverage.
+1. `foundation` is `available` in root engine registry.
+2. Router selects `form_project_foundation` from Liaison `ROUTE`.
+3. One Foundation workflow composes four approved cognitive skills with discovery optional.
+4. Raw Owner idea can become durable `PROJECT_SEED`, `PROJECT_OUTCOME`, and `CONSEQUENTIAL_UNKNOWN_MAP` without becoming Canon.
+5. The three artifacts preserve provenance and machine-checkable non-authority.
+6. Required durable outputs use existing assignment/readback law.
+7. Model may use working interpretations rather than fixed intake form.
+8. No mandatory minimum Owner-question count exists.
+9. Consequential unknowns are classified without automatic Research dispatch.
+10. Foundation stops at `FOUNDATION_READY_FOR_OWNER_GATE`.
+11. Canon remains sole owner of governed Canon Foundation/truth lifecycle.
+12. Existing Router/compiler/executability/durable-state laws are reused, not duplicated.
+13. Existing Engines retain regression behavior.
 
-## 24. Explicit non-goals for this wave
+## 25. Explicit non-goals
 
-Foundation V0 does not implement:
+This wave does not implement:
 
 - Owner Foundation Gate artifact/decision semantics;
-- automatic conversion of Foundation artifacts into `CANON_FOUNDATION`;
-- Canon carrier creation or migration;
-- Research Need Map execution orchestration beyond the bounded unknown classification artifact;
-- Research dispatch;
-- Production Foundation;
-- production implementation;
-- project storage-topology provisioning (`DRIVE_ONLY`, `REPO_ONLY`, `DRIVE_THEN_REPO`);
+- automatic Foundation → `CANON_FOUNDATION` conversion;
+- Canon carrier creation/migration;
+- Research dispatch or broad Research Need orchestration beyond unknown classification;
+- Production Foundation or implementation;
+- storage-topology provisioning (`DRIVE_ONLY`, `REPO_ONLY`, `DRIVE_THEN_REPO`);
 - account/connectors provisioning;
 - automation activation gate;
 - SBC Browser or PAK transport;
-- multi-chat physical session orchestration;
+- physical multi-chat session orchestration;
 - a new Liaison, Control Director, Executor, or Foundation persona;
-- a new common artifact envelope;
+- a new common artifact envelope or durability protocol;
 - a second Router;
 - completion of all remaining #53 lifecycle sections.
 
-These remain later bounded waves under #53 or their existing owning issues.
-
-## 25. Issue alignment and sequencing
-
-This design implements only the first materialization wave under #53.
-
-Current sequence becomes:
+## 26. Sequencing
 
 ```text
 #97 MERGED: Liaison Cognitive Base
 → THIS WAVE: Foundation V0
 → NEXT #53 WAVE: Owner Foundation Gate + exact handoff into existing Canon Engine
-→ later #53: outcome/research/canon lifecycle extensions as needed
-→ #58/#54: manual multi-chat conformance where physical handoff is useful
+→ later #53 lifecycle extensions as needed
+→ #58/#54 manual multi-chat conformance where physical handoff is useful
 ```
 
-The wave is an architecture addition: it materializes the already-planned `foundation` Engine and does not replace an existing Engine. Therefore the architecture-replacement destructive/preserve Owner gate is not invoked.
+This is an architecture addition: it materializes an already-planned Engine and does not replace an existing Engine. The architecture-replacement preserve/destructive Owner gate is therefore not invoked.
