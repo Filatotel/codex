@@ -21,6 +21,12 @@ There is no universal Artifact Agent. Artifact production is role-native.
 - `STATE_MUTATION_PROPOSAL` — requested governed state change before authority acceptance.
 - `HANDOFF` — bounded continuation transfer between role instances.
 
+## Engine-owned Foundation working artifacts
+
+The Foundation Engine owns three durable working-state artifact types: `PROJECT_SEED`, `PROJECT_OUTCOME`, and `CONSEQUENTIAL_UNKNOWN_MAP`.
+
+They use the common artifact identity/provenance envelope and the ordinary durable-output/readback path, but they are **not** universal required common artifact types and are explicitly non-authoritative working state. Their durability preserves project-formation continuity; it does not create Owner/K0 authority, Canon truth, Research evidence, or Production authority.
+
 ## Identity and provenance
 
 Every artifact has a stable `artifact_id`, `artifact_type`, `produced_by_role`, `assignment_id` where applicable (nullable for pre-assignment artifacts), `input_state_ref`, `status`, `provenance/created_from`, and `related_artifacts`.
