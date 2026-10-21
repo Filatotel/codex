@@ -32,6 +32,24 @@ Collect:
 - preview or deployment URL if available
 - known product-specific constraints
 
+
+## Target-alignment review gate — Issue #61
+
+Before reviewing a PR, classify **actual change impact**, not PR size or the author's label:
+
+- **V1 local/technical:** microfix or bounded non-architectural change; check exact candidate, technical contract and touched regressions. Do not impose global architecture review.
+- **V2 business/contract:** API, integration or business flow; independently check the governing Issue's intended business behavior and relevant contract.
+- **V3 foundation/architecture:** V2 plus authoritative target architecture/Owner decisions, architectural invariants, dependency direction and verifiable progress toward the end business outcome.
+- **V4 transition/migration:** V3 plus affected starting states, migration/cutover safety, legacy retirement/recovery, and any required Owner decision. Replacements distinguish preserve/migrate vs destructive cutover.
+
+Escalate the tier if the actual diff changes dependencies, responsibility ownership, lifecycle, persisted data or an irreversible boundary. A one-line cutover may be V4.
+
+For V2–V4, do **not** accept the PR description, self-authored tests or already-merged code as the source of business truth. Read the governing Issue and resolve its authority against current Canon/Owner decision/accepted product contract. For V3/V4, identify the exact authoritative target reference and its business outcome and protected invariants. An unapproved or contradictory target is **BLOCKED / OWNER GATE**, not technical PASS.
+
+For V2–V4, the Control Director must supply `transition_authority.review_gate` to independent Verification. The existing `VERIFICATION_RESULT` must confirm separately the identified outcome claim (V2+), architecture and progress claims (V3+), and migration/transition claim (V4). Every required claim must appear in the Director acceptance requirements and verification targets with current evidence for the exact candidate. `delivery_scope=STAGED` proves a specific approved foundation/phase dependency, **not** final business-process completion. A false-green CI result cannot override a missing or failed claim.
+
+Do not create a new verifier or control engine. Software review supplies domain-specific evaluation; Verification supplies bounded claim evidence; Control Director owns promotion and the governed target-alignment classification. Deterministic transition code can reject missing required claims, but does not infer Canon truth from prose.
+
 ## Risk checklist
 
 | Risk area | Review question |

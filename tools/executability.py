@@ -109,9 +109,10 @@ def validate_director_decision(decision: Mapping[str, object]) -> list[str]:
     if decision.get("control_state") not in {"ASSIGN", "WAIT", "ESCALATE", "COMPLETE"}: errors.append("control_state is invalid")
     authority = decision.get("transition_authority")
     if not isinstance(authority, Mapping): errors.append("transition_authority must be an object"); return errors
-    expected = {"transition_id", "assignment_ref", "acceptance_requirements", "verification_required", "verification_target_claim_ids", "allowed_verification_outcomes", "verification_outcome_map", "incomplete_outcome", "next_control_intent_ref", "required_proof_refs", "requires_current_executability"}
+    expected = {"transition_id", "assignment_ref", "acceptance_requirements", "verification_required", "verification_target_claim_ids", "allowed_verification_outcomes", "verification_outcome_map", "incomplete_outcome", "next_control_intent_ref", "required_proof_refs", "requires_current_executability", "review_gate"}
+    optional = {"review_gate"}
     if extra := sorted(set(authority) - expected): errors.append(f"transition_authority unexpected fields: {extra}")
-    if missing := sorted(expected - set(authority)): errors.append(f"transition_authority missing fields: {missing}")
+    if missing := sorted((expected - optional) - set(authority)): errors.append(f"transition_authority missing fields: {missing}")
     for field in ("transition_id", "assignment_ref"):
         if not isinstance(authority.get(field), str) or not str(authority[field]).strip(): errors.append(f"transition_authority.{field} must be non-empty")
     if not isinstance(authority.get("verification_required"), bool): errors.append("transition_authority.verification_required must be boolean")
@@ -141,6 +142,46 @@ def validate_director_decision(decision: Mapping[str, object]) -> list[str]:
         "BLOCKED": {"WAIT", "ESCALATE"},
     }
     if not isinstance(outcome_map, Mapping) or any(key not in allowed_outcomes or value not in allowed_batons_by_outcome[key] for key, value in outcome_map.items()): errors.append("transition_authority.verification_outcome_map is invalid")
+
+    gate = authority.get("review_gate")
+    if gate is not None:
+        if not isinstance(gate, Mapping):
+            errors.append("transition_authority.review_gate must be an object")
+        else:
+            permitted = {"tier", "issue_ref", "target_ref", "outcome_claim_id",
+                         "architecture_claim_id", "progress_claim_id",
+                         "transition_claim_id", "transition_mode", "owner_decision_ref", "delivery_scope"}
+            if extra := sorted(set(gate) - permitted):
+                errors.append(f"review_gate unexpected fields: {extra}")
+            tier = gate.get("tier")
+            if not isinstance(tier, str) or tier not in {"V2", "V3", "V4"}:
+                errors.append("review_gate.tier must be V2, V3 or V4")
+            required = {"issue_ref", "outcome_claim_id", "delivery_scope"}
+            if tier in {"V3", "V4"}:
+                required |= {"target_ref", "architecture_claim_id", "progress_claim_id"}
+            if tier == "V4":
+                required |= {"transition_claim_id", "transition_mode"}
+            if isinstance(gate.get("transition_mode"), str) and gate["transition_mode"] in {"REPLACEMENT_PRESERVE", "DESTRUCTIVE_CUTOVER"}:
+                required.add("owner_decision_ref")
+            for field in required:
+                if not isinstance(gate.get(field), str) or not gate[field].strip():
+                    errors.append(f"review_gate.{field} must be non-empty")
+            if gate.get("delivery_scope") not in {"FULL", "STAGED"}:
+                errors.append("review_gate.delivery_scope is invalid")
+            if "transition_mode" in gate and (not isinstance(gate["transition_mode"], str) or gate["transition_mode"] not in {
+                "MIGRATION", "REPLACEMENT_PRESERVE", "DESTRUCTIVE_CUTOVER"
+            }):
+                errors.append("review_gate.transition_mode is invalid")
+            if not authority.get("verification_required"):
+                errors.append("review_gate requires independent verification")
+            claim_fields = ["outcome_claim_id"]
+            if tier in {"V3", "V4"}:
+                claim_fields += ["architecture_claim_id", "progress_claim_id"]
+            if tier == "V4":
+                claim_fields.append("transition_claim_id")
+            claim_ids = [gate.get(field) for field in claim_fields]
+            if len(claim_ids) != len(set(str(item) for item in claim_ids)):
+                errors.append("review_gate claim identities must be distinct")
     return errors
 
 
