@@ -236,6 +236,33 @@ def resolve_transition(
 
     claims = {claim["claim_id"]: claim for claim in executor["claims"]}
     factual_requirements_met = True
+
+    review_gate = authority.get("review_gate")
+    if isinstance(review_gate, Mapping):
+        required_claim_ids = {review_gate["outcome_claim_id"]}
+        if review_gate["tier"] in {"V3", "V4"}:
+            required_claim_ids.update({review_gate["architecture_claim_id"],
+                                       review_gate["progress_claim_id"]})
+        if review_gate["tier"] == "V4":
+            required_claim_ids.add(review_gate["transition_claim_id"])
+        accepted_claim_ids = {item["claim_id"] for item in authority["acceptance_requirements"]}
+        governed_targets = set(authority["verification_target_claim_ids"])
+        if not required_claim_ids.issubset(accepted_claim_ids & governed_targets):
+            return _out("ESCALATE", "TARGET_ALIGNMENT_CONTRACT_MISSING",
+                        missing_claim_ids=sorted(required_claim_ids - (accepted_claim_ids & governed_targets)))
+        if verification is None:
+            return _out("WAIT", "TARGET_ALIGNMENT_VERIFICATION_REQUIRED")
+        verdict_map = {item["claim_id"]: item for item in verification["claim_verdicts"]}
+        for claim_id in sorted(required_claim_ids):
+            verdict = verdict_map.get(claim_id)
+            factual = claims.get(claim_id)
+            if not isinstance(verdict, Mapping) or not isinstance(factual, Mapping):
+                return _out("WAIT", "TARGET_ALIGNMENT_NOT_PROVEN", claim_id=claim_id)
+            if verdict.get("verdict") != "CONFIRMED":
+                return _out("WAIT", "TARGET_ALIGNMENT_NOT_PROVEN", claim_id=claim_id)
+            if not verdict.get("evidence_refs") or not factual.get("evidence_refs"):
+                return _out("WAIT", "TARGET_ALIGNMENT_EVIDENCE_MISSING", claim_id=claim_id)
+
     for requirement in authority["acceptance_requirements"]:
         claim = claims.get(requirement["claim_id"])
         required_evidence = set(requirement["required_evidence_refs"])
@@ -256,7 +283,8 @@ def resolve_transition(
             return _out(mapped, "AUTHORIZED_VERIFICATION_OUTCOME", verification_outcome=effective_outcome)
 
     if factual_requirements_met and executor.get("status") == "COMPLETE":
-        return _out("COMPLETE", "DIRECTOR_ACCEPTANCE_CONDITION_SATISFIED")
+        scope = review_gate.get("delivery_scope") if isinstance(review_gate, Mapping) else None
+        return _out("COMPLETE", "DIRECTOR_ACCEPTANCE_CONDITION_SATISFIED", **({"delivery_scope": scope} if scope else {}))
     return _incomplete(authority, artifacts, assignment_id)
 
 

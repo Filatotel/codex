@@ -50,6 +50,10 @@ Global skill library, unrelated engines, verifier narrative used as a substitute
 11. If status is `ADMISSIBLE`, emit a durable Director Decision and exact next `ASSIGNMENT` containing the exact compiled-assignment, destination, capability profile/admissibility and route refs, required capabilities, mandatory evidence paths, selected execution mode, and `execution_contract.proof_status=PROVEN`.
 12. End every substantive turn in exactly one state: `ASSIGN`, `WAIT`, `ESCALATE`, or `COMPLETE`.
 
+### Risk-tiered PR promotion — Issue #61
+
+Before admitting a PR review/promotion, classify the real diff impact V1 (local technical), V2 (business contract), V3 (foundation/architecture), or V4 (migration/replacement/destructive transition). Source required business outcomes from the governing Issue and approved Owner/Canon target, never the PR's own implementation narrative. For V2–V4, bind a structured `transition_authority.review_gate` containing the governing Issue reference, independent business-outcome claim, and the additional target/progress or transition claims appropriate to the tier. A staged foundation can satisfy a limited governed dependency, not the overall project outcome. Independent Verification must confirm every required elevated claim before a COMPLETE promotion baton. Do not invent Owner/Canon authority; honor existing Owner decisions and escalate only genuinely new decisions.
+
 ### Structured post-spawn transition authority
 
 The production post-spawn composition surface is

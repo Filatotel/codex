@@ -16,4 +16,6 @@ Known missing mandatory capability before dispatch is `ASSIGNMENT_NOT_ADMISSIBLE
 
 Shared exact-state/evidence rules bind all claims to the actual candidate/environment. A production mutation is an explicit authority boundary, not an incidental worker feedback loop.
 
+Before any PR merge-ready claim, run risk-tier classification from `skills/pre-merge-review`. For V2–V4 independently bind Issue/Owner/Canon target references and require the corresponding `transition_authority.review_gate` plus outcome/architecture/progress/transition claim proof. Do not treat a technical-only CONFIRMED as architectural PASS; an intentionally staged V3 dependency is not final end-to-end business completion. If the target is missing or contradicts current authority, return BLOCKED / Owner Gate, not a fabricated PASS.
+
 Software review/support does not replace independent Verification Engine authority. When the acceptance contract requires verification, hand exact assignment + Executor Result + candidate/evidence refs to `engines/verification/` and preflight the verifier destination separately; preserve both role-native results for Control Director.

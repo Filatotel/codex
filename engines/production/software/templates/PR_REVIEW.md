@@ -7,6 +7,11 @@
 - Target branch:
 - Task goal:
 - Change type:
+- Verification tier: V1 / V2 / V3 / V4 (based on actual diff)
+- Exact candidate SHA:
+- Governing Issue/business outcome:
+- Approved target/Canon/Owner decision reference (V3/V4):
+- Delivery scope: FULL / STAGED
 
 ## Files reviewed
 
@@ -22,6 +27,17 @@
 | Tests | TODO | TODO |
 | Manual QA | TODO | TODO |
 | Cloudflare/config | TODO | TODO |
+
+## Independent business / target proof (V2–V4)
+
+| Claim | Governing reference | Direct evidence / exact state | Verdict |
+|---|---|---|---|
+| Intended business outcome (V2+) | TODO | TODO | TODO |
+| Target architecture / protected invariants (V3+) | TODO | TODO | TODO |
+| Verified progress or necessary stage dependency (V3+) | TODO | TODO | TODO |
+| Migration/cutover safety and Owner authority (V4) | TODO | TODO | TODO |
+
+A technical-only PASS does not constitute target alignment. STAGED completion is not final product completion.
 
 ## Blockers
 
