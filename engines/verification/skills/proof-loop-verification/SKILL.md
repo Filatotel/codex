@@ -36,6 +36,12 @@ Produce or update a task evidence artifact containing:
 - authority decision status where applicable;
 - final verdict: PASS, PARTIAL, BLOCKED, or FAIL.
 
+## Architecture-sensitive completion (Issue #61)
+
+Use the risk tier selected by the governing Control/Software review. V1 verifies scoped technical acceptance. V2 additionally verifies the **governing Issue's business outcome**, not just that code matches its author's implementation. V3 verifies the **current authoritative target architecture and a specific demonstrated progress/dependency delta**. V4 additionally verifies transition/migration safety and required Owner decisions. Cite the original target authority; a PR or its tests cannot establish its own target.
+
+For V2–V4 bind distinct claim IDs in `transition_authority.review_gate`, independently assess them, and supply direct evidence refs per verified claim. Mark missing/contradictory target authority and unproven architecture/business effects as NOT_PROVEN/BLOCKED; never promote a local technical CONFIRMED. A STAGED verdict is for the explicit stage's completed dependency, not a claim that the whole product flow is ready. Do not perform a global architecture audit for a genuine V1 microfix.
+
 ## Procedure
 
 ### 1. Restate the acceptance criteria as claims
