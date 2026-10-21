@@ -23,11 +23,16 @@ Ordinary execution does not scan the whole skill library. Final SBC/PAK transpor
 
 ## Current materialized engines
 
-- **Production / Software** — the accepted Codex engineering knowledge, now bounded under `engines/production/software/`.
-- **Verification** — independent completion-claim verification using shared exact-state and evidence contracts.
-- **Research** — the machine-only Research Engine registered by `SYSTEM_MANIFEST.yaml`, with fail-closed question/work-package admission, source/experiment/freeze validation, and bounded automated regression enforcement.
+The authoritative runtime registry is `SYSTEM_MANIFEST.yaml`. On the current `main`, these engines are available:
 
-Canon, Foundation, and other production-domain engines are explicitly planned but **not materialized** in this wave. The Canon Engine is expected to arrive through a separate migration wave rather than being improvised here.
+- **Canon** — governed Canon formation, reconciliation, validation, freeze and change management under `engines/canon/`. This does **not** grant agents Owner/Canon mutation authority.
+- **Production / Software** — bounded engineering, implementation and review under `engines/production/software/`.
+- **Verification** — independent claim verification with shared exact-state and evidence contracts under `engines/verification/`. A technical PASS alone does not prove alignment with the approved business outcome or target architecture.
+- **Research** — machine-only research admission, execution contracts and reconciliation under `engines/research/`.
+
+**Foundation is not yet active in `main`.** Its existing [draft PR #98](https://github.com/Filatotel/codex/pull/98) provides the cognitive/formation baseline under Issue #53; current acceptance additionally requires a Project Topology contract before persistent project-content materialization. Do not route into Foundation until the engine is admitted into the registry. Other production-domain engines remain deferred.
+
+To select a capability, load only the registered engine and required workflow/skills, never the full historical skill index.
 
 ## Shared system layer
 
@@ -48,8 +53,10 @@ A **Core Principle is not a Solution Pattern**. Core reasoning laws stay broad; 
 
 Canonical project state must survive in durable artifacts, not chat history. An artifact can carry a result or claim, but `ARTIFACT != EVIDENCE`: evidence must independently support the claim. Execution and verification outputs therefore remain separate, and authority controls whether state actually changes.
 
-## Migration scope
+## Historical migration boundary and ongoing work
 
-Wave 1 creates the structural baseline only. It does not import the Canon repository, author Foundation or other planned engines, implement the proposed capability waves in issues #23/#24, build a full autonomous scheduler, rename the repository, or turn technology-specific patterns into system architecture.
+The original Wave 1 migrated the legacy Codex Software Playbook into bounded namespaces. Later work materialized Canon, Research, independent Verification, Owner Interface and controlled execution/transition contracts. **The original Wave 1 exclusions are historical, not a description of what `main` lacks today.**
 
-See `ARCHITECTURE_MIGRATION_MAP.md` for exact legacy accounting and migration ownership.
+Current outstanding work is tracked in [Issue #53](https://github.com/Filatotel/codex/issues/53) (Foundation + Topology), [Issue #61](https://github.com/Filatotel/codex/issues/61) (Architecture Health; the risk-tiered target-alignment slice was merged in #101), and [Issue #77](https://github.com/Filatotel/codex/issues/77) (V0 manual operation; SBC Browser/PAK transport deferred).
+
+`ARCHITECTURE_MIGRATION_MAP.md` and `CANON_ENGINE_MIGRATION_MAP.md` are historical migration-accounting records, **not** live routing or implementation authority. Use the current manifest, Router, applicable Issue and approved Canon/Owner decisions for active work.
