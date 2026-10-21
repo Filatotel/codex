@@ -1,7 +1,6 @@
 """PR target-alignment negative controls for Issue #61."""
 from __future__ import annotations
 
-from copy import deepcopy
 import json
 from pathlib import Path
 import unittest

@@ -154,23 +154,23 @@ def validate_director_decision(decision: Mapping[str, object]) -> list[str]:
             if extra := sorted(set(gate) - permitted):
                 errors.append(f"review_gate unexpected fields: {extra}")
             tier = gate.get("tier")
-            if tier not in {"V2", "V3", "V4"}:
+            if not isinstance(tier, str) or tier not in {"V2", "V3", "V4"}:
                 errors.append("review_gate.tier must be V2, V3 or V4")
             required = {"issue_ref", "outcome_claim_id", "delivery_scope"}
             if tier in {"V3", "V4"}:
                 required |= {"target_ref", "architecture_claim_id", "progress_claim_id"}
             if tier == "V4":
                 required |= {"transition_claim_id", "transition_mode"}
-            if gate.get("transition_mode") in {"REPLACEMENT_PRESERVE", "DESTRUCTIVE_CUTOVER"}:
+            if isinstance(gate.get("transition_mode"), str) and gate["transition_mode"] in {"REPLACEMENT_PRESERVE", "DESTRUCTIVE_CUTOVER"}:
                 required.add("owner_decision_ref")
             for field in required:
                 if not isinstance(gate.get(field), str) or not gate[field].strip():
                     errors.append(f"review_gate.{field} must be non-empty")
             if gate.get("delivery_scope") not in {"FULL", "STAGED"}:
                 errors.append("review_gate.delivery_scope is invalid")
-            if "transition_mode" in gate and gate["transition_mode"] not in {
+            if "transition_mode" in gate and (not isinstance(gate["transition_mode"], str) or gate["transition_mode"] not in {
                 "MIGRATION", "REPLACEMENT_PRESERVE", "DESTRUCTIVE_CUTOVER"
-            }:
+            }):
                 errors.append("review_gate.transition_mode is invalid")
             if not authority.get("verification_required"):
                 errors.append("review_gate requires independent verification")
@@ -180,7 +180,7 @@ def validate_director_decision(decision: Mapping[str, object]) -> list[str]:
             if tier == "V4":
                 claim_fields.append("transition_claim_id")
             claim_ids = [gate.get(field) for field in claim_fields]
-            if len(claim_ids) != len(set(claim_ids)):
+            if len(claim_ids) != len(set(str(item) for item in claim_ids)):
                 errors.append("review_gate claim identities must be distinct")
     return errors
 
