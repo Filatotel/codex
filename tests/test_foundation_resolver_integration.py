@@ -12,6 +12,8 @@ FOUNDATION_OUTPUTS = [
     "foundation:project-seed",
     "foundation:project-outcome",
     "foundation:consequential-unknown-map",
+    "foundation:topology-plan",
+    "foundation:topology-bootstrap",
 ]
 
 
@@ -30,13 +32,13 @@ def foundation_bundle() -> dict:
 
 
 class FoundationResolverIntegrationTest(unittest.TestCase):
-    def test_foundation_uses_generic_spawn_with_three_durable_outputs(self) -> None:
+    def test_foundation_uses_generic_spawn_with_topology_outputs(self) -> None:
         value = foundation_bundle()
         value["selected_prerequisite_actions"] = [
             {
                 "action_id": "foundation-durable-working-state",
                 "required_capabilities": ["durable_artifact_write"],
-                "evidence_path": "three Foundation working artifacts via declared durable system of record",
+                "evidence_path": "Foundation working state and one logical topology bootstrap via declared durable system of record",
             }
         ]
         value["assignment_draft_semantics"]["required_durable_outputs"] = list(FOUNDATION_OUTPUTS)

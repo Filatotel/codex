@@ -31,6 +31,10 @@ ROOT_REQUIRED = [
     "engines/foundation/schemas/project-seed.schema.json",
     "engines/foundation/schemas/project-outcome.schema.json",
     "engines/foundation/schemas/consequential-unknown-map.schema.json",
+    "engines/foundation/schemas/topology-plan.schema.json",
+    "engines/foundation/schemas/topology-bootstrap.schema.json",
+    "engines/foundation/skills/plan-project-topology/SKILL.md",
+    "tools/project_topology.py",
 ]
 
 ROLE_REQUIRED_SECTIONS = [

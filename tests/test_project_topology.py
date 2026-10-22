@@ -14,7 +14,10 @@ from tools.project_topology import (
 
 def plan():
     return {
-        "artifact_type": "TOPOLOGY_PLAN", "status": "WORKING", "authoritative": False,
+        "artifact_type": "TOPOLOGY_PLAN", "artifact_id": "TOPOLOGY-PLAN-1",
+        "produced_by_role": "executor", "assignment_id": "ASSIGN-FOUNDATION-1",
+        "input_state_ref": "OWNER-SEED-1", "related_artifacts": [],
+        "status": "WORKING", "authoritative": False,
         "project_id": "project-1", "storage_mode": "DRIVE_THEN_REPO",
         "root_index": "INDEX.md", "provenance": ["OWNER-SEED-1"],
         "namespaces": [

@@ -37,9 +37,10 @@ FOUNDATION_SKILLS = (
     "develop-project-seed",
     "define-project-outcome",
     "classify-consequential-unknowns",
+    "plan-project-topology",
     "design-discovery",
 )
-REQUIRED_FOUNDATION_SKILLS = FOUNDATION_SKILLS[:3]
+REQUIRED_FOUNDATION_SKILLS = FOUNDATION_SKILLS[:4]
 
 
 def load_schema(name: str) -> dict:
@@ -254,8 +255,12 @@ class FoundationMaterializationTest(unittest.TestCase):
     def test_foundation_workflow_readiness_requires_generic_durable_completion_and_stops_before_authority(self) -> None:
         workflow = load_text(WORKFLOW_PATH, "Foundation formation workflow")
         lower = workflow.lower()
-        for artifact_type in ("PROJECT_SEED", "PROJECT_OUTCOME", "CONSEQUENTIAL_UNKNOWN_MAP"):
+        for artifact_type in ("PROJECT_SEED", "PROJECT_OUTCOME", "CONSEQUENTIAL_UNKNOWN_MAP",
+                              "TOPOLOGY_PLAN", "PROJECT_TOPOLOGY_BOOTSTRAP",
+                              "PROJECT_INDEX", "TOPOLOGY_MANIFEST"):
             self.assertIn(artifact_type, workflow)
+        self.assertIn("TOPOLOGY_ADMITTED", workflow)
+        self.assertIn("cold-start", workflow.lower())
         self.assertIn("FOUNDATION_READY_FOR_OWNER_GATE", workflow)
         self.assertIn("required_durable_outputs", workflow)
         self.assertIn("durable_output_refs", workflow)

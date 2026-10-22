@@ -62,13 +62,23 @@ def _canonical_bytes(value: Mapping) -> bytes:
 def _validate_plan(plan: Mapping) -> tuple[str, list[dict], str]:
     if not isinstance(plan, Mapping):
         raise TopologyError("TOPOLOGY_PLAN_REQUIRED")
-    if set(plan) != {"artifact_type", "status", "authoritative", "project_id", "storage_mode",
-                     "root_index", "namespaces", "provenance"}:
+    if set(plan) != {"artifact_type", "artifact_id", "produced_by_role", "assignment_id",
+                     "input_state_ref", "status", "provenance", "related_artifacts",
+                     "authoritative", "project_id", "storage_mode", "root_index", "namespaces"}:
         raise TopologyError("TOPOLOGY_PLAN_MALFORMED")
     if plan["artifact_type"] != "TOPOLOGY_PLAN" or plan["status"] != "WORKING" or plan["authoritative"] is not False:
         raise TopologyError("TOPOLOGY_PLAN_AUTHORITY_INVALID")
+    if not all(isinstance(plan[key], str) and plan[key].strip()
+               for key in ("artifact_id", "produced_by_role", "input_state_ref")):
+        raise TopologyError("TOPOLOGY_PLAN_IDENTITY_INVALID")
+    if plan["assignment_id"] is not None and (not isinstance(plan["assignment_id"], str) or not plan["assignment_id"].strip()):
+        raise TopologyError("TOPOLOGY_PLAN_IDENTITY_INVALID")
+    if not isinstance(plan["related_artifacts"], list) or not all(
+        isinstance(ref, str) and ref.strip() for ref in plan["related_artifacts"]
+    ):
+        raise TopologyError("TOPOLOGY_PLAN_IDENTITY_INVALID")
     project_id = _segment(plan["project_id"])
-    if plan["storage_mode"] not in _MODES:
+    if not isinstance(plan["storage_mode"], str) or plan["storage_mode"] not in _MODES:
         raise TopologyError("TOPOLOGY_STORAGE_MODE_INVALID")
     root_index = _path(plan["root_index"])
     if "/" in root_index:
@@ -152,7 +162,10 @@ def verify_bootstrap(port: DurableArtifactPort, system_of_record_ref: str, boots
         raise TopologyError("TOPOLOGY_SYSTEM_OF_RECORD_REQUIRED")
     if not isinstance(bootstrap_ref, str) or not bootstrap_ref.strip():
         raise TopologyError("TOPOLOGY_BOOTSTRAP_REF_REQUIRED")
-    observed = port.readback(system_of_record_ref, bootstrap_ref)
+    try:
+        observed = port.readback(system_of_record_ref, bootstrap_ref)
+    except Exception as exc:
+        raise TopologyError("TOPOLOGY_BOOTSTRAP_READBACK_NOT_PROVEN") from exc
     if (observed.status != RESOLVED or observed.system_of_record_ref != system_of_record_ref
             or observed.artifact_ref != bootstrap_ref or not isinstance(observed.payload, bytes)
             or not isinstance(observed.content_digest, str)):

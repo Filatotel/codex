@@ -6,6 +6,7 @@ owns:
   - project_outcome_working_state
   - consequential_unknown_classification
   - bounded_pre_canon_design_discovery
+  - initial_project_topology_and_navigation
 does_not_own:
   - k0
   - owner_authority
@@ -29,6 +30,8 @@ outputs:
   - PROJECT_SEED
   - PROJECT_OUTCOME
   - CONSEQUENTIAL_UNKNOWN_MAP
+  - TOPOLOGY_PLAN
+  - PROJECT_TOPOLOGY_BOOTSTRAP
   - executor_result
 entry_conditions:
   - task_semantically_belongs_to_foundation_engine
@@ -50,6 +53,9 @@ required_dependencies:
   - engines/foundation/schemas/project-seed.schema.json
   - engines/foundation/schemas/project-outcome.schema.json
   - engines/foundation/schemas/consequential-unknown-map.schema.json
+  - engines/foundation/schemas/topology-plan.schema.json
+  - engines/foundation/schemas/topology-bootstrap.schema.json
+  - tools/project_topology.py
 roles:
   executor: roles/executor/ROLE.md
   consumer: roles/control-director/ROLE.md
@@ -63,6 +69,7 @@ workflow_contracts:
       - engines/foundation/skills/develop-project-seed/SKILL.md
       - engines/foundation/skills/define-project-outcome/SKILL.md
       - engines/foundation/skills/classify-consequential-unknowns/SKILL.md
+      - engines/foundation/skills/plan-project-topology/SKILL.md
     optional_skills:
       - engines/foundation/skills/design-discovery/SKILL.md
     upstream_requirements:
@@ -95,4 +102,6 @@ formation_boundary:
   canon_mutation_authority: false
   automatic_research_dispatch: false
   production_authority: false
+  topology_admission_requires_independent_cold_start_readback: true
+  persistent_project_payload_requires_canonical_address: true
   terminal_status: FOUNDATION_READY_FOR_OWNER_GATE
