@@ -67,6 +67,21 @@ def _workflow_requirements(section: str | None) -> dict[str, dict[str, object]] 
         if re.fullmatch(r"    upstream_requirements:\s*", raw):
             in_requirements = True
             continue
+        durable = re.fullmatch(r"    required_durable_output_ids:\s*(\[.*\])\s*", raw)
+        if durable:
+            if "required_durable_output_ids" in workflows[current]:
+                return None
+            try:
+                ids = json.loads(durable.group(1))
+            except json.JSONDecodeError:
+                return None
+            if (not isinstance(ids, list) or not ids
+                    or not all(isinstance(item, str) and item.strip() for item in ids)
+                    or len(ids) != len(set(ids))):
+                return None
+            workflows[current]["required_durable_output_ids"] = ids
+            in_requirements = False
+            continue
         if re.fullmatch(r"    [a-z0-9_]+:.*", raw):
             in_requirements = False
             continue
@@ -307,4 +322,5 @@ def resolve_workflow_contract(
         "contract_source": contract.get("source"),
         "requirement_ids": requirement_ids,
         "proof_refs": list(dict.fromkeys(proof_refs)),
+        "required_durable_output_ids": workflow.get("required_durable_output_ids", []),
     }

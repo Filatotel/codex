@@ -56,6 +56,15 @@ class FoundationResolverIntegrationTest(unittest.TestCase):
         self.assertEqual(result["assignment"]["required_durable_outputs"], FOUNDATION_OUTPUTS)
         self.assertEqual(result["assignment"]["durable_system_of_record_ref"], "SOR-FOUNDATION-V0")
 
+    def test_topology_bootstrap_cannot_be_omitted_from_generic_spawn(self) -> None:
+        value = foundation_bundle()
+        value["assignment_draft_semantics"]["required_durable_outputs"] = FOUNDATION_OUTPUTS[:3]
+        value["assignment_draft_semantics"]["durable_system_of_record_ref"] = "SOR-FOUNDATION-V0"
+        result = resolve_spawn(value)
+        self.assertEqual((result["control_state"], result["reason"]),
+                         ("ESCALATE", "WORKFLOW_REQUIRED_OUTPUTS_MISMATCH"), result)
+        self.assertNotIn("assignment", result)
+
     def test_foundation_prerequisite_is_real_and_cannot_be_masked_by_durable_action(self) -> None:
         value = bundle("foundation", "form_project_foundation", "form_project_foundation")
         value["selected_prerequisite_actions"] = [

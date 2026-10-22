@@ -232,12 +232,12 @@ def materialize_project_payload(port: DurableArtifactPort, system_of_record_ref:
             "system_of_record_ref": system_of_record_ref, "topology_ref": bootstrap_ref}
 
 
-def classify_topology_change(old: TopologyAdmission, new_plan: Mapping,
-                             *, owner_decision_ref: str | None = None,
-                             replacement_strategy: str | None = None,
-                             migration_readback_proven: bool = False,
-                             old_current_retired: bool = False) -> str:
-    """Existing semantic addresses cannot be silently replaced or duplicated."""
+def classify_topology_change(old: TopologyAdmission, new_plan: Mapping) -> str:
+    """Classify only. Existing Owner/architecture machinery decides replacement.
+
+    A ref or boolean supplied by a worker is not a verified Owner decision.
+    No second authority gate or replacement materializer is created here.
+    """
     project_id, proposed, new_root = _validate_plan(new_plan)
     if project_id != old.project_id:
         raise TopologyError("TOPOLOGY_PROJECT_IDENTITY_MISMATCH")
@@ -246,10 +246,6 @@ def classify_topology_change(old: TopologyAdmission, new_plan: Mapping,
     replacement = old.manifest["root_index"] != new_root or any(
         cls not in updated or updated[cls] != entry for cls, entry in previous.items()
     )
-    if not replacement:
-        return "TOPOLOGY_EXTENSION" if previous != updated else "TOPOLOGY_UNCHANGED"
-    if (replacement_strategy not in {"PRESERVE_MIGRATE", "DESTRUCTIVE_CUTOVER"}
-            or not isinstance(owner_decision_ref, str) or not owner_decision_ref.strip()
-            or not migration_readback_proven or not old_current_retired):
-        raise TopologyError("TOPOLOGY_REPLACEMENT_OWNER_GATE_REQUIRED")
-    return "TOPOLOGY_REPLACEMENT_AUTHORIZED"
+    if replacement:
+        return "TOPOLOGY_REPLACEMENT_OWNER_GATE_REQUIRED"
+    return "TOPOLOGY_EXTENSION" if previous != updated else "TOPOLOGY_UNCHANGED"

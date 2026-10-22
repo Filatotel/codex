@@ -268,6 +268,15 @@ def resolve_spawn(
     missing_semantics = [field for field in SEMANTIC_FIELDS if field not in semantics]
     if missing_semantics:
         return _out("ESCALATE", "MISSING_ASSIGNMENT_SEMANTICS", errors=missing_semantics)
+    required_workflow_outputs = workflow_proof.get("required_durable_output_ids", [])
+    if required_workflow_outputs:
+        declared_outputs = semantics.get("required_durable_outputs")
+        if (not isinstance(declared_outputs, list)
+                or len(declared_outputs) != len(required_workflow_outputs)
+                or not all(isinstance(item, str) for item in declared_outputs)
+                or set(declared_outputs) != set(required_workflow_outputs)):
+            return _out("ESCALATE", "WORKFLOW_REQUIRED_OUTPUTS_MISMATCH",
+                        engine_id=decision["engine_id"], workflow_id=decision["workflow_id"])
 
     reconciliation_inputs = None
     if reconciliation_selected:

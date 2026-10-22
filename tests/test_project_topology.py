@@ -102,12 +102,8 @@ class ProjectTopologyTest(unittest.TestCase):
             replaced = plan()
             replaced["namespaces"][0]["prefix"] = "knowledge/findings"
             replaced["namespaces"][0]["index"] = "knowledge/findings/INDEX.md"
-            self.assert_code("TOPOLOGY_REPLACEMENT_OWNER_GATE_REQUIRED", lambda:
-                classify_topology_change(old, replaced))
-            self.assertEqual(classify_topology_change(old, replaced,
-                owner_decision_ref="OWNER-53", replacement_strategy="PRESERVE_MIGRATE",
-                migration_readback_proven=True, old_current_retired=True),
-                "TOPOLOGY_REPLACEMENT_AUTHORIZED")
+            self.assertEqual(classify_topology_change(old, replaced),
+                             "TOPOLOGY_REPLACEMENT_OWNER_GATE_REQUIRED")
 
     def test_undeclared_current_canon_is_not_invented(self):
         output = build_bootstrap(plan())

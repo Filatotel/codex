@@ -72,6 +72,7 @@ workflow_contracts:
       - engines/foundation/skills/plan-project-topology/SKILL.md
     optional_skills:
       - engines/foundation/skills/design-discovery/SKILL.md
+    required_durable_output_ids: ["foundation:project-seed","foundation:project-outcome","foundation:consequential-unknown-map","foundation:topology-plan","foundation:topology-bootstrap"]
     upstream_requirements:
       - {"proof_class":"ARTIFACT_REF","require_provenance":true,"requirement_id":"exact_owner_or_supplied_project_material"}
 skill_namespaces:
