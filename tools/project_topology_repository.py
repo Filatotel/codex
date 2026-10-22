@@ -14,12 +14,12 @@ import shutil
 import tempfile
 
 from tools.project_topology import (TopologyAdmission, TopologyError, _canonical_bytes,
-                                   resolve_address, verify_bootstrap, materialize_project_payload)
+                                   resolve_address, verify_bootstrap, materialize_project_payload,
+                                   classify_topology_change, materialize_bootstrap)
 from tools.durable_artifact_port import DurableArtifactPort
 
 
 MANIFEST_NAME = "TOPOLOGY_MANIFEST.json"
-CURRENT_NAME = "TOPOLOGY_CURRENT.json"
 
 
 def _root_index_bytes(admission: TopologyAdmission) -> bytes:
@@ -27,8 +27,6 @@ def _root_index_bytes(admission: TopologyAdmission) -> bytes:
         "# Project Index\n\n"
         f"Project: {admission.project_id}\n\n"
         f"Topology manifest: {MANIFEST_NAME}\n\n"
-        f"Current topology: {CURRENT_NAME}\n\n"
-        f"Topology durable ref: {admission.bootstrap_ref}\n\n"
         "Current Canon: NOT_SET (Owner gate not executed)\n\n"
         "Read the topology manifest to navigate semantic namespaces.\n"
     ).encode("utf-8")
@@ -47,14 +45,15 @@ def _namespace_index_bytes(entry: dict) -> bytes:
 def _expected_files(admission: TopologyAdmission) -> dict[str, bytes]:
     if admission.manifest.get("storage_mode") not in {"REPO_ONLY", "DRIVE_THEN_REPO"}:
         raise TopologyError("REPOSITORY_MODE_NOT_SELECTED")
+    if admission.manifest["root_index"] == MANIFEST_NAME:
+        raise TopologyError("TOPOLOGY_NAMESPACE_COLLISION")
     files = {
         admission.manifest["root_index"]: _root_index_bytes(admission),
-        MANIFEST_NAME: _canonical_bytes(admission.manifest),
-        CURRENT_NAME: _canonical_bytes({
+        MANIFEST_NAME: _canonical_bytes({
             "project_id": admission.project_id,
-            "topology_ref": admission.bootstrap_ref,
+            "current_topology_ref": admission.bootstrap_ref,
             "content_digest": admission.digest,
-            "manifest": MANIFEST_NAME,
+            "manifest": admission.manifest,
         }),
     }
     for entry in admission.manifest["namespaces"]:
@@ -112,21 +111,15 @@ def _verify_repository_files(root: Path, admission: TopologyAdmission) -> dict:
     if index_data != expected[admission.manifest["root_index"]]:
         raise TopologyError("COLD_START_ROOT_INDEX_INVALID")
     manifest_line = f"Topology manifest: {MANIFEST_NAME}".encode("utf-8")
-    current_line = f"Current topology: {CURRENT_NAME}".encode("utf-8")
-    if manifest_line not in index_data or current_line not in index_data:
+    if manifest_line not in index_data:
         raise TopologyError("COLD_START_TOPOLOGY_LINK_MISSING")
     try:
-        current = json.loads((root / CURRENT_NAME).read_bytes())
-    except (OSError, ValueError, UnicodeDecodeError) as exc:
-        raise TopologyError("COLD_START_CURRENT_POINTER_INVALID") from exc
-    if current != json.loads(expected[CURRENT_NAME]):
-        raise TopologyError("TOPOLOGY_CURRENT_REF_STALE")
-    try:
-        manifest = json.loads((root / MANIFEST_NAME).read_bytes())
+        carrier = json.loads((root / MANIFEST_NAME).read_bytes())
     except (OSError, ValueError, UnicodeDecodeError) as exc:
         raise TopologyError("COLD_START_MANIFEST_INVALID") from exc
-    if manifest != admission.manifest:
-        raise TopologyError("COLD_START_MANIFEST_MISMATCH")
+    if carrier != json.loads(expected[MANIFEST_NAME]):
+        raise TopologyError("TOPOLOGY_CURRENT_REF_STALE")
+    manifest = carrier["manifest"]
     observed_indexes = {}
     for entry in manifest["namespaces"]:
         rel = entry["index"]
@@ -250,3 +243,61 @@ def materialize_repository_payload(
     readback = verify_repository_shell(root, admission)
     return {**materialized, "physical_readback": readback["status"],
             "physical_digest": readback["physical_digest"]}
+
+
+def extend_repository_shell(
+    root: str | Path,
+    port: DurableArtifactPort,
+    system_of_record_ref: str,
+    current_ref: str,
+    extended_plan: dict,
+) -> dict:
+    """Add semantic namespaces while preserving every previous canonical address.
+
+    The same stable TOPOLOGY_MANIFEST.json is the only current topology carrier.
+    Publishing that one file is the commit boundary; pre-staged new namespace
+    indexes cannot become current through directory enumeration.
+    """
+    old = verify_bootstrap(port, system_of_record_ref, current_ref)
+    root = Path(root)
+    verify_repository_shell(root, old)  # stale caller ref is rejected
+    outcome = classify_topology_change(old, extended_plan)
+    if outcome == "TOPOLOGY_REPLACEMENT_OWNER_GATE_REQUIRED":
+        raise TopologyError(outcome)
+    if outcome == "TOPOLOGY_UNCHANGED":
+        return verify_repository_shell(root, old)
+    if outcome != "TOPOLOGY_EXTENSION":
+        raise TopologyError("TOPOLOGY_CHANGE_INVALID")
+    new_ref = materialize_bootstrap(port, system_of_record_ref, extended_plan)
+    new = verify_bootstrap(port, system_of_record_ref, new_ref)
+    old_classes = {entry["artifact_class"] for entry in old.manifest["namespaces"]}
+    expected = _expected_files(new)
+    # Added files are not authoritative until the single current-carrier replace.
+    try:
+        for entry in new.manifest["namespaces"]:
+            if entry["artifact_class"] in old_classes:
+                continue
+            dest = root / entry["index"]
+            if dest.exists() or dest.is_symlink():
+                raise TopologyError("TOPOLOGY_NAMESPACE_COLLISION")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            staged = dest.with_name("." + dest.name + ".staged")
+            with staged.open("xb") as out:
+                out.write(expected[entry["index"]])
+            os.replace(staged, dest)
+        manifest_path = root / MANIFEST_NAME
+        staged = manifest_path.with_name("." + MANIFEST_NAME + ".staged")
+        with staged.open("xb") as out:
+            out.write(expected[MANIFEST_NAME])
+        # Atomic current-carrier cutover. Old topology cannot remain current.
+        os.replace(staged, manifest_path)
+    except OSError as exc:
+        raise TopologyError("TOPOLOGY_EXTENSION_WRITE_FAILED") from exc
+    finally:
+        # Best effort cleanup of staging files; keep unindexed namespace evidence.
+        for entry in new.manifest["namespaces"]:
+            if entry["artifact_class"] not in old_classes:
+                (root / entry["index"]).with_name("." + Path(entry["index"]).name + ".staged").unlink(missing_ok=True)
+        (root / ("." + MANIFEST_NAME + ".staged")).unlink(missing_ok=True)
+    proof = verify_repository_shell(root, new)
+    return {**proof, "previous_topology_ref": current_ref, "extension_status": "TOPOLOGY_EXTENSION"}

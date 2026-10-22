@@ -243,7 +243,8 @@ def classify_topology_change(old: TopologyAdmission, new_plan: Mapping) -> str:
         raise TopologyError("TOPOLOGY_PROJECT_IDENTITY_MISMATCH")
     previous = {entry["artifact_class"]: entry for entry in old.manifest["namespaces"]}
     updated = {entry["artifact_class"]: entry for entry in proposed}
-    replacement = old.manifest["root_index"] != new_root or any(
+    replacement = (old.manifest["root_index"] != new_root
+                   or old.manifest["storage_mode"] != new_plan["storage_mode"]) or any(
         cls not in updated or updated[cls] != entry for cls, entry in previous.items()
     )
     if replacement:
