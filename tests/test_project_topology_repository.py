@@ -8,7 +8,7 @@ from tests.test_project_topology import plan
 from tools.durable_artifact_port import LocalFileDurableReferencePort
 from tools.project_topology import TopologyError, materialize_bootstrap, verify_bootstrap
 from tools.project_topology_repository import (
-    materialize_repository_shell, verify_repository_shell, MANIFEST_NAME
+    materialize_repository_shell, verify_repository_shell, materialize_repository_payload, MANIFEST_NAME, CURRENT_NAME
 )
 
 
@@ -53,6 +53,41 @@ class RepositoryTopologyShellTest(unittest.TestCase):
             with self.assertRaises(TopologyError) as ctx:
                 verify_repository_shell(root, admission)
             self.assertEqual(ctx.exception.code, "COLD_START_NAMESPACE_INVALID")
+
+    def test_payload_updates_physical_namespace_index_and_fresh_consumer_finds_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            port = LocalFileDurableReferencePort(parent / "durable", "SOR-1")
+            ref = materialize_bootstrap(port, "SOR-1", plan())
+            admission = verify_bootstrap(port, "SOR-1", ref)
+            root = parent / "project"
+            materialize_repository_shell(root, admission)
+            value = materialize_repository_payload(root, port, "SOR-1", ref,
+                "FINDING", "F-17", b"Finding one", scope={"workstream_id": "R-017"})
+            self.assertEqual(value["physical_readback"], "COLD_START_PROVEN")
+            self.assertEqual((root / "research/findings/R-017/F-17").read_bytes(), b"Finding one")
+            fresh = verify_repository_shell(root, admission)
+            self.assertEqual(fresh["status"], "COLD_START_PROVEN")
+            with self.assertRaises(TopologyError) as raised:
+                materialize_repository_payload(root, port, "SOR-1", ref,
+                    "FINDING", "F-17", b"overwrite", scope={"workstream_id": "R-017"})
+            self.assertEqual(raised.exception.code, "CANONICAL_ADDRESS_ALREADY_EXISTS")
+
+    def test_stale_current_topology_fails_before_payload_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            port = LocalFileDurableReferencePort(parent / "durable", "SOR-1")
+            ref = materialize_bootstrap(port, "SOR-1", plan())
+            admission = verify_bootstrap(port, "SOR-1", ref)
+            root = parent / "project"
+            materialize_repository_shell(root, admission)
+            pointer = root / CURRENT_NAME
+            pointer.write_text('{"topology_ref":"superseded"}')
+            with self.assertRaises(TopologyError) as raised:
+                materialize_repository_payload(root, port, "SOR-1", ref,
+                    "CANON", "current", b"not-written")
+            self.assertEqual(raised.exception.code, "TOPOLOGY_CURRENT_REF_STALE")
+            self.assertFalse((root / "canon/current/current").exists())
 
     def test_drive_only_is_not_misreported_as_repository_shell(self):
         with tempfile.TemporaryDirectory() as directory:
