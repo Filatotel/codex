@@ -216,9 +216,20 @@ def resolve_address(admission: TopologyAdmission, artifact_class: str, artifact_
 def materialize_project_payload(port: DurableArtifactPort, system_of_record_ref: str,
                                 bootstrap_ref: str, artifact_class: str, artifact_id: str,
                                 payload: bytes, *, scope: Mapping[str, str] | None = None,
-                                proposed_address: str | None = None):
+                                proposed_address: str | None = None,
+                                current_topology_ref_reader=None):
     """Mandatory semantic admission front door for permanent project payload writers."""
     admission = verify_bootstrap(port, system_of_record_ref, bootstrap_ref)
+    # A readable historic bootstrap is not proof that it remains CURRENT.
+    # Control/provider supplies the independent stable-current-carrier reader.
+    if not callable(current_topology_ref_reader):
+        raise TopologyError("TOPOLOGY_CURRENT_REF_READBACK_REQUIRED")
+    try:
+        current_ref = current_topology_ref_reader(admission.project_id, system_of_record_ref)
+    except Exception as exc:
+        raise TopologyError("TOPOLOGY_CURRENT_REF_READBACK_REQUIRED") from exc
+    if current_ref != bootstrap_ref:
+        raise TopologyError("TOPOLOGY_CURRENT_REF_STALE")
     address = resolve_address(admission, artifact_class, artifact_id, scope)
     if proposed_address is not None and proposed_address != address:
         raise TopologyError("TOPOLOGY_ADDRESS_MISMATCH")

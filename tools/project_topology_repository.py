@@ -216,6 +216,9 @@ def materialize_repository_payload(
     materialized = materialize_project_payload(
         port, system_of_record_ref, bootstrap_ref,
         artifact_class, artifact_id, payload, scope=scope,
+        current_topology_ref_reader=lambda project_id, sor: json.loads(
+            (root / MANIFEST_NAME).read_bytes()
+        )["current_topology_ref"],
     )
     item = {
         "artifact_id": artifact_id,

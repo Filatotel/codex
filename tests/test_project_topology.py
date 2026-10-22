@@ -29,6 +29,15 @@ def plan():
     }
 
 
+
+
+def admitted_payload(port, sor, ref, artifact_class, artifact_id, payload, **kwargs):
+    return materialize_project_payload(
+        port, sor, ref, artifact_class, artifact_id, payload,
+        current_topology_ref_reader=lambda project_id, system_of_record_ref: ref,
+        **kwargs,
+    )
+
 class ProjectTopologyTest(unittest.TestCase):
     def assert_code(self, code, fn):
         with self.assertRaises(TopologyError) as raised:
@@ -54,28 +63,28 @@ class ProjectTopologyTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             port = LocalFileDurableReferencePort(root, "SOR-1")
             self.assert_code("TOPOLOGY_BOOTSTRAP_READBACK_NOT_PROVEN", lambda:
-                materialize_project_payload(port, "SOR-1", "dar:v1:" + "0" * 64,
+                admitted_payload(port, "SOR-1", "dar:v1:" + "0" * 64,
                     "CANON", "current", b"payload"))
             ref = materialize_bootstrap(port, "SOR-1", plan())
             self.assert_code("TOPOLOGY_BOOTSTRAP_READBACK_NOT_PROVEN", lambda:
-                materialize_project_payload(port, "SOR-2", ref, "CANON", "current", b"payload"))
+                admitted_payload(port, "SOR-2", ref, "CANON", "current", b"payload"))
 
     def test_anti_entropy_before_each_payload_write(self):
         with tempfile.TemporaryDirectory() as root:
             port = LocalFileDurableReferencePort(root, "SOR-1")
             ref = materialize_bootstrap(port, "SOR-1", plan())
-            value = materialize_project_payload(port, "SOR-1", ref,
+            value = admitted_payload(port, "SOR-1", ref,
                  "FINDING", "F-7", b"result", scope={"workstream_id": "R-017"})
             self.assertEqual(value["canonical_address"], "research/findings/R-017/F-7")
             self.assert_code("TOPOLOGY_ADDRESS_MISMATCH", lambda:
-                materialize_project_payload(port, "SOR-1", ref, "FINDING", "F-8",
+                admitted_payload(port, "SOR-1", ref, "FINDING", "F-8",
                     b"result", scope={"workstream_id": "R-017"}, proposed_address="agent-1/F-8"))
             self.assert_code("TOPOLOGY_CHANGE_REQUIRED", lambda:
-                materialize_project_payload(port, "SOR-1", ref, "SOURCE", "S-1", b"source"))
+                admitted_payload(port, "SOR-1", ref, "SOURCE", "S-1", b"source"))
             self.assert_code("TOPOLOGY_SCOPE_INVALID", lambda:
-                materialize_project_payload(port, "SOR-1", ref, "FINDING", "F-9", b"result"))
+                admitted_payload(port, "SOR-1", ref, "FINDING", "F-9", b"result"))
             self.assert_code("TOPOLOGY_SEMANTIC_ID_INVALID", lambda:
-                materialize_project_payload(port, "SOR-1", ref, "CANON", "../evil", b"bad"))
+                admitted_payload(port, "SOR-1", ref, "CANON", "../evil", b"bad"))
 
     def test_plan_disallows_parallel_or_ad_hoc_namespace(self):
         changed = plan()
@@ -89,6 +98,16 @@ class ProjectTopologyTest(unittest.TestCase):
         changed = plan()
         changed["authoritative"] = True
         self.assert_code("TOPOLOGY_PLAN_AUTHORITY_INVALID", lambda: build_bootstrap(changed))
+
+    def test_opaque_payload_cannot_bypass_current_ref_readback(self):
+        with tempfile.TemporaryDirectory() as root:
+            port = LocalFileDurableReferencePort(root, "SOR-1")
+            ref = materialize_bootstrap(port, "SOR-1", plan())
+            self.assert_code("TOPOLOGY_CURRENT_REF_READBACK_REQUIRED", lambda:
+                materialize_project_payload(port, "SOR-1", ref, "CANON", "current", b"payload"))
+            self.assert_code("TOPOLOGY_CURRENT_REF_STALE", lambda:
+                materialize_project_payload(port, "SOR-1", ref, "CANON", "current", b"payload",
+                    current_topology_ref_reader=lambda project_id, sor: "outdated"))
 
     def test_extension_vs_replacement_and_owner_gate(self):
         with tempfile.TemporaryDirectory() as root:
