@@ -167,6 +167,12 @@ workflow_contracts:
 skill_namespaces:
   canon_skills: engines/canon/skills/
   shared_core: kernel/skills/
+persistent_payload_capabilities:
+  - establish_canon_foundation
+  - reconcile_research_into_canon
+  - manage_production_canon_change
+  - final_canon_reconciliation
+  - reopen_canon
 capabilities:
   establish_canon_foundation: establish_canon_foundation
   register_canon_fact: establish_canon_foundation

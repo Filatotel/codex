@@ -83,6 +83,12 @@ roles:
   repair: AI_R_REPAIR
   adversarial_validator: AI_ADVERSARIAL_VALIDATOR
   release_controller: AI_RESEARCH_RELEASE_CONTROLLER
+persistent_payload_capabilities:
+  - plan_research_work
+  - execute_research_work
+  - run_research_experiment
+  - prepare_research_release
+  - reconcile_research_chain
 capabilities:
   admit_research_question: default_machine_research
   plan_research_work: default_machine_research

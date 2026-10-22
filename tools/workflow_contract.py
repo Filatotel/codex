@@ -324,3 +324,31 @@ def resolve_workflow_contract(
         "proof_refs": list(dict.fromkeys(proof_refs)),
         "required_durable_output_ids": workflow.get("required_durable_output_ids", []),
     }
+
+
+def requires_project_topology(engine_id: str, capability: str, *, root: Path = ROOT) -> bool:
+    """Read the Engine's own explicitly declared persistent-payload capabilities.
+
+    This is scope metadata, not new workflow authority. A read-only capability
+    does not acquire a write obligation merely because its Engine can write.
+    """
+    if not re.fullmatch(r"[a-z0-9_/-]+", engine_id) or ".." in engine_id.split("/"):
+        raise ValueError("ENGINE_CONTRACT_IDENTITY_INVALID")
+    path = root / "engines" / engine_id / "MANIFEST.yaml"
+    section = _top_level_section(path.read_text(encoding="utf-8"), "persistent_payload_capabilities")
+    if section is None:
+        return False
+    values = []
+    for line in section.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r"  - ([a-z0-9_]+)\s*", line)
+        if match is None:
+            raise ValueError("TOPOLOGY_WRITE_POLICY_MALFORMED")
+        values.append(match.group(1))
+    if len(values) != len(set(values)):
+        raise ValueError("TOPOLOGY_WRITE_POLICY_MALFORMED")
+    known = _simple_mapping(_top_level_section(path.read_text(encoding="utf-8"), "capabilities"))
+    if known is None or any(item not in known for item in values):
+        raise ValueError("TOPOLOGY_WRITE_POLICY_MALFORMED")
+    return capability in values
