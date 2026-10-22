@@ -170,7 +170,6 @@ skill_namespaces:
 persistent_payload_capabilities:
   - establish_canon_foundation
   - reconcile_research_into_canon
-  - manage_production_canon_change
   - final_canon_reconciliation
   - reopen_canon
 capabilities:
