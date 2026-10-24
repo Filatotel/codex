@@ -43,7 +43,7 @@ A plan should include:
 - non-goals;
 - dependencies and dependency type;
 - likely files/systems touched;
-- documentation impact for existing governing documents (affected paths or `NONE`);
+- completion delta: affected governing docs, and in-scope temporary/legacy mechanisms to retire where the authorized end state replaces them (or `NONE`);
 - high-risk areas;
 - implementation phases;
 - acceptance criteria;
@@ -77,6 +77,8 @@ List:
 - what explicitly must not change.
 
 Non-goals are especially important when adjacent architecture is tempting to clean up.
+
+For a staged replacement, migration, or temporary workaround, identify which in-scope aids are temporary and their authorized retirement point. Do not make them permanent architecture by omission or expand cleanup to unrelated historical artifacts.
 
 ### 4. Map dependencies
 
@@ -124,7 +126,7 @@ Avoid giant phases such as "implement everything".
 
 ### 7. Define acceptance criteria
 
-Use observable outcomes.
+Use observable outcomes. For an authorized replacement or retirement, the outcome includes removal of obsolete in-scope code, scripts, fallback paths, and governing instructions where they cease to be needed; disabling a retired mechanism or deferring its cleanup is not equivalent to removing it.
 
 Bad:
 
