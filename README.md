@@ -25,12 +25,13 @@ Ordinary execution does not scan the whole skill library. Final SBC/PAK transpor
 
 The authoritative runtime registry is `SYSTEM_MANIFEST.yaml`. On the current `main`, these engines are available:
 
+- **Foundation** — non-authoritative project formation, working outcome/unknowns and semantic topology bootstrap under `engines/foundation/`; its workflow stops before the Owner Foundation Gate.
 - **Canon** — governed Canon formation, reconciliation, validation, freeze and change management under `engines/canon/`. This does **not** grant agents Owner/Canon mutation authority.
 - **Production / Software** — bounded engineering, implementation and review under `engines/production/software/`.
 - **Verification** — independent claim verification with shared exact-state and evidence contracts under `engines/verification/`. A technical PASS alone does not prove alignment with the approved business outcome or target architecture.
 - **Research** — machine-only research admission, execution contracts and reconciliation under `engines/research/`.
 
-**Foundation is not yet active in `main`.** Its existing [draft PR #98](https://github.com/Filatotel/codex/pull/98) provides the cognitive/formation baseline under Issue #53; current acceptance additionally requires a Project Topology contract before persistent project-content materialization. Do not route into Foundation until the engine is admitted into the registry. Other production-domain engines remain deferred.
+Foundation V0 and the reference Project Topology implementation were merged in [PR #98](https://github.com/Filatotel/codex/pull/98). `foundation` is registered as `available`, so route `form_project_foundation` through its manifest and workflow when project formation is actually requested. This availability does **not** prove live GitHub/Drive provider realization, concurrent-writer safety, or completion of all [Issue #53](https://github.com/Filatotel/codex/issues/53) acceptance criteria. Those claims require separate evidence. Other production-domain engines remain deferred.
 
 To select a capability, load only the registered engine and required workflow/skills, never the full historical skill index.
 

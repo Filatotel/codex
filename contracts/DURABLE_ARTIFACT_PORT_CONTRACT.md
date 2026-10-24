@@ -4,6 +4,8 @@ This contract materializes the provider-neutral durable materialization and inde
 
 It is deliberately smaller than a storage subsystem. It defines one portable boundary and one conformance backend. It does not select a real provider, create an Artifact/Storage Manager, or change Control/Verifier policy.
 
+**Current-state note:** this file defines the original **56-B port scope**, not the whole current runtime. The later 56-C enforcement is implemented in `tools/durable_readback_enforcement.py` and consumed by `tools/resolver_transition.py`; current Control/Verifier rules are described in `protocols/artifacts.md`. Provider-neutral local/reference readback must not be represented as verified publication to GitHub, Google Drive or another live system of record.
+
 ## Upstream A1 authority
 
 56-B consumes the merged A1 laws without redefining them:
@@ -134,21 +136,15 @@ writer instance
 
 The backend fails closed for wrong system-of-record bindings, unknown refs, malformed refs, corrupt/read failures, and write failures.
 
-## 56-C boundary
+## 56-C boundary and current integration
 
-56-B does not change `VERIFICATION_RESULT`, `resolve_transition()`, or Control advancement.
+**Historical 56-B boundary:** the port alone did not change `VERIFICATION_RESULT`, `resolve_transition()`, or Control advancement. At that stage, readback capability did not yet establish readback enforcement.
 
-56-C may later consume these port outcomes and readback observations to enforce durable availability before advancing dependent work. Until then:
+**Current integrated behavior (56-C):** `evaluate_required_durable_readback()` independently resolves each assignment-required `COMPLETE` output via the declared port; `resolve_transition()` consumes that evaluation and the Verifier's matching exact readback proofs before advancing governed completion. This integration proves only the declared provider-neutral evidence boundary when the configured port actually supports it. It does not imply that every real provider adapter, in-place current-carrier workflow, or fresh-agent project continuation is implemented.
 
-```text
-READBACK CAPABILITY MATERIALIZED
-!=
-READBACK ENFORCEMENT MATERIALIZED
-```
+## Non-goals of the 56-B port
 
-## Non-goals
-
-This contract does not implement or select:
+The following describe what the **56-B port itself** does not implement or select; they are not claims that later Resolver work remains absent:
 
 - GitHub, Google Drive, S3/R2/object-store, database, browser, or PAC adapters;
 - provider credentials or provider-specific ids in universal semantics;
