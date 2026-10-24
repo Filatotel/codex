@@ -67,16 +67,16 @@ Do not create a new verifier or control engine. Software review supplies domain-
 | SEO | Did canonical, robots, sitemap, title, or service/location metadata regress? |
 | Accessibility | Are labels, focus states, contrast, and tap targets still sane? |
 | Workflow files | Were `AGENTS.md`, `.agents/skills/`, `templates/`, or scripts deleted or rewritten casually? |
-| Documentation delta | Do the touched active docs still describe the approved behavior, contracts, and operating procedure after this change? |
+| End-state closure | Are touched active docs accurate and any in-scope obsolete scaffolding, temporary scripts, adapters, or legacy paths actually retired when the approved outcome requires retirement? |
 
 ## Procedure
 
 1. Read the task goal and acceptance criteria.
 2. List changed files and classify the change: docs, UI, API, config, deployment, analytics, data, or mixed.
 3. Inspect the diff for unrelated changes.
-   - Identify existing authoritative documents governing the changed behavior; compare only the impacted assertions with the approved Issue/Owner/Canon target and exact diff.
-   - If the change renders a governing statement stale, require its replacement/removal in this PR before merge-ready. If nothing is affected, record `NO_DOCUMENTATION_IMPACT` (no docs edit required).
-   - Do not expand the task to unrelated stale docs, create parallel current documents, or let actual code silently rewrite Owner/Canon authority.
+   - Compare touched governing documents and in-scope transitional mechanisms against the approved end state, not against the PR author's implementation narrative.
+   - Require replacement/removal of newly stale governing statements. If the authorized outcome retires a temporary aid or legacy path, require actual in-scope removal in this PR rather than mere disabling or a new cleanup follow-up.
+   - Record affected docs or `NO_DOCUMENTATION_IMPACT`, and any in-scope retirements or `NOT_APPLICABLE`. Do not audit unrelated debt, remove still-required recovery mechanisms, create parallel current documents, or infer new Owner/Canon authority from code.
 4. Run or confirm the relevant verification commands.
 5. Apply the risk checklist only to areas touched by the diff.
 6. Record blockers, warnings, and non-blocking suggestions separately.
@@ -141,6 +141,7 @@ Avoid:
 - Blockers:
 - Warnings:
 - Documentation delta: updated paths / NO_DOCUMENTATION_IMPACT / BLOCKED (reason)
+- In-scope retirement: removed paths / NOT_APPLICABLE / BLOCKED (reason)
 - Product-specific risks:
 - Recommended next action:
 ```
