@@ -69,6 +69,21 @@ Choose layers appropriate to the project. Typical examples:
 | External integration | accepted request identity, provider response, retry semantics |
 | Observability | emitted event/log/trace, timestamp/source, gaps, sampling assumptions |
 
+### Evidence before names
+
+Treat filenames, schema names, directory labels, comments, and legacy prefixes as
+**search hints**, never as proof of runtime behavior or language scope.
+Before declaring a system limited to one language or surface, follow the
+smallest actual producer → consumer path (and applicable contract) and observe
+the relevant branch or projection. When a consumer is shared by several
+languages, the source name does not override that fact.
+
+If the direct behavioral evidence is absent, describe the limitation as an
+unverified hypothesis rather than a settled defect. If the code already
+establishes the answer, **stop**: do not escalate to redundant corpus-wide
+validation, a new workflow, or a new architecture merely because a filename
+suggests otherwise.
+
 ## Failure taxonomy
 
 Preserve the class of failure until evidence justifies collapsing it into another cause.
