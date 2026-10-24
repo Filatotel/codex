@@ -85,7 +85,7 @@ For a Foundation route:
 4. load optional `engines/foundation/skills/design-discovery/SKILL.md` only when bounded exploration materially improves the seed, outcome, or consequential-unknown map;
 5. bind the workflow's explicit roles and upstream provenance requirement;
 6. feed all mandatory operations/evidence requirements into the normal compiler/capability/admissibility chain;
-7. require the ordinary durable-output/reference/readback contract for the three declared Foundation outputs before readiness can be claimed.
+7. require the ordinary durable-output/reference/readback contract for all five declared Foundation outputs before readiness can be claimed.
 
 There is no global skill discovery for Foundation. Do not recursively scan `engines/foundation/skills/` and do not load Canon merely because a raw idea is being formed.
 

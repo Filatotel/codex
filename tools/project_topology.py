@@ -19,6 +19,7 @@ _SEGMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 _MODES = {"DRIVE_ONLY", "REPO_ONLY", "DRIVE_THEN_REPO"}
 _CLASSES = {"SOURCE", "EVIDENCE", "FINDING", "PROJECT_DECISION", "CANON", "RUNTIME", "ARCHIVE"}
 _BOOTSTRAP_ID = "PROJECT_TOPOLOGY_BOOTSTRAP"
+_BOOTSTRAP_OUTPUT_ID = "foundation:topology-bootstrap"
 
 
 class TopologyError(ValueError):
@@ -147,10 +148,11 @@ def materialize_bootstrap(port: DurableArtifactPort, system_of_record_ref: str, 
     """Persist all bootstrap state in one durable object; a ref is not admission."""
     if not isinstance(system_of_record_ref, str) or not system_of_record_ref.strip():
         raise TopologyError("TOPOLOGY_SYSTEM_OF_RECORD_REQUIRED")
-    project_id, _, _ = _validate_plan(plan)
+    _validate_plan(plan)
     bundle = build_bootstrap(plan)
-    output_identity = "topology-bootstrap:" + project_id
-    result = port.materialize(system_of_record_ref, output_identity, _canonical_bytes(bundle))
+    # Match the workflow's required output identity so generic readback can
+    # reconcile the very same bundle. Project identity remains in its payload.
+    result = port.materialize(system_of_record_ref, _BOOTSTRAP_OUTPUT_ID, _canonical_bytes(bundle))
     if result.status != MATERIALIZED or not result.artifact_ref:
         raise TopologyError("TOPOLOGY_BOOTSTRAP_WRITE_FAILED")
     return result.artifact_ref
@@ -187,7 +189,7 @@ def verify_bootstrap(port: DurableArtifactPort, system_of_record_ref: str, boots
     if bundle != expected:
         raise TopologyError("COLD_START_NAVIGATION_INVALID")
     project_id = bundle["manifest"]["project_id"]
-    if observed.output_identity != "topology-bootstrap:" + project_id:
+    if observed.output_identity != _BOOTSTRAP_OUTPUT_ID:
         raise TopologyError("TOPOLOGY_BOOTSTRAP_IDENTITY_MISMATCH")
     return TopologyAdmission(project_id, bootstrap_ref, system_of_record_ref,
                              bundle["manifest"], bundle["index"], tuple(bundle["shell"]),
@@ -210,7 +212,12 @@ def resolve_address(admission: TopologyAdmission, artifact_class: str, artifact_
     if set(scope) != ({key} if key else set()):
         raise TopologyError("TOPOLOGY_SCOPE_INVALID")
     scoped = [_segment(scope[key])] if key else []
-    return "/".join([entry["prefix"], *scoped, artifact_id])
+    address = "/".join([entry["prefix"], *scoped, artifact_id])
+    # Navigation/control carriers are not payload addresses, including ancestors.
+    if any(address == path or address.startswith(path + "/") or path.startswith(address + "/")
+           for path in admission.shell):
+        raise TopologyError("TOPOLOGY_NAMESPACE_COLLISION")
+    return address
 
 
 def materialize_project_payload(port: DurableArtifactPort, system_of_record_ref: str,
@@ -239,8 +246,18 @@ def materialize_project_payload(port: DurableArtifactPort, system_of_record_ref:
     result = port.materialize(system_of_record_ref, identity, payload)
     if result.status != MATERIALIZED or not result.artifact_ref:
         raise TopologyError("TOPOLOGY_PAYLOAD_WRITE_FAILED")
+    try:
+        observed = port.readback(system_of_record_ref, result.artifact_ref)
+    except Exception as exc:
+        raise TopologyError("TOPOLOGY_PAYLOAD_READBACK_NOT_PROVEN") from exc
+    digest = hashlib.sha256(payload).hexdigest()
+    if (observed.status != RESOLVED or observed.system_of_record_ref != system_of_record_ref
+            or observed.artifact_ref != result.artifact_ref or observed.output_identity != identity
+            or observed.payload != payload or observed.content_digest != digest):
+        raise TopologyError("TOPOLOGY_PAYLOAD_READBACK_NOT_PROVEN")
     return {"canonical_address": address, "artifact_ref": result.artifact_ref,
-            "system_of_record_ref": system_of_record_ref, "topology_ref": bootstrap_ref}
+            "system_of_record_ref": system_of_record_ref, "topology_ref": bootstrap_ref,
+            "content_digest": digest, "readback_status": RESOLVED}
 
 
 def classify_topology_change(old: TopologyAdmission, new_plan: Mapping) -> str:

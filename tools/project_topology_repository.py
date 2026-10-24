@@ -1,8 +1,9 @@
 """Repository-backed physical realization of an admitted project topology.
 
-Reference implementation for a fresh repository/project root. Uses one staged
-directory publish; it does not replace the generic #56 durable port and does
-not give Foundation permission to alter an existing project filesystem.
+Reference filesystem realization with staged initial publication, bounded
+extension and exact-reference updates. It reuses the generic #56 durable port;
+callers still require their existing workflow's authority for every mutation.
+Local file readback alone does not prove publication to GitHub or Drive.
 """
 from __future__ import annotations
 
@@ -16,10 +17,34 @@ import tempfile
 from tools.project_topology import (TopologyAdmission, TopologyError, _canonical_bytes,
                                    resolve_address, verify_bootstrap, materialize_project_payload,
                                    classify_topology_change, materialize_bootstrap)
-from tools.durable_artifact_port import DurableArtifactPort
+from tools.durable_artifact_port import DurableArtifactPort, RESOLVED
 
 
 MANIFEST_NAME = "TOPOLOGY_MANIFEST.json"
+
+
+def _repository_path(root: Path, relative: str) -> Path:
+    """A semantic relative address cannot delegate physical authority to symlinks."""
+    current = root
+    for segment in (None, *relative.split("/")):
+        if segment is not None:
+            current = current / segment
+        if current.is_symlink():
+            raise TopologyError("TOPOLOGY_PHYSICAL_PATH_INVALID")
+    return current
+
+
+def _publish_file(target: Path, payload: bytes) -> None:
+    """Replace from a uniquely created stage owned by this operation only."""
+    staged = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".topology-", delete=False) as out:
+            staged = Path(out.name)
+            out.write(payload)
+        os.replace(staged, target)
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
 
 
 def _root_index_bytes(admission: TopologyAdmission) -> bytes:
@@ -57,6 +82,9 @@ def _expected_files(admission: TopologyAdmission) -> dict[str, bytes]:
         }),
     }
     for entry in admission.manifest["namespaces"]:
+        if any(entry["prefix"] == path or entry["prefix"].startswith(path + "/")
+               for path in (admission.manifest["root_index"], MANIFEST_NAME)):
+            raise TopologyError("TOPOLOGY_NAMESPACE_COLLISION")
         path = entry["index"]
         if path in files:
             raise TopologyError("TOPOLOGY_NAMESPACE_COLLISION")
@@ -103,7 +131,7 @@ def materialize_repository_shell(root: str | Path, admission: TopologyAdmission)
 def _verify_repository_files(root: Path, admission: TopologyAdmission) -> dict:
     expected = _expected_files(admission)
     # Cold consumer starts at the declared root entrypoint, not directory enumeration.
-    index_path = root / admission.manifest["root_index"]
+    index_path = _repository_path(root, admission.manifest["root_index"])
     try:
         index_data = index_path.read_bytes()
     except OSError as exc:
@@ -114,7 +142,7 @@ def _verify_repository_files(root: Path, admission: TopologyAdmission) -> dict:
     if manifest_line not in index_data:
         raise TopologyError("COLD_START_TOPOLOGY_LINK_MISSING")
     try:
-        carrier = json.loads((root / MANIFEST_NAME).read_bytes())
+        carrier = json.loads(_repository_path(root, MANIFEST_NAME).read_bytes())
     except (OSError, ValueError, UnicodeDecodeError) as exc:
         raise TopologyError("COLD_START_MANIFEST_INVALID") from exc
     if carrier != json.loads(expected[MANIFEST_NAME]):
@@ -124,7 +152,7 @@ def _verify_repository_files(root: Path, admission: TopologyAdmission) -> dict:
     for entry in manifest["namespaces"]:
         rel = entry["index"]
         try:
-            actual = (root / rel).read_bytes()
+            actual = _repository_path(root, rel).read_bytes()
         except OSError as exc:
             raise TopologyError("COLD_START_NAMESPACE_MISSING") from exc
         prefix = expected[rel][:-3]  # Preserve the declared navigation contract, replace only [].
@@ -138,11 +166,17 @@ def _verify_repository_files(root: Path, admission: TopologyAdmission) -> dict:
             raise TopologyError("COLD_START_NAMESPACE_INVALID")
         seen = set()
         for item in items:
-            if not isinstance(item, dict) or set(item) != {"artifact_id", "scope", "canonical_address", "digest", "artifact_ref"}:
+            required = {"artifact_id", "scope", "canonical_address", "digest", "artifact_ref"}
+            if not isinstance(item, dict) or set(item) not in (required, required | {"history_refs"}):
                 raise TopologyError("COLD_START_NAMESPACE_INVALID")
-            if item["artifact_id"] in seen:
+            history = item.get("history_refs", [])
+            if (not isinstance(history, list) or not all(isinstance(ref, str) and ref.strip() for ref in history)
+                    or len(set(history)) != len(history) or item["artifact_ref"] in history):
                 raise TopologyError("COLD_START_NAMESPACE_INVALID")
-            seen.add(item["artifact_id"])
+            # The semantic address includes scope; IDs may recur across workstreams.
+            if not isinstance(item["canonical_address"], str) or item["canonical_address"] in seen:
+                raise TopologyError("COLD_START_NAMESPACE_INVALID")
+            seen.add(item["canonical_address"])
             scope = {} if entry["scope_key"] is None else {entry["scope_key"]: item["scope"]}
             try:
                 address = resolve_address(admission, entry["artifact_class"], item["artifact_id"], scope)
@@ -151,7 +185,7 @@ def _verify_repository_files(root: Path, admission: TopologyAdmission) -> dict:
             if address != item["canonical_address"]:
                 raise TopologyError("COLD_START_NAMESPACE_INVALID")
             try:
-                payload = (root / address).read_bytes()
+                payload = _repository_path(root, address).read_bytes()
             except OSError as exc:
                 raise TopologyError("COLD_START_PAYLOAD_MISSING") from exc
             if hashlib.sha256(payload).hexdigest() != item["digest"]:
@@ -190,34 +224,65 @@ def materialize_repository_payload(
     payload: bytes,
     *,
     scope: dict[str, str] | None = None,
+    expected_artifact_ref: str | None = None,
 ) -> dict:
     """Materialize one project payload at its admitted physical semantic address.
 
-    Existing canonical carriers are never overwritten by this create-only path.
-    A separately authorized update-in-place operation is required for mutations.
+    Creation never overwrites an indexed carrier. An independently authorized
+    caller may update in place by binding the exact current artifact reference;
+    that precondition does not itself grant Owner or Canon mutation authority.
     The namespace index is the final visibility boundary: unindexed staged bytes
     cannot be mistaken for a current, cold-start navigable project result.
     """
     admission = verify_bootstrap(port, system_of_record_ref, bootstrap_ref)
     root = Path(root)
-    verify_repository_shell(root, admission)  # proves this *current* topology pointer
     address = resolve_address(admission, artifact_class, artifact_id, scope)
-    target = root / address
-    if target.exists() or target.is_symlink():
-        raise TopologyError("CANONICAL_ADDRESS_ALREADY_EXISTS")
+    target = _repository_path(root, address)
     entry = next(e for e in admission.manifest["namespaces"] if e["artifact_class"] == artifact_class)
-    index_path = root / entry["index"]
+    index_path = _repository_path(root, entry["index"])
     prefix = _namespace_index_bytes(entry)[:-3]
+    try:
+        verify_repository_shell(root, admission)  # proves this *current* topology pointer
+    except TopologyError as exc:
+        if exc.code != "COLD_START_PAYLOAD_DIGEST_MISMATCH" or expected_artifact_ref is None:
+            raise
+        # An interrupted exact-reference update may have published new bytes but
+        # not its index. Only the same authorized retry may restore the indexed
+        # prior bytes, independently resolved from the existing durable port.
+        try:
+            prior_items = json.loads(index_path.read_bytes()[len(prefix):])
+            prior = next(item for item in prior_items if item["canonical_address"] == address)
+            observed = port.readback(system_of_record_ref, expected_artifact_ref)
+            recoverable = (prior["artifact_ref"] == expected_artifact_ref
+                and observed.status == RESOLVED and observed.system_of_record_ref == system_of_record_ref
+                and observed.artifact_ref == expected_artifact_ref
+                and observed.output_identity == "project-payload:" + admission.project_id + ":" + address
+                and isinstance(observed.payload, bytes)
+                and observed.content_digest == hashlib.sha256(observed.payload).hexdigest() == prior["digest"]
+                and target.read_bytes() == payload)
+        except (OSError, ValueError, TypeError, KeyError, StopIteration) as recovery_error:
+            raise TopologyError("REPOSITORY_PAYLOAD_RECOVERY_NOT_PROVEN") from recovery_error
+        if not recoverable:
+            raise TopologyError("REPOSITORY_PAYLOAD_RECOVERY_NOT_PROVEN") from exc
+        _publish_file(target, observed.payload)
+        verify_repository_shell(root, admission)
     index_bytes = index_path.read_bytes()
     items = json.loads(index_bytes[len(prefix):])
-    if any(item["artifact_id"] == artifact_id for item in items):
+    previous = next((item for item in items if item["canonical_address"] == address), None)
+    if expected_artifact_ref is not None and (previous is None or previous["artifact_ref"] != expected_artifact_ref):
+        raise TopologyError("PROJECT_PAYLOAD_REF_STALE")
+    if previous is not None and expected_artifact_ref is None:
         raise TopologyError("CANONICAL_ADDRESS_ALREADY_EXISTS")
+    if target.is_symlink() or (target.exists() and (not target.is_file()
+            or (previous is None and target.read_bytes() != payload))):
+        raise TopologyError("CANONICAL_ADDRESS_ALREADY_EXISTS")
+    previous_bytes = target.read_bytes() if previous is not None else None
     # Use the existing system-of-record durable port, not a new artifact manager.
     materialized = materialize_project_payload(
         port, system_of_record_ref, bootstrap_ref,
         artifact_class, artifact_id, payload, scope=scope,
         current_topology_ref_reader=lambda project_id, sor: json.loads(
-            (root / MANIFEST_NAME).read_bytes()
+            _repository_path(root, MANIFEST_NAME).read_bytes()
         )["current_topology_ref"],
     )
     item = {
@@ -227,22 +292,26 @@ def materialize_repository_payload(
         "digest": hashlib.sha256(payload).hexdigest(),
         "artifact_ref": materialized["artifact_ref"],
     }
+    if previous is not None:
+        history = previous.get("history_refs", [])
+        item["history_refs"] = [ref for ref in history + [previous["artifact_ref"]]
+                                if ref != item["artifact_ref"]]
+    updated_items = [item if old["canonical_address"] == address else old for old in items]
+    if previous is None:
+        updated_items.append(item)
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name("." + target.name + ".staged")
-    index_temporary = index_path.with_name("." + index_path.name + ".staged")
+    payload_published = False
     try:
-        with temporary.open("xb") as out:
-            out.write(payload)
         # Publish the physical content first, then the index.
-        os.replace(temporary, target)
-        with index_temporary.open("xb") as out:
-            out.write(prefix + json.dumps(items + [item], sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n")
-        os.replace(index_temporary, index_path)
+        _publish_file(target, payload)
+        payload_published = True
+        _publish_file(index_path, prefix + json.dumps(updated_items, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n")
     except OSError as exc:
+        # Keep the previously indexed payload coherent if an update fails before
+        # the index commit. New unindexed exact bytes are safe to retry.
+        if payload_published and previous_bytes is not None:
+            _publish_file(target, previous_bytes)
         raise TopologyError("REPOSITORY_PAYLOAD_WRITE_FAILED") from exc
-    finally:
-        temporary.unlink(missing_ok=True)
-        index_temporary.unlink(missing_ok=True)
     readback = verify_repository_shell(root, admission)
     return {**materialized, "physical_readback": readback["status"],
             "physical_digest": readback["physical_digest"]}
@@ -280,9 +349,13 @@ def extend_repository_shell(
         for entry in new.manifest["namespaces"]:
             if entry["artifact_class"] in old_classes:
                 continue
-            dest = root / entry["index"]
+            dest = _repository_path(root, entry["index"])
             if dest.exists() or dest.is_symlink():
-                raise TopologyError("TOPOLOGY_NAMESPACE_COLLISION")
+                # Retry an interrupted extension only when the unadmitted index
+                # is exactly this proposal's empty shell. Never replace payload.
+                if dest.is_symlink() or not dest.is_file() or dest.read_bytes() != expected[entry["index"]]:
+                    raise TopologyError("TOPOLOGY_NAMESPACE_COLLISION")
+                continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             staged = dest.with_name("." + dest.name + ".staged")
             with staged.open("xb") as out:

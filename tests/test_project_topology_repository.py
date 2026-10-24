@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import tempfile
+import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from tests.test_project_topology import plan
 from tools.durable_artifact_port import LocalFileDurableReferencePort
@@ -13,6 +15,150 @@ from tools.project_topology_repository import (
 
 
 class RepositoryTopologyShellTest(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.parent = Path(directory.name)
+        self.port = LocalFileDurableReferencePort(self.parent / "durable", "SOR-1")
+        self.ref = materialize_bootstrap(self.port, "SOR-1", plan())
+        self.admission = verify_bootstrap(self.port, "SOR-1", self.ref)
+        self.root = self.parent / "project"
+
+    def test_same_artifact_id_in_distinct_scopes_has_distinct_current_addresses(self):
+        materialize_repository_shell(self.root, self.admission)
+        for scope, payload in (("R-1", b"first"), ("R-2", b"second")):
+            materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+                "FINDING", "F-1", payload, scope={"workstream_id": scope})
+        self.assertEqual((self.root / "research/findings/R-1/F-1").read_bytes(), b"first")
+        self.assertEqual((self.root / "research/findings/R-2/F-1").read_bytes(), b"second")
+        self.assertEqual(verify_repository_shell(self.root, self.admission)["status"], "COLD_START_PROVEN")
+
+    def test_control_paths_cannot_be_admitted_as_payload_namespaces(self):
+        for prefix in ("INDEX.md", MANIFEST_NAME):
+            with self.subTest(prefix=prefix):
+                value = plan()
+                value["namespaces"][0].update(prefix=prefix, index=prefix + "/INDEX.md")
+                with self.assertRaises(TopologyError) as raised:
+                    ref = materialize_bootstrap(self.port, "SOR-1", value)
+                    materialize_repository_shell(self.root, verify_bootstrap(self.port, "SOR-1", ref))
+                self.assertEqual(raised.exception.code, "TOPOLOGY_NAMESPACE_COLLISION")
+                self.assertFalse(self.root.exists())
+
+    def test_payload_cannot_replace_or_contain_namespace_navigation_index(self):
+        value = plan()
+        value["namespaces"][0]["index"] = "research/findings/R-1/INDEX.md"
+        value["namespaces"][0]["scope_key"] = None
+        ref = materialize_bootstrap(self.port, "SOR-1", value)
+        admission = verify_bootstrap(self.port, "SOR-1", ref)
+        materialize_repository_shell(self.root, admission)
+        with self.assertRaises(TopologyError) as raised:
+            materialize_repository_payload(self.root, self.port, "SOR-1", ref,
+                "FINDING", "R-1", b"blocked")
+        self.assertEqual(raised.exception.code, "TOPOLOGY_NAMESPACE_COLLISION")
+
+    def test_interrupted_extension_can_retry_without_losing_existing_payload(self):
+        materialize_repository_shell(self.root, self.admission)
+        materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+            "CANON", "draft", b"working canon")
+        changed = plan()
+        changed["namespaces"].append({"artifact_class": "SOURCE", "prefix": "sources",
+            "index": "sources/INDEX.md", "scope_key": None})
+        import os
+        replace = os.replace
+        def fail_carrier(source, target):
+            if Path(target) == self.root / MANIFEST_NAME:
+                raise OSError("interrupted before current carrier publish")
+            return replace(source, target)
+        with patch("tools.project_topology_repository.os.replace", side_effect=fail_carrier):
+            with self.assertRaises(TopologyError):
+                extend_repository_shell(self.root, self.port, "SOR-1", self.ref, changed)
+        self.assertEqual(verify_repository_shell(self.root, self.admission)["status"], "COLD_START_PROVEN")
+        result = extend_repository_shell(self.root, self.port, "SOR-1", self.ref, changed)
+        fresh = verify_bootstrap(self.port, "SOR-1", result["topology_ref"])
+        self.assertEqual(verify_repository_shell(self.root, fresh)["status"], "COLD_START_PROVEN")
+        self.assertEqual((self.root / "canon/current/draft").read_bytes(), b"working canon")
+
+    def test_authorized_update_preserves_address_and_superseded_durable_ref(self):
+        materialize_repository_shell(self.root, self.admission)
+        first = materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+            "CANON", "draft", b"first working draft")
+        updated = materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+            "CANON", "draft", b"revised working draft", expected_artifact_ref=first["artifact_ref"])
+        self.assertEqual(updated["canonical_address"], "canon/current/draft")
+        self.assertEqual((self.root / "canon/current/draft").read_bytes(), b"revised working draft")
+        self.assertEqual(self.port.readback("SOR-1", first["artifact_ref"]).payload, b"first working draft")
+        items = json.loads((self.root / "canon/current/INDEX.md").read_text().split("Current entries (JSON):\n")[1])
+        self.assertEqual(items[0]["history_refs"], [first["artifact_ref"]])
+        self.assertEqual(items[0]["artifact_ref"], updated["artifact_ref"])
+        with self.assertRaises(TopologyError) as stale:
+            materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+                "CANON", "draft", b"stale update", expected_artifact_ref=first["artifact_ref"])
+        self.assertEqual(stale.exception.code, "PROJECT_PAYLOAD_REF_STALE")
+        self.assertEqual(verify_repository_shell(self.root, self.admission)["status"], "COLD_START_PROVEN")
+
+    def test_failed_payload_index_publish_can_retry(self):
+        materialize_repository_shell(self.root, self.admission)
+        import os
+        replace = os.replace
+        def fail_index(source, target):
+            if Path(target) == self.root / "canon/current/INDEX.md":
+                raise OSError("interrupted before namespace publication")
+            return replace(source, target)
+        with patch("tools.project_topology_repository.os.replace", side_effect=fail_index):
+            with self.assertRaises(TopologyError):
+                materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+                    "CANON", "draft", b"working")
+        result = materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+            "CANON", "draft", b"working")
+        self.assertEqual(result["physical_readback"], "COLD_START_PROVEN")
+
+    def test_namespace_symlink_cannot_redirect_payload_outside_project(self):
+        materialize_repository_shell(self.root, self.admission)
+        outside = self.parent / "outside"
+        (self.root / "canon/current").rename(outside)
+        (self.root / "canon/current").symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(TopologyError) as raised:
+            materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+                "CANON", "draft", b"escaped")
+        self.assertEqual(raised.exception.code, "TOPOLOGY_PHYSICAL_PATH_INVALID")
+        self.assertFalse((outside / "draft").exists())
+
+    def test_preexisting_staging_symlink_cannot_be_followed_during_update(self):
+        materialize_repository_shell(self.root, self.admission)
+        first = materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+            "CANON", "draft", b"old")
+        outside = self.parent / "valuable"
+        outside.write_bytes(b"preserve")
+        (self.root / "canon/current/.draft.staged").symlink_to(outside)
+        try:
+            materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+                "CANON", "draft", b"new", expected_artifact_ref=first["artifact_ref"])
+        except TopologyError:
+            pass  # Rejecting the collision or using an owned unique stage is safe.
+        self.assertEqual(outside.read_bytes(), b"preserve")
+        self.assertFalse((self.root / "canon/current/draft").is_symlink())
+
+    def test_interrupted_update_can_retry_with_exact_prior_reference(self):
+        materialize_repository_shell(self.root, self.admission)
+        first = materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+            "CANON", "draft", b"old")
+        import os
+        replace = os.replace
+        def interrupt_index(source, target):
+            if Path(target) == self.root / "canon/current/INDEX.md":
+                raise KeyboardInterrupt("process interrupted before namespace commit")
+            return replace(source, target)
+        with patch("tools.project_topology_repository.os.replace", side_effect=interrupt_index):
+            with self.assertRaises(KeyboardInterrupt):
+                materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+                    "CANON", "draft", b"new", expected_artifact_ref=first["artifact_ref"])
+        with self.assertRaises(TopologyError):
+            verify_repository_shell(self.root, self.admission)
+        result = materialize_repository_payload(self.root, self.port, "SOR-1", self.ref,
+            "CANON", "draft", b"new", expected_artifact_ref=first["artifact_ref"])
+        self.assertEqual(result["physical_readback"], "COLD_START_PROVEN")
+        self.assertEqual((self.root / "canon/current/draft").read_bytes(), b"new")
+
     def test_fresh_project_has_real_files_and_independent_cold_start(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)

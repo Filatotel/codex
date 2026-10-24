@@ -35,6 +35,8 @@ Foundation forms a project-specific semantic topology; every subsequent persiste
 
 Topology extension and replacement are different authority classes. Replacement requires existing Owner architecture migration/cutover authorization, verified migration, refreshed indexes and old current topology retirement before a successor becomes current. The reference port proves logical durable bootstrap, not real-world provider-specific directory/file realization; assignments requiring GitHub/Drive physical structure must verify that separately.
 
+The Foundation bootstrap uses the declared output identity `foundation:topology-bootstrap`, so the topology bundle itself reconciles through generic durable readback. Payload write success additionally requires exact system-of-record, identity, bytes and digest readback. Resolver payload bindings preserve project identity and semantic scope for executors to re-resolve at writing time. Repository namespace indexes distinguish scoped canonical addresses; authorized updates require the exact current artifact reference, retain superseded durable references in `history_refs`, and preserve the canonical address. This reference precondition is not Owner or Canon mutation authority.
+
 ## Identity and provenance
 
 Every artifact has a stable `artifact_id`, `artifact_type`, `produced_by_role`, `assignment_id` where applicable (nullable for pre-assignment artifacts), `input_state_ref`, `status`, `provenance/created_from`, and `related_artifacts`.

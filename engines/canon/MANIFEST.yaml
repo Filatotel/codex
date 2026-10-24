@@ -169,7 +169,14 @@ skill_namespaces:
   shared_core: kernel/skills/
 persistent_payload_capabilities:
   - establish_canon_foundation
+  - register_canon_fact
+  - register_canon_assumption
+  - register_unknown
+  - register_ambiguity
+  - register_contradiction
   - reconcile_research_into_canon
+  - classify_canon_change
+  - freeze_canon
   - final_canon_reconciliation
   - reopen_canon
 capabilities:

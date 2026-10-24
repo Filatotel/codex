@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 import tempfile
 import unittest
 
@@ -108,6 +109,23 @@ class ProjectTopologyTest(unittest.TestCase):
             self.assert_code("TOPOLOGY_CURRENT_REF_STALE", lambda:
                 materialize_project_payload(port, "SOR-1", ref, "CANON", "current", b"payload",
                     current_topology_ref_reader=lambda project_id, sor: "outdated"))
+
+    def test_payload_success_requires_exact_independent_readback(self):
+        with tempfile.TemporaryDirectory() as root:
+            port = LocalFileDurableReferencePort(root, "SOR-1")
+            ref = materialize_bootstrap(port, "SOR-1", plan())
+            real_readback = port.readback
+            # Faults occur after persistence, leaving bootstrap reads intact.
+            for changes in ({"status": "UNRESOLVED"}, {"payload": b"corrupt"},
+                            {"output_identity": "unrelated-control-output"},
+                            {"system_of_record_ref": "OTHER"}, {"artifact_ref": "other"}):
+                with self.subTest(changes=changes):
+                    def readback(sor, artifact_ref):
+                        observed = real_readback(sor, artifact_ref)
+                        return observed if artifact_ref == ref else replace(observed, **changes)
+                    port.readback = readback
+                    self.assert_code("TOPOLOGY_PAYLOAD_READBACK_NOT_PROVEN", lambda:
+                        admitted_payload(port, "SOR-1", ref, "CANON", "draft", b"working"))
 
     def test_extension_vs_replacement_and_owner_gate(self):
         with tempfile.TemporaryDirectory() as root:

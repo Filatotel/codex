@@ -303,6 +303,7 @@ def resolve_spawn(
                 address = resolve_address(current, item["artifact_class"], item["artifact_id"], item["scope"])
                 topology_bindings.append({"artifact_class": item["artifact_class"],
                     "artifact_id": item["artifact_id"], "canonical_address": address,
+                    "project_id": current.project_id, "scope": deepcopy(item["scope"]),
                     "topology_ref": current.bootstrap_ref,
                     "system_of_record_ref": current.system_of_record_ref})
             if len({item["canonical_address"] for item in topology_bindings}) != len(topology_bindings):
