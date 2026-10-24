@@ -28,6 +28,17 @@ Use this skill when:
 - when setup requires tribal knowledge
 - when deployment/debugging repeatedly confuses contributors
 
+## Change-bound documentation maintenance
+
+For an implementation assignment, maintain the **existing governing documents affected by the authorized change** in the same candidate/PR before completion. A documentation delta is required only when the change makes an existing active instruction, contract, workflow, architecture description, runbook, or operational claim inaccurate. A local fix with no such impact is `NO_DOCUMENTATION_IMPACT`; do not invent files, ceremony, or review work.
+
+- Determine the relevant documents from the task's scope and authority, not by rewriting the whole repository.
+- Replace or remove superseded active statements rather than appending contradictory corrections.
+- Update current documents in place; use Git history for historical versions. Do not create parallel current carriers.
+- Keep approved Owner/Canon meaning and explicit non-goals intact. A discovered new substantive Canon choice goes through existing Canon authority rather than being inferred from code.
+- Documentation maintenance is part of the original implementation scope when necessary to make the approved change coherent. It is not permission for unrelated cleanup.
+- Return changed document paths, or `NO_DOCUMENTATION_IMPACT`, with the exact implementation handoff.
+
 ## Documentation types
 
 | Type | Purpose |
