@@ -25,7 +25,9 @@ from tools.executability import (
 from tools.research_policy import admit_work_package
 from tools.resource_admission import ResourceAdmissionError, evaluate_resource_admission
 from tools.resource_ledger import ResourceLedger, ResourceLedgerError
-from tools.workflow_contract import resolve_workflow_contract
+from tools.workflow_contract import resolve_workflow_contract, requires_project_topology
+from tools.project_topology import TopologyError, resolve_address, verify_bootstrap
+from tools.project_topology_repository import verify_repository_shell
 
 TERMINAL_STATES = {"WAIT", "ESCALATE", "COMPLETE"}
 SEMANTIC_FIELDS = ("objective", "authority", "scope", "acceptance", "stop_conditions", "result_to")
@@ -196,6 +198,8 @@ def resolve_spawn(
     *,
     resource_state_reader: object | None = None,
     now: object | None = None,
+    topology_port: object | None = None,
+    topology_root: object | None = None,
 ) -> dict[str, object]:
     """Resolve one already-selected local control bundle to a baton outcome."""
     if not isinstance(control_bundle, Mapping):
@@ -269,6 +273,55 @@ def resolve_spawn(
     if missing_semantics:
         return _out("ESCALATE", "MISSING_ASSIGNMENT_SEMANTICS", errors=missing_semantics)
 
+    topology_bindings = None
+    topology_context = state_observation.get("project_topology_context")
+    try:
+        writes_payload = requires_project_topology(str(decision["engine_id"]), str(decision["semantic_capability"]))
+    except (ValueError, OSError) as exc:
+        return _out("ESCALATE", "TOPOLOGY_WRITE_POLICY_INVALID", errors=[str(exc)])
+    supplied_intents = semantics.get("project_payload_intents")
+    if topology_context is not None and (writes_payload or supplied_intents is not None):
+        if topology_port is None:
+            return _out("WAIT", "CURRENT_TOPOLOGY_READBACK_REQUIRED")
+        try:
+            current = verify_bootstrap(topology_port, topology_context["system_of_record_ref"],
+                                       topology_context["current_topology_ref"])
+            if current.project_id != topology_context["project_id"] or current.manifest["storage_mode"] != topology_context["storage_mode"]:
+                raise TopologyError("TOPOLOGY_STATE_IDENTITY_MISMATCH")
+            if current.manifest["storage_mode"] in {"REPO_ONLY", "DRIVE_THEN_REPO"}:
+                if topology_root is None:
+                    return _out("WAIT", "TOPOLOGY_PHYSICAL_READBACK_REQUIRED")
+                verify_repository_shell(topology_root, current)
+            else:
+                return _out("WAIT", "TOPOLOGY_PROVIDER_READBACK_REQUIRED")
+            if not isinstance(supplied_intents, list) or not supplied_intents:
+                return _out("ESCALATE", "PROJECT_PAYLOAD_INTENTS_REQUIRED")
+            topology_bindings = []
+            for item in supplied_intents:
+                if not isinstance(item, Mapping) or set(item) != {"artifact_class", "artifact_id", "scope"}:
+                    raise TopologyError("PROJECT_PAYLOAD_INTENT_MALFORMED")
+                address = resolve_address(current, item["artifact_class"], item["artifact_id"], item["scope"])
+                topology_bindings.append({"artifact_class": item["artifact_class"],
+                    "artifact_id": item["artifact_id"], "canonical_address": address,
+                    "project_id": current.project_id, "scope": deepcopy(item["scope"]),
+                    "topology_ref": current.bootstrap_ref,
+                    "system_of_record_ref": current.system_of_record_ref})
+            if len({item["canonical_address"] for item in topology_bindings}) != len(topology_bindings):
+                raise TopologyError("PROJECT_PAYLOAD_INTENT_DUPLICATE")
+        except (KeyError, TypeError, TopologyError) as exc:
+            return _out("ESCALATE", getattr(exc, "code", "TOPOLOGY_STATE_INVALID"), errors=[str(exc)])
+    elif supplied_intents is not None and topology_context is None:
+        return _out("ESCALATE", "PROJECT_TOPOLOGY_CONTEXT_REQUIRED")
+    required_workflow_outputs = workflow_proof.get("required_durable_output_ids", [])
+    if required_workflow_outputs:
+        declared_outputs = semantics.get("required_durable_outputs")
+        if (not isinstance(declared_outputs, list)
+                or len(declared_outputs) != len(required_workflow_outputs)
+                or not all(isinstance(item, str) for item in declared_outputs)
+                or set(declared_outputs) != set(required_workflow_outputs)):
+            return _out("ESCALATE", "WORKFLOW_REQUIRED_OUTPUTS_MISMATCH",
+                        engine_id=decision["engine_id"], workflow_id=decision["workflow_id"])
+
     reconciliation_inputs = None
     if reconciliation_selected:
         reconciliation_inputs, reconciliation_error = _research_reconciliation_inputs(semantics, artifacts)
@@ -311,6 +364,8 @@ def resolve_spawn(
     if reconciliation_selected and RESEARCH_RECONCILIATION_REQUIRED_CAPABILITY not in required:
         return _out("ESCALATE", "RESEARCH_RECONCILIATION_DURABLE_OUTPUT_REQUIRED",
                     engine_id="research", required_capability=RESEARCH_RECONCILIATION_REQUIRED_CAPABILITY)
+    if topology_bindings is not None and "durable_artifact_write" not in required:
+        return _out("ESCALATE", "TOPOLOGY_PAYLOAD_DURABLE_ACTION_REQUIRED")
     paths = sorted({path for action in final_actions if isinstance((path := action.get("evidence_path")), str) and path.strip()})
 
     profile_ref, route_ref = control_bundle.get("capability_profile_ref"), control_bundle.get("route_ref")
@@ -397,6 +452,10 @@ def resolve_spawn(
                         resource_admission=resource_admission)
 
     assignment = deepcopy(dict(semantics))
+    if topology_bindings is not None:
+        # Derived from independently read-back topology; never worker-supplied paths.
+        assignment.pop("project_payload_intents", None)
+        assignment["project_payload_bindings"] = topology_bindings
     assignment_provenance = [str(admissibility["artifact_id"])]
     assignment_related = [str(admissibility["artifact_id"]), str(profile_ref), str(route_ref), *proof_refs]
     execution_contract = {

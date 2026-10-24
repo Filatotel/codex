@@ -21,6 +21,22 @@ There is no universal Artifact Agent. Artifact production is role-native.
 - `STATE_MUTATION_PROPOSAL` — requested governed state change before authority acceptance.
 - `HANDOFF` — bounded continuation transfer between role instances.
 
+## Engine-owned Foundation working artifacts
+
+The Foundation Engine owns three original cognitive working-state artifact types: `PROJECT_SEED`, `PROJECT_OUTCOME`, and `CONSEQUENTIAL_UNKNOWN_MAP`. The topology increment adds non-authoritative `TOPOLOGY_PLAN` and one logical `PROJECT_TOPOLOGY_BOOTSTRAP` containing a topology manifest, root project index and minimal structural shell. The latter is bootstrap/control material, not admitted downstream project payload.
+
+They use the common artifact identity/provenance envelope and the ordinary durable-output/readback path, but they are **not** universal required common artifact types and are explicitly non-authoritative working state. Their durability preserves project-formation continuity; it does not create Owner/K0 authority, Canon truth, Research evidence, or Production authority.
+
+## Semantic topology admission before persistent project payload
+
+Bootstrap/control state (seed, outcome, unknowns, topology plan and topology bootstrap) may be durably recorded before topology admission. No persistent research, Canon, production, project decisions, media or long-lived runtime payload is admitted by its mere appearance in generic durable storage.
+
+Foundation forms a project-specific semantic topology; every subsequent persistent project payload write must resolve its semantic class, project scope and canonical address from current independently read-back topology before calling the existing durable port. The shared bounded resolver is `tools/project_topology.py`; it is not a new storage engine or replacement of the #56 port. A bare pathname supplied by a worker, prompt, task or issue grants no write authority. Unsupported semantic classes/scopes require a topology change, not ad hoc directories. Root index and nested namespace indexes must support cold-start navigation without global search.
+
+Topology extension and replacement are different authority classes. Replacement requires existing Owner architecture migration/cutover authorization, verified migration, refreshed indexes and old current topology retirement before a successor becomes current. The reference port proves logical durable bootstrap, not real-world provider-specific directory/file realization; assignments requiring GitHub/Drive physical structure must verify that separately.
+
+The Foundation bootstrap uses the declared output identity `foundation:topology-bootstrap`, so the topology bundle itself reconciles through generic durable readback. Payload write success additionally requires exact system-of-record, identity, bytes and digest readback. Resolver payload bindings preserve project identity and semantic scope for executors to re-resolve at writing time. Repository namespace indexes distinguish scoped canonical addresses; authorized updates require the exact current artifact reference, retain superseded durable references in `history_refs`, and preserve the canonical address. This reference precondition is not Owner or Canon mutation authority.
+
 ## Identity and provenance
 
 Every artifact has a stable `artifact_id`, `artifact_type`, `produced_by_role`, `assignment_id` where applicable (nullable for pre-assignment artifacts), `input_state_ref`, `status`, `provenance/created_from`, and `related_artifacts`.

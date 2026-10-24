@@ -38,7 +38,18 @@ def validate_state_observation(artifact: Mapping[str, object]) -> list[str]:
     value = artifact.get("input_state_ref")
     if "input_state_ref" not in artifact or (value is not None and (not isinstance(value, str) or not value.strip())): errors.append("input_state_ref must be null or a non-empty string")
     for field in ("provenance", "related_artifacts"): _string_list(artifact.get(field), field, errors)
-    allowed = {"artifact_type", "artifact_id", "produced_by_role", "input_state_ref", "status", "provenance", "related_artifacts", "state_identity", "authority_scope"}
+    context = artifact.get("project_topology_context")
+    if context is not None:
+        expected = {"project_id", "current_topology_ref", "system_of_record_ref", "storage_mode"}
+        if not isinstance(context, Mapping) or set(context) != expected:
+            errors.append("project_topology_context must contain exact governed identity fields")
+        else:
+            for field in ("project_id", "current_topology_ref", "system_of_record_ref"):
+                if not isinstance(context[field], str) or not context[field].strip():
+                    errors.append(f"project_topology_context.{field} must be non-blank")
+            if context["storage_mode"] not in {"DRIVE_ONLY", "REPO_ONLY", "DRIVE_THEN_REPO"}:
+                errors.append("project_topology_context.storage_mode is invalid")
+    allowed = {"artifact_type", "artifact_id", "produced_by_role", "input_state_ref", "status", "provenance", "related_artifacts", "state_identity", "authority_scope", "project_topology_context"}
     if extra := sorted(set(artifact) - allowed): errors.append(f"unexpected fields: {extra}")
     return errors
 

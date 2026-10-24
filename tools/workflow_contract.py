@@ -67,6 +67,21 @@ def _workflow_requirements(section: str | None) -> dict[str, dict[str, object]] 
         if re.fullmatch(r"    upstream_requirements:\s*", raw):
             in_requirements = True
             continue
+        durable = re.fullmatch(r"    required_durable_output_ids:\s*(\[.*\])\s*", raw)
+        if durable:
+            if "required_durable_output_ids" in workflows[current]:
+                return None
+            try:
+                ids = json.loads(durable.group(1))
+            except json.JSONDecodeError:
+                return None
+            if (not isinstance(ids, list) or not ids
+                    or not all(isinstance(item, str) and item.strip() for item in ids)
+                    or len(ids) != len(set(ids))):
+                return None
+            workflows[current]["required_durable_output_ids"] = ids
+            in_requirements = False
+            continue
         if re.fullmatch(r"    [a-z0-9_]+:.*", raw):
             in_requirements = False
             continue
@@ -307,4 +322,33 @@ def resolve_workflow_contract(
         "contract_source": contract.get("source"),
         "requirement_ids": requirement_ids,
         "proof_refs": list(dict.fromkeys(proof_refs)),
+        "required_durable_output_ids": workflow.get("required_durable_output_ids", []),
     }
+
+
+def requires_project_topology(engine_id: str, capability: str, *, root: Path = ROOT) -> bool:
+    """Read the Engine's own explicitly declared persistent-payload capabilities.
+
+    This is scope metadata, not new workflow authority. A read-only capability
+    does not acquire a write obligation merely because its Engine can write.
+    """
+    if not re.fullmatch(r"[a-z0-9_/-]+", engine_id) or ".." in engine_id.split("/"):
+        raise ValueError("ENGINE_CONTRACT_IDENTITY_INVALID")
+    path = root / "engines" / engine_id / "MANIFEST.yaml"
+    section = _top_level_section(path.read_text(encoding="utf-8"), "persistent_payload_capabilities")
+    if section is None:
+        return False
+    values = []
+    for line in section.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r"  - ([a-z0-9_]+)\s*", line)
+        if match is None:
+            raise ValueError("TOPOLOGY_WRITE_POLICY_MALFORMED")
+        values.append(match.group(1))
+    if len(values) != len(set(values)):
+        raise ValueError("TOPOLOGY_WRITE_POLICY_MALFORMED")
+    known = _simple_mapping(_top_level_section(path.read_text(encoding="utf-8"), "capabilities"))
+    if known is None or any(item not in known for item in values):
+        raise ValueError("TOPOLOGY_WRITE_POLICY_MALFORMED")
+    return capability in values

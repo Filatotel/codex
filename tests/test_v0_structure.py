@@ -26,6 +26,27 @@ class V0StructuralRegistrationTest(unittest.TestCase):
         ]:
             self.assertIn(marker, source)
 
+    def test_active_foundation_surfaces_are_structurally_required(self) -> None:
+        for rel in [
+            "engines/foundation/MANIFEST.yaml",
+            "engines/foundation/workflows/form-project-foundation.md",
+            "engines/foundation/schemas/project-seed.schema.json",
+            "engines/foundation/schemas/project-outcome.schema.json",
+            "engines/foundation/schemas/consequential-unknown-map.schema.json",
+        ]:
+            self.assertIn(rel, ROOT_REQUIRED)
+
+    def test_structural_validator_checks_foundation_registration_and_declared_paths(self) -> None:
+        source = (ROOT / "tools/validate_structure.py").read_text(encoding="utf-8")
+        for marker in [
+            "manifest_path: engines/foundation/MANIFEST.yaml",
+            "form_project_foundation",
+            "engines/foundation/MANIFEST.yaml",
+            "engines/foundation/skills",
+            "foundation schema is not closed",
+        ]:
+            self.assertIn(marker, source)
+
 
 if __name__ == "__main__":
     unittest.main()
