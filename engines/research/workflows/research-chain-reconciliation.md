@@ -35,4 +35,4 @@ Do not automatically repeat a gap. Do not execute Research. Do not dispatch or s
 
 ## Durability boundary
 
-The emitted artifact is structurally durable and preserves exact provenance. Independent fresh-agent system-of-record readback required by parent #60 remains deferred until #56 materializes that repository-wide readback boundary.
+A schema-conforming reconciliation artifact and exact provenance do not by themselves prove durable availability to a fresh agent. The shared #56 durable-port/readback enforcement boundary is now implemented; assignment-required outputs must pass the existing independent system-of-record readback and Control/Verifier checks before governed completion. Issue #60 still requires separate evidence that a fresh consumer can locate and use this Research reconciliation output on the **actual declared durable provider**. Do not infer that proof from reference-only persistence, an in-session copy or an opaque ref alone.

@@ -84,12 +84,15 @@ Conceptually:
 RAW OWNER IDEA
 → Liaison sensemaking / orientation
 → Project Formation / Foundation when project formation is intended
-→ PROJECT_SEED / outcome / consequential unknowns
-→ Owner Foundation Gate
+→ PROJECT_SEED / PROJECT_OUTCOME / CONSEQUENTIAL_UNKNOWN_MAP
+→ TOPOLOGY_PLAN / PROJECT_TOPOLOGY_BOOTSTRAP
+→ independent durable readback + cold-start navigation proof
+→ FOUNDATION_READY_FOR_OWNER_GATE (not Owner approval)
+→ explicit Owner Foundation Gate
 → governed Canon formation
 ```
 
-Foundation materialization is owned separately under #53. This bootstrap only establishes the cognitive/routing boundary.
+Foundation V0 is registered as available in `SYSTEM_MANIFEST.yaml`; its governed formation and topology implementation remain under #53. This bootstrap only establishes the cognitive/routing boundary: it does not materialize the project, approve the Owner Foundation Gate, or imply live-provider readback.
 
 ## Manual V0 example
 
