@@ -16,6 +16,8 @@
 ## Files reviewed
 
 - TODO
+- Documentation delta: updated paths / NO_DOCUMENTATION_IMPACT / BLOCKED
+- In-scope retirement (where authorized): removed paths / NOT_APPLICABLE / BLOCKED
 
 ## Verification
 
