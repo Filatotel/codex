@@ -67,12 +67,16 @@ Do not create a new verifier or control engine. Software review supplies domain-
 | SEO | Did canonical, robots, sitemap, title, or service/location metadata regress? |
 | Accessibility | Are labels, focus states, contrast, and tap targets still sane? |
 | Workflow files | Were `AGENTS.md`, `.agents/skills/`, `templates/`, or scripts deleted or rewritten casually? |
+| Documentation delta | Do the touched active docs still describe the approved behavior, contracts, and operating procedure after this change? |
 
 ## Procedure
 
 1. Read the task goal and acceptance criteria.
 2. List changed files and classify the change: docs, UI, API, config, deployment, analytics, data, or mixed.
 3. Inspect the diff for unrelated changes.
+   - Identify existing authoritative documents governing the changed behavior; compare only the impacted assertions with the approved Issue/Owner/Canon target and exact diff.
+   - If the change renders a governing statement stale, require its replacement/removal in this PR before merge-ready. If nothing is affected, record `NO_DOCUMENTATION_IMPACT` (no docs edit required).
+   - Do not expand the task to unrelated stale docs, create parallel current documents, or let actual code silently rewrite Owner/Canon authority.
 4. Run or confirm the relevant verification commands.
 5. Apply the risk checklist only to areas touched by the diff.
 6. Record blockers, warnings, and non-blocking suggestions separately.
@@ -136,6 +140,7 @@ Avoid:
 - Verification:
 - Blockers:
 - Warnings:
+- Documentation delta: updated paths / NO_DOCUMENTATION_IMPACT / BLOCKED (reason)
 - Product-specific risks:
 - Recommended next action:
 ```

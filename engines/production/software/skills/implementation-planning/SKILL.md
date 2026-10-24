@@ -28,6 +28,7 @@ Do not use this skill for tiny single-file edits where ownership, dependency, an
 - requested outcome;
 - current repository/system state;
 - relevant contracts and existing implementation;
+- existing authoritative operational documents governing the touched scope (when any);
 - likely dependencies and owners;
 - known risks;
 - available verification paths.
@@ -42,6 +43,7 @@ A plan should include:
 - non-goals;
 - dependencies and dependency type;
 - likely files/systems touched;
+- documentation impact for existing governing documents (affected paths or `NONE`);
 - high-risk areas;
 - implementation phases;
 - acceptance criteria;

@@ -54,6 +54,10 @@ Global skill library, unrelated engines, verifier narrative used as a substitute
 
 Before admitting a PR review/promotion, classify the real diff impact V1 (local technical), V2 (business contract), V3 (foundation/architecture), or V4 (migration/replacement/destructive transition). Source required business outcomes from the governing Issue and approved Owner/Canon target, never the PR's own implementation narrative. For V2–V4, bind a structured `transition_authority.review_gate` containing the governing Issue reference, independent business-outcome claim, and the additional target/progress or transition claims appropriate to the tier. A staged foundation can satisfy a limited governed dependency, not the overall project outcome. Independent Verification must confirm every required elevated claim before a COMPLETE promotion baton. Do not invent Owner/Canon authority; honor existing Owner decisions and escalate only genuinely new decisions.
 
+### Change-bound documentation closure (Software)
+
+When an authorized Software change makes existing governing operational docs inaccurate, include the necessary bounded documentation reconciliation in the **same** implementation/PR acceptance obligations. Consume the executor's updated-paths or `NO_DOCUMENTATION_IMPACT` result and the Software pre-merge review; do not declare `COMPLETE` or merge-ready while a change-caused active-document contradiction remains unresolved. Independent Verification proves the claim where required by the assignment. Do not demand documentation edits for unaffected microfixes, audit unrelated docs, reopen existing Owner decisions, or infer Canon mutation from implementation. Canon synchronization remains governed by Canon Engine and existing Owner authority.
+
 ### Structured post-spawn transition authority
 
 The production post-spawn composition surface is
